@@ -81,7 +81,7 @@ export default function Home() {
           desc={t('home.play_ai_desc')} 
           icon={Bot} 
           colorClass="bg-green-500" 
-          onClick={() => navigate('/play-ai')} 
+          onClick={() => navigate('/select-bot')} 
         />
         <Widget 
           title={t('home.play_online')} 

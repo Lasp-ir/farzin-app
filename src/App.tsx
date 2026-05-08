@@ -30,25 +30,12 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {/* Container اصلی برنامه با رنگ پس‌زمینه ثابت 
-        تا در زمان جابجایی بین صفحات، پرش رنگی نداشته باشیم
-      */}
       <div className="min-h-screen bg-gray-900 text-white selection:bg-blue-500/30">
         <Routes>
-          {/* صفحه شروع و بررسی وضعیت لاگین */}
           <Route path="/" element={<Splash />} />
-          
-          {/* صفحه احراز هویت (ورود/ثبت‌نام) */}
           <Route path="/auth" element={<Auth />} />
-          
-          {/* داشبورد اصلی اپلیکیشن */}
           <Route path="/home" element={<Home />} />
-          
-          <Route path="/play-ai" element={<PlayAI />
-
-          {/* در اینجا می‌توانید صفحات دیگر مثل /play یا /analysis را 
-            در آینده اضافه کنید
-          */}
+          <Route path="/play-ai" element={<PlayAI />} /> {/* <--- اضافه‌شده */}
         </Routes>
       </div>
     </BrowserRouter>
