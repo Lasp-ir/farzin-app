@@ -59,7 +59,7 @@ export default function Home() {
         </div>
         <div className="flex gap-3">
           <button className="p-2 bg-gray-800 rounded-full hover:bg-gray-700"><Bell size={20} /></button>
-          <button className="p-2 bg-gray-800 rounded-full hover:bg-gray-700"><Settings size={20} /></button>
+          <button onClick={() => navigate('/settings')} className="p-2 bg-gray-800 rounded-full hover:bg-gray-700"><Settings size={20} /></button>
         </div>
       </div>
 

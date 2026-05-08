@@ -1,34 +1,9 @@
 ﻿{
   "translation": {
     "app_name": "Farzin",
-    "splash": {
-      "loading": "Loading...",
-      "welcome": "Welcome to Farzin App"
-    },
-    "auth": {
-      "login_title": "Login to your account",
-      "google_login": "Login with Google",
-      "email_login": "Login with Email",
-      "register_prompt": "Don't have an account? Register"
-    },
-    "home": {
-      "greeting": "Welcome back, Master!",
-      "banner_title": "New Farzin Update is Live",
-      "banner_desc": "New human-like bots with higher accuracy",
-      "play_ai": "Play vs AI",
-      "play_ai_desc": "Human behavior emulator",
-      "play_online": "Play Online",
-      "play_online_desc": "Fast matchmaking on Lichess",
-      "puzzles": "Custom Puzzles",
-      "puzzles_desc": "Extracted from your games",
-      "analysis": "Deep Analysis",
-      "analysis_desc": "Powered by Python Engine",
-      "latest_game": "Games Archive",
-      "latest_game_desc": "Manage & Review",
-      "request_profile": "Request Profile",
-      "request_profile_desc": "Build a custom clone",
-      "premium": "PRO",
-      "logout": "Logout"
-    }
+    "splash": { "loading": "Loading...", "welcome": "Welcome to Farzin App" },
+    "auth": { "login_title": "Login to your account", "google_login": "Login with Google", "email_login": "Login with Email", "register_prompt": "Don't have an account? Register" },
+    "home": { "greeting": "Welcome back, Master!", "banner_title": "New Farzin Update is Live", "banner_desc": "New human-like bots with higher accuracy", "play_ai": "Play vs AI", "play_ai_desc": "Human behavior emulator", "play_online": "Play Online", "play_online_desc": "Fast matchmaking on Lichess", "puzzles": "Custom Puzzles", "puzzles_desc": "Extracted from your games", "analysis": "Deep Analysis", "analysis_desc": "Powered by Python Engine", "latest_game": "Games Archive", "latest_game_desc": "Manage & Review", "request_profile": "Request Profile", "request_profile_desc": "Build a custom clone", "premium": "PRO", "logout": "Logout" },
+    "settings": { "title": "Settings", "account": "Account", "connect_lichess": "Connect Lichess ID", "connect_chesscom": "Connect Chess.com ID", "preferences": "Preferences", "language": "App Language", "board_theme": "Board Theme", "engine_settings": "Farzin Engine Settings", "about": "About App", "send_feedback": "Send Feedback", "logout": "Log Out" }
   }
 }

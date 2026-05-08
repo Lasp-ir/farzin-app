@@ -7,6 +7,8 @@ import Splash from './pages/Splash';
 import Auth from './pages/Auth';
 import Home from './pages/Home';
 import PlayAI from './pages/PlayAI';
+import BotSelection from './pages/BotSelection';
+import Settings from './pages/Settings';
 
 export default function App() {
   const { i18n } = useTranslation();
@@ -35,7 +37,9 @@ export default function App() {
           <Route path="/" element={<Splash />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/home" element={<Home />} />
-          <Route path="/play-ai" element={<PlayAI />} /> {/* <--- اضافه‌شده */}
+          <Route path="/play-ai" element={<PlayAI />} />
+          <Route path="/select-bot" element={<BotSelection />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
     </BrowserRouter>
