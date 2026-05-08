@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import Splash from './pages/Splash';
 import Auth from './pages/Auth';
 import Home from './pages/Home';
+import PlayAI from './pages/PlayAI';
 
 export default function App() {
   const { i18n } = useTranslation();
@@ -43,6 +44,8 @@ export default function App() {
           {/* داشبورد اصلی اپلیکیشن */}
           <Route path="/home" element={<Home />} />
           
+          <Route path="/play-ai" element={<PlayAI />
+
           {/* در اینجا می‌توانید صفحات دیگر مثل /play یا /analysis را 
             در آینده اضافه کنید
           */}
