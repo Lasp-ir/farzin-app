@@ -8,7 +8,7 @@ import {
 
 export default function Home() {
   const { t } = useTranslation();
-  const { logout, userTier } = useAuthStore();
+  const { logout, userTier, openPaywall } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -105,6 +105,7 @@ export default function Home() {
           colorClass="bg-amber-500" 
           onClick={() => navigate('/puzzles')}
           isPremium={true} 
+          onClick={isLocked ? () => openPaywall() : onClick}
         />
         <Widget 
           title={t('home.analysis')} 
@@ -112,6 +113,7 @@ export default function Home() {
           icon={LineChart} 
           colorClass="bg-rose-500" 
           isPremium={true} 
+          onClick={isLocked ? () => openPaywall() : onClick}
         />
         <Widget 
           title={t('home.request_profile')} 
@@ -119,6 +121,7 @@ export default function Home() {
           icon={UserPlus} 
           colorClass="bg-teal-500" 
           isPremium={true} 
+          onClick={isLocked ? () => openPaywall() : onClick}
         />
         <Widget 
           title="آکادمی آموزش" 
