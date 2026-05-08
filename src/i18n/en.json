@@ -12,11 +12,23 @@
       "register_prompt": "Don't have an account? Register"
     },
     "home": {
-      "title": "Main Dashboard",
-      "play_ai": "Quick Play with AI",
-      "play_online": "Play Online (Lichess)",
+      "greeting": "Welcome back, Master!",
+      "banner_title": "New Farzin Update is Live",
+      "banner_desc": "New human-like bots with higher accuracy",
+      "play_ai": "Play vs AI",
+      "play_ai_desc": "Human behavior emulator",
+      "play_online": "Play Online",
+      "play_online_desc": "Fast matchmaking on Lichess",
       "puzzles": "Custom Puzzles",
-      "analysis": "Analysis Board"
+      "puzzles_desc": "Extracted from your games",
+      "analysis": "Deep Analysis",
+      "analysis_desc": "Powered by Python Engine",
+      "latest_game": "Games Archive",
+      "latest_game_desc": "Manage & Review",
+      "request_profile": "Request Profile",
+      "request_profile_desc": "Build a custom clone",
+      "premium": "PRO",
+      "logout": "Logout"
     }
   }
 }
