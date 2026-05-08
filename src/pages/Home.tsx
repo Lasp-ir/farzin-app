@@ -94,6 +94,7 @@ export default function Home() {
           desc={t('home.latest_game_desc')} 
           icon={History} 
           colorClass="bg-purple-500" 
+          onClick={() => navigate('/archive')}
         />
 
         {/* بخش‌های ویژه (Premium) */}

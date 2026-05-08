@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import PlayAI from './pages/PlayAI';
 import BotSelection from './pages/BotSelection';
 import Settings from './pages/Settings';
+import Archive from './pages/Archive';
 
 export default function App() {
   const { i18n } = useTranslation();
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/play-ai" element={<PlayAI />} />
           <Route path="/select-bot" element={<BotSelection />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/archive" element={<Archive />} />
         </Routes>
       </div>
     </BrowserRouter>
