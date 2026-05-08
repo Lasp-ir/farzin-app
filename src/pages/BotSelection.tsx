@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/useAuthStore';
 export default function BotSelection() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { userTier } = useAuthStore();
+  const { userTier, openPaywall } = useAuthStore();
 
   // لیست آزمایشی شبیه‌سازها (بعداً این لیست از دیتابیس/API خوانده می‌شود)
   const bots = [
@@ -18,7 +18,7 @@ export default function BotSelection() {
 
   const handlePlay = (bot: any) => {
     if (bot.type === 'PREMIUM' && userTier === 'FREE') {
-      alert('این شبیه‌ساز ویژه است. لطفا اشتراک خود را ارتقا دهید!');
+      openPaywall();
       return;
     }
     // اگر مجاز بود، او را به صفحه بازی (با اطلاعات ربات) بفرست

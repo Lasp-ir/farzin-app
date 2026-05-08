@@ -6,7 +6,7 @@ import { ArrowRight, ArrowLeft, BookOpen, PlayCircle, Lock, CheckCircle } from '
 export default function Education() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
-  const { userTier } = useAuthStore();
+  const { userTier, openPaywall } = useAuthStore();
 
   const courses = [
     { id: 1, title: 'اصول شروع بازی', level: 'مبتدی', duration: '۴۵ دقیقه', premium: false, progress: 100 },
@@ -36,7 +36,7 @@ export default function Education() {
             return (
               <div 
                 key={course.id}
-                onClick={isLocked ? () => alert('این دوره ویژه اعضای Premium است!') : () => alert('پخش ویدیو')}
+                onClick={isLocked ? openPaywall : () => alert('پخش ویدیو')}
                 className={`relative overflow-hidden rounded-2xl border transition-all cursor-pointer
                   ${isLocked ? 'bg-gray-800/60 border-gray-700/50' : 'bg-gray-800 border-gray-600 hover:border-blue-500 shadow-lg'}
                 `}

@@ -6,7 +6,7 @@ import { ArrowRight, ArrowLeft, Play, Lock, Star, Target, Flame } from 'lucide-r
 export default function Puzzles() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
-  const { userTier } = useAuthStore();
+  const { userTier, openPaywall } = useAuthStore();
 
   const themes = [
     { id: 1, name: 'مات در ۲ حرکت', count: 120, premium: false },
@@ -56,7 +56,7 @@ export default function Puzzles() {
             return (
               <div 
                 key={theme.id}
-                onClick={isLocked ? () => alert('لطفاً حساب خود را ارتقا دهید!') : () => alert('ورود به پازل')}
+                onClick={isLocked ? openPaywall : () => alert('ورود به پازل')}
                 className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer
                   ${isLocked ? 'bg-gray-800/50 border-gray-700/50' : 'bg-gray-800 border-gray-600 hover:border-amber-500 shadow-md'}
                 `}

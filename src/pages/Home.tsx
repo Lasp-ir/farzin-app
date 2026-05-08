@@ -22,7 +22,7 @@ export default function Home() {
 
     return (
       <div 
-        onClick={isLocked ? () => alert('نمایش پاپ‌آپ خرید اشتراک ویژه!') : onClick}
+        onClick={isLocked ? openPaywall : onClick}
         className={`relative flex items-center p-4 rounded-2xl cursor-pointer transition-all duration-200 shadow-lg border border-gray-700/50 hover:border-gray-500 overflow-hidden ${isLocked ? 'bg-gray-800/50 opacity-80' : 'bg-gray-800'}`}
       >
         <div className={`p-3 rounded-xl mr-4 ml-4 ${colorClass}`}>
@@ -104,8 +104,7 @@ export default function Home() {
           icon={Puzzle} 
           colorClass="bg-amber-500" 
           onClick={() => navigate('/puzzles')}
-          isPremium={true} 
-          onClick={isLocked ? () => openPaywall() : onClick}
+          isPremium={true}
         />
         <Widget 
           title={t('home.analysis')} 
@@ -113,15 +112,13 @@ export default function Home() {
           icon={LineChart} 
           colorClass="bg-rose-500" 
           isPremium={true} 
-          onClick={isLocked ? () => openPaywall() : onClick}
         />
         <Widget 
           title={t('home.request_profile')} 
           desc={t('home.request_profile_desc')} 
           icon={UserPlus} 
           colorClass="bg-teal-500" 
-          isPremium={true} 
-          onClick={isLocked ? () => openPaywall() : onClick}
+          isPremium={true}
         />
         <Widget 
           title="آکادمی آموزش" 
