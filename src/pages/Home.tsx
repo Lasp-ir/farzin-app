@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { 
   Bot, Globe, Puzzle, LineChart, 
-  History, UserPlus, LogOut, Lock, Bell, Settings
+  History, UserPlus, LogOut, Lock, Bell, Settings, BookOpen
 } from 'lucide-react';
 
 export default function Home() {
@@ -103,6 +103,7 @@ export default function Home() {
           desc={t('home.puzzles_desc')} 
           icon={Puzzle} 
           colorClass="bg-amber-500" 
+          onClick={() => navigate('/puzzles')}
           isPremium={true} 
         />
         <Widget 
@@ -118,6 +119,13 @@ export default function Home() {
           icon={UserPlus} 
           colorClass="bg-teal-500" 
           isPremium={true} 
+        />
+        <Widget 
+          title="آکادمی آموزش" 
+          desc="ویدیوها و دوره‌ها" 
+          icon={BookOpen} 
+          colorClass="bg-indigo-500" 
+          onClick={() => navigate('/education')} 
         />
       </div>
 
