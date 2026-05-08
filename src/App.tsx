@@ -5,24 +5,32 @@ import { Chessboard } from 'react-chessboard';
 function App() {
   const [game, setGame] = useState(new Chess());
 
-  function makeAMove(move: { from: string; to: string; promotion?: string }) {
+  // با قرار دادن any، خطای تایپ‌اسکریپت react-chessboard در VS Code برطرف می‌شود
+  function onDrop(sourceSquare: any, targetSquare: any) {
     const gameCopy = new Chess(game.fen());
+    
+    // پیدا کردن مهره‌ای که کاربر کشیده است
+    const piece = gameCopy.get(sourceSquare);
+    
+    // تشخیص اینکه آیا این حرکت، ارتقاء یک سرباز به خانه آخر است یا خیر؟
+    const isPromotion = piece && piece.type === 'p' && 
+                       ((piece.color === 'w' && targetSquare.charAt(1) === '8') || 
+                        (piece.color === 'b' && targetSquare.charAt(1) === '1'));
+    
     try {
-      const result = gameCopy.move(move);
+      // انجام حرکت به صورت کاملا ایمن
+      gameCopy.move({
+        from: sourceSquare,
+        to: targetSquare,
+        ...(isPromotion && { promotion: 'q' }) // پارامتر ارتقاء فقط در صورت نیاز ارسال می‌شود
+      });
+      
       setGame(gameCopy);
-      return result;
+      return true; // حرکت موفق بود
     } catch (e) {
-      return null;
+      // حرکت غیرقانونی است (مثل حرکت دادن فیل در مسیر مستقیم)
+      return false; 
     }
-  }
-
-  function onDrop(sourceSquare: string, targetSquare: string) {
-    const move = makeAMove({
-      from: sourceSquare,
-      to: targetSquare,
-      promotion: 'q',
-    });
-    return move !== null;
   }
 
   return (
