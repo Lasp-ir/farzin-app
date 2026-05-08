@@ -1,0 +1,22 @@
+﻿{
+  "translation": {
+    "app_name": "Farzin",
+    "splash": {
+      "loading": "Loading...",
+      "welcome": "Welcome to Farzin App"
+    },
+    "auth": {
+      "login_title": "Login to your account",
+      "google_login": "Login with Google",
+      "email_login": "Login with Email",
+      "register_prompt": "Don't have an account? Register"
+    },
+    "home": {
+      "title": "Main Dashboard",
+      "play_ai": "Quick Play with AI",
+      "play_online": "Play Online (Lichess)",
+      "puzzles": "Custom Puzzles",
+      "analysis": "Analysis Board"
+    }
+  }
+}
