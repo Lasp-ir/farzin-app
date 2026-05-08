@@ -16,24 +16,24 @@ export default function Home() {
     navigate('/');
   };
 
-  // یک کامپوننت داخلی برای ساخت ویجتها تا کدمان تمیز بماند
+  // کامپوننت داخلی ویجت
   const Widget = ({ title, desc, icon: Icon, isPremium, colorClass, onClick }: any) => {
     const isLocked = isPremium && userTier === 'FREE';
 
     return (
       <div 
-        onClick={isLocked ? () => alert('نمایش پاپآپ خرید اشتراک ویه!') : onClick}
-        className={elative flex items-center p-4 rounded-2xl cursor-pointer transition-all duration-200 shadow-lg border border-gray-700/50 hover:border-gray-500 overflow-hidden }
+        onClick={isLocked ? () => alert('نمایش پاپ‌آپ خرید اشتراک ویژه!') : onClick}
+        className={`relative flex items-center p-4 rounded-2xl cursor-pointer transition-all duration-200 shadow-lg border border-gray-700/50 hover:border-gray-500 overflow-hidden ${isLocked ? 'bg-gray-800/50 opacity-80' : 'bg-gray-800'}`}
       >
-        <div className={p-3 rounded-xl mr-4 ml-4 }>
+        <div className={`p-3 rounded-xl mr-4 ml-4 ${colorClass}`}>
           <Icon size={24} className="text-white" />
         </div>
         <div className="flex-1">
-          <h3 className={ont-bold text-lg }>{title}</h3>
+          <h3 className={`font-bold text-lg ${isLocked ? 'text-gray-400' : 'text-gray-100'}`}>{title}</h3>
           <p className="text-sm text-gray-400 mt-1">{desc}</p>
         </div>
         
-        {/* نشانگر ویه بودن بخش */}
+        {/* نشانگر پریمیوم */}
         {isPremium && (
           <div className="absolute top-0 ltr:right-0 rtl:left-0 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-bl-xl rounded-br-none rtl:rounded-br-xl rtl:rounded-bl-none shadow-md flex items-center gap-1">
             {isLocked ? <Lock size={12} className="text-white" /> : null}
@@ -70,13 +70,12 @@ export default function Home() {
           <h2 className="text-2xl font-bold mb-1">{t('home.banner_title')}</h2>
           <p className="text-blue-200 text-sm">{t('home.banner_desc')}</p>
         </div>
-        {/* یک المان گرافیکی بکگراند بنر */}
         <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-500/20 rounded-full blur-2xl"></div>
       </div>
 
-      {/* گرید ویجتها */}
+      {/* گرید ویجت‌ها */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* بخشهای رایگان */}
+        {/* بخش‌های رایگان */}
         <Widget 
           title={t('home.play_ai')} 
           desc={t('home.play_ai_desc')} 
@@ -97,7 +96,7 @@ export default function Home() {
           colorClass="bg-purple-500" 
         />
 
-        {/* بخشهای ویه (Premium) */}
+        {/* بخش‌های ویژه (Premium) */}
         <Widget 
           title={t('home.puzzles')} 
           desc={t('home.puzzles_desc')} 
