@@ -24,7 +24,6 @@ export default function PlayAI() {
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
   
-  // استیت برای مدیریت کلیک‌ها
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
@@ -70,7 +69,9 @@ export default function PlayAI() {
 
   const makeMove = (movePayload: any) => {
     try {
-      const gameCopy = new Chess(game.fen());
+      // 🔥 تغییر مهم اینجاست: به جای FEN از PGN استفاده می‌کنیم تا کل تاریخچه حرکات حفظ بشه
+      const gameCopy = new Chess();
+      gameCopy.loadPgn(game.pgn());
       const result = gameCopy.move(movePayload);
       
       if (result) {
@@ -100,7 +101,6 @@ export default function PlayAI() {
     return false;
   };
 
-  // 🔥 گرافیک بی‌نقص و مشابه لیچس برای خانه‌های مجاز
   const highlightLegalMoves = (sourceSquare: string) => {
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
     if (moves.length === 0) return;
@@ -109,13 +109,11 @@ export default function PlayAI() {
     moves.forEach((m: any) => {
       const isCapture = game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color;
       newSquares[m.to] = {
-        // برای زدن: یک حلقه (رینگ) دور مهره | برای حرکت عادی: یک نقطه توپر وسط خانه
         backgroundImage: isCapture
             ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.2) 67%, rgba(0,0,0,0.2) 100%)' 
             : 'radial-gradient(circle, rgba(0,0,0,.2) 22%, transparent 23%)',
       };
     });
-    // خونه‌ای که انتخاب شده زرد میشه
     newSquares[sourceSquare] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
     setOptionSquares(newSquares);
   };
@@ -151,11 +149,9 @@ export default function PlayAI() {
     return success;
   };
 
-  // 🔥 سیستم کلیک یکپارچه (هم برای مهره‌ها هم برای خانه‌های خالی)
   const handleSquareClick = (square: string) => {
     if (!isPlayerTurn || gameOver || isViewingHistory || customPromotion) return;
 
-    // اگر کاربر دوباره روی همون مهره کلیک کرد (لغو انتخاب)
     if (clickedSquare === square) {
        setClickedSquare(null);
        setOptionSquares({});
@@ -181,7 +177,6 @@ export default function PlayAI() {
       }
     }
 
-    // انتخاب یک مهره جدید برای حرکت
     const pieceOnSquare = game.get(square as any);
     if (pieceOnSquare && pieceOnSquare.color === game.turn()) {
       setClickedSquare(square);
@@ -243,6 +238,7 @@ export default function PlayAI() {
   const handleResign = () => { if (!gameOver) handleGameOver('resign', 'black'); };
   const handleDraw = () => { if (!gameOver) handleGameOver('draw_agreed', null); };
 
+  // استخراج تاریخچه با تابع اصلی
   const history = game.history();
   const movePairs = [];
   for (let i = 0; i < history.length; i += 2) {
@@ -297,7 +293,7 @@ export default function PlayAI() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
+    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" onClick={cancelPromotion}>
       
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
@@ -328,11 +324,8 @@ export default function PlayAI() {
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
                   onPieceDragBegin={onPieceDragBegin}
-                  
-                  // 🔥 کلید کار اینجاست: هم کلیک روی مهره و هم خانه را هدایت می‌کنیم
                   onSquareClick={handleSquareClick}
                   onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
-                  
                   boardOrientation={boardOrientation}
                   customSquareStyles={{ ...moveSquares, ...optionSquares }}
                   animationDuration={200}
