@@ -24,6 +24,7 @@ export default function PlayAI() {
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
   
+  // استیت برای مدیریت کلیک‌ها
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
@@ -69,7 +70,7 @@ export default function PlayAI() {
 
   const makeMove = (movePayload: any) => {
     try {
-      // 🔥 تغییر مهم اینجاست: به جای FEN از PGN استفاده می‌کنیم تا کل تاریخچه حرکات حفظ بشه
+      // استفاده از PGN برای حفظ کامل تاریخچه حرکت‌ها
       const gameCopy = new Chess();
       gameCopy.loadPgn(game.pgn());
       const result = gameCopy.move(movePayload);
@@ -149,15 +150,18 @@ export default function PlayAI() {
     return success;
   };
 
+  // 🔥 سیستم کلیک‌محور کاملاً اصلاح شده بدون باگِ Bubbling
   const handleSquareClick = (square: string) => {
     if (!isPlayerTurn || gameOver || isViewingHistory || customPromotion) return;
 
+    // لغو انتخاب در صورت کلیک مجدد روی همون مهره
     if (clickedSquare === square) {
        setClickedSquare(null);
        setOptionSquares({});
        return;
     }
 
+    // اگه قبلاً مهره‌ای انتخاب شده بود، تلاش برای حرکت
     if (clickedSquare) {
       const moves = game.moves({ square: clickedSquare as any, verbose: true });
       const move = moves.find(m => m.to === square);
@@ -177,11 +181,13 @@ export default function PlayAI() {
       }
     }
 
+    // انتخاب مهره جدید
     const pieceOnSquare = game.get(square as any);
     if (pieceOnSquare && pieceOnSquare.color === game.turn()) {
       setClickedSquare(square);
       highlightLegalMoves(square);
     } else {
+      // کلیک روی جای خالی یا مهره حریف (وقتی مهره‌ای از قبل انتخاب نشده)
       setClickedSquare(null);
       setOptionSquares({});
     }
@@ -209,10 +215,6 @@ export default function PlayAI() {
 
       if (success) setIsPlayerTurn(false);
     }
-    cancelPromotion();
-  };
-
-  const cancelPromotion = () => {
     setCustomPromotion(null);
     setClickedSquare(null);
     setOptionSquares({});
@@ -238,7 +240,6 @@ export default function PlayAI() {
   const handleResign = () => { if (!gameOver) handleGameOver('resign', 'black'); };
   const handleDraw = () => { if (!gameOver) handleGameOver('draw_agreed', null); };
 
-  // استخراج تاریخچه با تابع اصلی
   const history = game.history();
   const movePairs = [];
   for (let i = 0; i < history.length; i += 2) {
@@ -293,7 +294,13 @@ export default function PlayAI() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" onClick={cancelPromotion}>
+    <div 
+      className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" 
+      onClick={() => { 
+        // 🔥 حل مشکل حباب رویدادها (Bubbling): فقط پاپ‌آپ رو می‌بنده و مهره رو از حالت انتخاب در نمیاره
+        if (customPromotion) setCustomPromotion(null); 
+      }}
+    >
       
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
