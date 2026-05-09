@@ -24,8 +24,10 @@ export default function PlayAI() {
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
   
-  // استیت برای مدیریت کلیک‌ها
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
+  
+  // 🔥 استیت قدرتمند برای پیش‌حرکت (Premove)
+  const [premove, setPremove] = useState<{from: string, to: string} | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
@@ -33,6 +35,7 @@ export default function PlayAI() {
   const [customPromotion, setCustomPromotion] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
+  const playerColor = boardOrientation === 'white' ? 'w' : 'b';
 
   const pieceSvgs: Record<string, Record<string, string>> = {
     w: {
@@ -70,7 +73,6 @@ export default function PlayAI() {
 
   const makeMove = (movePayload: any) => {
     try {
-      // استفاده از PGN برای حفظ کامل تاریخچه حرکت‌ها
       const gameCopy = new Chess();
       gameCopy.loadPgn(game.pgn());
       const result = gameCopy.move(movePayload);
@@ -102,6 +104,26 @@ export default function PlayAI() {
     return false;
   };
 
+  // 🔥 موتور اجرای Premove
+  // به محض اینکه نوبت شما بشه و Premove داشته باشی، تو کسری از ثانیه اجراش می‌کنه
+  useEffect(() => {
+    if (isPlayerTurn && premove && !gameOver && !isViewingHistory) {
+      const moves = game.moves({ verbose: true });
+      const move = moves.find(m => m.from === premove.from && m.to === premove.to);
+      
+      if (move) {
+        const success = makeMove({
+          from: premove.from,
+          to: premove.to,
+          promotion: move.promotion ? 'q' : undefined // پیش‌حرکت ارتقا اتوماتیک وزیر میشه
+        });
+        if (success) setIsPlayerTurn(false);
+      }
+      setPremove(null);
+      setOptionSquares({});
+    }
+  }, [isPlayerTurn, game, premove, gameOver, isViewingHistory]);
+
   const highlightLegalMoves = (sourceSquare: string) => {
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
     if (moves.length === 0) return;
@@ -120,7 +142,17 @@ export default function PlayAI() {
   };
 
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (!isPlayerTurn || gameOver || isViewingHistory) return;
+    if (gameOver || isViewingHistory) return;
+    
+    // اگه نوبت رباته، فقط می‌تونی مهره خودت رو بگیری برای پیش‌حرکت
+    if (!isPlayerTurn) {
+      if (piece[0] === playerColor) {
+        setClickedSquare(sourceSquare);
+        setOptionSquares({ [sourceSquare]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } });
+      }
+      return;
+    }
+    
     setClickedSquare(sourceSquare);
     highlightLegalMoves(sourceSquare);
   };
@@ -129,9 +161,17 @@ export default function PlayAI() {
     setOptionSquares({}); 
     setClickedSquare(null);
 
-    if (!isPlayerTurn || gameOver || isViewingHistory) {
+    if (gameOver || isViewingHistory) {
       setViewIndex(fenHistory.length - 1);
       return false; 
+    }
+
+    // 🔥 ثبت Premove از طریق درگ کردن
+    if (!isPlayerTurn) {
+      if (piece[0] === playerColor) {
+        setPremove({ from: sourceSquare, to: targetSquare });
+      }
+      return false; // همیشه false برمی‌گردونه تا مهره برگرده سر جاش و خطای بصری نده
     }
 
     const moves = game.moves({ verbose: true });
@@ -150,18 +190,40 @@ export default function PlayAI() {
     return success;
   };
 
-  // 🔥 سیستم کلیک‌محور کاملاً اصلاح شده بدون باگِ Bubbling
   const handleSquareClick = (square: string) => {
-    if (!isPlayerTurn || gameOver || isViewingHistory || customPromotion) return;
+    if (gameOver || isViewingHistory || customPromotion) return;
 
-    // لغو انتخاب در صورت کلیک مجدد روی همون مهره
+    // 🔥 لغو Premove با یک کلیک ساده
+    if (premove) {
+      setPremove(null);
+      setClickedSquare(null);
+      setOptionSquares({});
+      return;
+    }
+
+    // 🔥 ثبت Premove از طریق کلیک کردن
+    if (!isPlayerTurn) {
+      if (clickedSquare) {
+        setPremove({ from: clickedSquare, to: square });
+        setClickedSquare(null);
+        setOptionSquares({});
+      } else {
+        const pieceOnSquare = game.get(square as any);
+        if (pieceOnSquare && pieceOnSquare.color === playerColor) {
+          setClickedSquare(square);
+          setOptionSquares({ [square]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } });
+        }
+      }
+      return;
+    }
+
+    // منطق کلیک برای حرکت‌های عادی
     if (clickedSquare === square) {
        setClickedSquare(null);
        setOptionSquares({});
        return;
     }
 
-    // اگه قبلاً مهره‌ای انتخاب شده بود، تلاش برای حرکت
     if (clickedSquare) {
       const moves = game.moves({ square: clickedSquare as any, verbose: true });
       const move = moves.find(m => m.to === square);
@@ -181,13 +243,11 @@ export default function PlayAI() {
       }
     }
 
-    // انتخاب مهره جدید
     const pieceOnSquare = game.get(square as any);
     if (pieceOnSquare && pieceOnSquare.color === game.turn()) {
       setClickedSquare(square);
       highlightLegalMoves(square);
     } else {
-      // کلیک روی جای خالی یا مهره حریف (وقتی مهره‌ای از قبل انتخاب نشده)
       setClickedSquare(null);
       setOptionSquares({});
     }
@@ -215,11 +275,16 @@ export default function PlayAI() {
 
       if (success) setIsPlayerTurn(false);
     }
+    cancelPromotion();
+  };
+
+  const cancelPromotion = () => {
     setCustomPromotion(null);
     setClickedSquare(null);
     setOptionSquares({});
   };
 
+  // شبیه‌سازی فکر کردن و حرکت ربات
   useEffect(() => {
     if (!isPlayerTurn && !gameOver && !customPromotion) {
       const thinkTime = opponent.accuracy === 'پایه' ? 1000 : 2500;
@@ -274,6 +339,12 @@ export default function PlayAI() {
     };
   };
 
+  // 🔥 استایل‌های رنگ قرمز Premove لیچس
+  const premoveStyles = premove ? {
+    [premove.from]: { backgroundColor: 'rgba(204, 51, 51, 0.6)' },
+    [premove.to]: { backgroundColor: 'rgba(204, 51, 51, 0.6)' }
+  } : {};
+
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
       <div className="flex items-center gap-2">
@@ -296,9 +367,13 @@ export default function PlayAI() {
   return (
     <div 
       className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" 
-      onClick={() => { 
-        // 🔥 حل مشکل حباب رویدادها (Bubbling): فقط پاپ‌آپ رو می‌بنده و مهره رو از حالت انتخاب در نمیاره
-        if (customPromotion) setCustomPromotion(null); 
+      onClick={() => { if (customPromotion) setCustomPromotion(null); }}
+      // 🔥 کنسل کردن پیش‌حرکت با کلیک راست در هر جای صفحه
+      onContextMenu={(e) => { 
+        e.preventDefault(); 
+        setPremove(null); 
+        setClickedSquare(null); 
+        setOptionSquares({}); 
       }}
     >
       
@@ -333,8 +408,15 @@ export default function PlayAI() {
                   onPieceDragBegin={onPieceDragBegin}
                   onSquareClick={handleSquareClick}
                   onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
+                  // 🔥 اضافه کردن کلیک‌راست روی تخته برای لغو Premove
+                  onSquareRightClick={() => {
+                    setPremove(null);
+                    setClickedSquare(null);
+                    setOptionSquares({});
+                  }}
                   boardOrientation={boardOrientation}
-                  customSquareStyles={{ ...moveSquares, ...optionSquares }}
+                  // 🔥 تزریق استایل‌های قرمز Premove
+                  customSquareStyles={{ ...moveSquares, ...optionSquares, ...premoveStyles }}
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
