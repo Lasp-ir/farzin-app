@@ -93,6 +93,7 @@ export default function PlayAI() {
         return true;
       }
     } catch (e) {
+      console.error("Move error:", e, move); 
       return false;
     }
     return false;
@@ -140,7 +141,7 @@ export default function PlayAI() {
     return false;
   };
 
-  // باگ دقیقاً اینجا بود! فیلد رنگ رو جدا کردیم و فقط مختصات رو دادیم
+  // 🐛 باگ دقیقاً اینجا فیکس شد! استخراج تمیز متغیرها برای جلوگیری از رد شدن حرکت توسط موتور
   const handlePromotionSelect = (pieceType: string) => {
     if (promotionMove) {
       const move = makeMove({ 
@@ -199,8 +200,8 @@ export default function PlayAI() {
       left: `${leftPercent}%`,
       [isTopEdge ? 'top' : 'bottom']: '0%',
       width: '12.5%',
-      height: '50%',
-      backgroundColor: '#f2f2f2',
+      height: '50%', 
+      backgroundColor: '#f2f2f2', 
       zIndex: 1000,
       display: 'flex',
       flexDirection: isTopEdge ? 'column' : 'column-reverse',
@@ -267,7 +268,7 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                  showPromotionDialog={false}
+                  showPromotionDialog={false} 
                 />
 
                 {promotionMove && (
