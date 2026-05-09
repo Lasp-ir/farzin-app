@@ -1,7 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-gray-900 text-white;
+@layer base {
+  body {
+    @apply bg-farzin-bg text-zinc-200 antialiased overflow-x-hidden selection:bg-farzin-accent/30;
+    font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif !important;
+    direction: rtl; 
+    
+    /* 🔥 بافت شبکه‌ای ظریف (Dot Grid Texture) */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
+    background-size: 28px 28px;
+  }
+
+  /* 🔥 افکت سایه دور صفحه (Vignette) برای تمرکز روی مرکز */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 20%, #161512 120%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* اسکرول‌بار مدرن و نامرئی */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-[#35332e] rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-[#45433e]; }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-farzin-panel/90 backdrop-blur-xl border border-farzin-border shadow-2xl;
+  }
+  
+  .ai-glow {
+    @apply shadow-[0_0_15px_rgba(119,149,86,0.15)] transition-all duration-300;
+  }
+  
+  .ai-glow:hover {
+    @apply shadow-[0_0_30px_rgba(119,149,86,0.3)] border-farzin-accent/50 transform -translate-y-1;
+  }
 }
