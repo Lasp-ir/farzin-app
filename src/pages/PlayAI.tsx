@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Flag, Handshake, Trophy, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Flag, Handshake, Trophy, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw, Cpu } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const Board = Chessboard as any;
 
 const pieceChars: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 
-// 🔥 لود کردن فایل‌های صوتی باکیفیت (مستقیم از سرورهای شطرنج)
 const sounds = {
   move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
   capture: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3'),
@@ -18,10 +17,9 @@ const sounds = {
   promote: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/promote.mp3'),
 };
 
-// تابع کمکی برای پخش صدا بدون تداخل
 const playSound = (type: keyof typeof sounds) => {
   const audio = sounds[type];
-  audio.currentTime = 0; // ریست کردن صدا برای پخش پشت سر هم (مثل Premove)
+  audio.currentTime = 0;
   audio.play().catch(e => console.log('Audio blocked by browser:', e));
 };
 
@@ -30,7 +28,7 @@ export default function PlayAI() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const opponent = location.state?.selectedBot || { name: 'شبیه‌ساز (مبتدی)', rating: 1200, accuracy: 'پایه' };
+  const opponent = location.state?.selectedBot || { name: 'فرزین (آلفا)', rating: 1500, accuracy: 'پیشرفته' };
 
   const [game, setGame] = useState(new Chess());
   const [playerTime, setPlayerTime] = useState(600);
@@ -112,7 +110,6 @@ export default function PlayAI() {
         });
         setOptionSquares({});
 
-        // 🔥 منطق بی‌نقص صداگذاری
         if (gameCopy.isGameOver()) {
           if (gameCopy.isCheckmate()) handleGameOver('checkmate', gameCopy.turn() === 'w' ? 'black' : 'white');
           else handleGameOver('draw', null);
@@ -409,50 +406,53 @@ export default function PlayAI() {
   };
 
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy, capturedPieces, capturedColor, scoreAdvantage, isThinking }: any) => (
-    <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
+    <div className="flex-none flex items-center justify-between w-full py-3 px-2 relative z-10 transition-all duration-300">
       <div className="flex flex-col justify-center">
-        <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 rounded-sm flex items-center justify-center font-bold text-sm ${isOpponent ? 'bg-gray-700 text-gray-300' : 'bg-blue-600 text-white'}`}>
-             {name.charAt(0)}
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${isOpponent ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white' : 'bg-gradient-to-br from-zinc-700 to-zinc-800 text-white border border-zinc-700'}`}>
+             {isOpponent ? <Cpu size={20} /> : name.charAt(0)}
           </div>
-          <div className="font-bold text-gray-200 text-sm flex items-center gap-2 leading-none">
-            {name} <span className="text-gray-500 font-normal">{rating}</span>
-            {isOpponent && accuracy && accuracy !== 'پایه' && !isThinking && (
-               <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1 py-0.5 rounded border border-amber-500/30">PRO</span>
-            )}
-            {isThinking && (
-               <div className="flex items-center gap-[3px] ml-1 bg-[#2b2927] px-2 py-1.5 rounded-full border border-[#4a4740] shadow-sm h-[20px]">
-                  <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-1"></span>
-                  <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-2"></span>
-                  <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-3"></span>
-               </div>
-            )}
+          <div className="flex flex-col">
+            <div className="font-bold text-gray-100 text-[15px] flex items-center gap-2 leading-none">
+              {name} <span className="text-zinc-500 font-medium text-sm">{rating}</span>
+              {isOpponent && accuracy && accuracy !== 'پایه' && !isThinking && (
+                 <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-md border border-indigo-500/30 tracking-wider">PRO</span>
+              )}
+              {isThinking && (
+                 <div className="flex items-center gap-[3px] ml-1 bg-zinc-800/80 px-2 py-1.5 rounded-full border border-zinc-700/50 shadow-inner h-[20px]">
+                    <span className="w-1 h-1 bg-indigo-400 rounded-full dot-typing dot-1"></span>
+                    <span className="w-1 h-1 bg-indigo-400 rounded-full dot-typing dot-2"></span>
+                    <span className="w-1 h-1 bg-indigo-400 rounded-full dot-typing dot-3"></span>
+                 </div>
+              )}
+            </div>
+            
+            <div className="flex items-center h-[18px] mt-1.5">
+              {capturedPieces && capturedPieces.length > 0 && (
+                 <div className="flex items-center text-lg leading-none">
+                   {capturedPieces.map((piece: string, idx: number) => (
+                     <span 
+                       key={idx} 
+                       className={`${idx === 0 ? '' : '-ml-[6px]'}`}
+                       style={{
+                         color: capturedColor === 'w' ? '#f4f4f5' : '#18181b',
+                         WebkitTextStroke: capturedColor === 'w' ? '1px #3f3f46' : '1px #71717a',
+                         textShadow: '0px 2px 4px rgba(0,0,0,0.4)'
+                       }}
+                     >
+                       {pieceChars[piece]}
+                     </span>
+                   ))}
+                 </div>
+              )}
+              {scoreAdvantage > 0 && (
+                 <span className="text-xs text-emerald-500 font-bold ml-2 leading-none mt-1">+{scoreAdvantage}</span>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex items-center pl-10 h-[18px] mt-1">
-          {capturedPieces && capturedPieces.length > 0 && (
-             <div className="flex items-center text-lg leading-none">
-               {capturedPieces.map((piece: string, idx: number) => (
-                 <span 
-                   key={idx} 
-                   className={`${idx === 0 ? '' : '-ml-[5px]'}`}
-                   style={{
-                     color: capturedColor === 'w' ? '#fff' : '#1b1b1b',
-                     WebkitTextStroke: capturedColor === 'w' ? '1px #333' : '1px #666',
-                     textShadow: '0px 1px 1px rgba(0,0,0,0.5)'
-                   }}
-                 >
-                   {pieceChars[piece]}
-                 </span>
-               ))}
-             </div>
-          )}
-          {scoreAdvantage > 0 && (
-             <span className="text-[11px] text-[#779556] font-bold ml-1.5 leading-none mt-1">+{scoreAdvantage}</span>
-          )}
         </div>
       </div>
-      <div className={`text-2xl font-mono font-bold px-3 py-1 rounded transition-colors shadow-sm ${isActive && !isViewingHistory ? 'bg-gray-200 text-gray-900' : (time < 60 ? 'bg-red-500/20 text-red-400' : 'bg-[#262421] text-gray-400')}`}>
+      <div className={`text-2xl font-mono font-bold px-4 py-1.5 rounded-lg transition-all duration-300 shadow-inner ${isActive && !isViewingHistory ? 'bg-zinc-200 text-zinc-900 shadow-md scale-105' : (time < 60 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50')}`}>
         {formatTime(time)}
       </div>
     </div>
@@ -460,7 +460,7 @@ export default function PlayAI() {
 
   return (
     <div 
-      className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" 
+      className="flex flex-col h-screen bg-transparent text-gray-300 overflow-hidden font-sans relative"
       onClick={() => { if (customPromotion) setCustomPromotion(null); }}
       onContextMenu={(e) => { 
         e.preventDefault(); 
@@ -470,31 +470,42 @@ export default function PlayAI() {
       }}
     >
       <style>{`
+        @import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css');
+        
+        .font-sans {
+          font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif !important;
+        }
+
         @keyframes typing {
-          0%, 100% { transform: translateY(0); opacity: 0.4; }
+          0%, 100% { transform: translateY(0); opacity: 0.3; }
           50% { transform: translateY(-3px); opacity: 1; }
         }
-        .dot-typing { animation: typing 1.2s infinite ease-in-out; }
+        .dot-typing { animation: typing 1.4s infinite ease-in-out; }
         .dot-1 { animation-delay: 0ms; }
         .dot-2 { animation-delay: 200ms; }
         .dot-3 { animation-delay: 400ms; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
       `}</style>
       
-      <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
-        <div className="flex items-center gap-4">
-           <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
-             {i18n.language === 'fa' ? <ArrowRight size={24} /> : <ArrowLeft size={24} />}
+      <div className="flex-none h-16 flex items-center justify-between px-6 bg-[#18181b] border-b border-zinc-800/80 shadow-sm z-20">
+        <div className="flex items-center gap-5">
+           <button onClick={() => navigate(-1)} className="text-zinc-400 hover:text-white transition-colors p-1.5 hover:bg-zinc-800 rounded-lg">
+             {i18n.language === 'fa' ? <ArrowRight size={22} /> : <ArrowLeft size={22} />}
            </button>
            <div className="flex flex-col">
-             <span className="font-bold text-gray-200 text-sm leading-tight">کلاسیک</span>
-             <span className="text-xs text-gray-500">۱۰+۰ • دوستانه</span>
+             <span className="font-bold text-zinc-100 text-[15px] tracking-wide">کلاسیک</span>
+             <span className="text-[11px] text-zinc-500 font-medium">۱۰+۰ • دوستانه</span>
            </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2 lg:p-6 w-full max-w-[1200px] mx-auto gap-4 lg:gap-6 relative z-0">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-3 lg:p-6 w-full max-w-[1250px] mx-auto gap-5 lg:gap-8 relative z-0">
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
-          <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0">
+          <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0 justify-center">
             
             {isPlayerWhite ? (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...blackPlayerProps} />
@@ -502,8 +513,8 @@ export default function PlayAI() {
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...whitePlayerProps} />
             )}
             
-            <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
-              <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm border-[3px] border-[#35332e] z-0">
+            <div dir="ltr" className="w-full relative flex items-center justify-center z-0 my-1">
+              <div className="w-full aspect-square max-h-[70vh] relative shadow-2xl rounded-sm border-[4px] border-[#2A2926] z-0 overflow-hidden">
                 
                 <Board 
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
@@ -518,7 +529,7 @@ export default function PlayAI() {
                   }}
                   boardOrientation={boardOrientation}
                   customSquareStyles={{ ...moveSquares, ...optionSquares, ...premoveStyles }}
-                  animationDuration={200}
+                  animationDuration={250}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
                   autoPromoteToQueen={true} 
@@ -539,11 +550,11 @@ export default function PlayAI() {
                         }}
                         className="w-full h-1/4 flex items-center justify-center relative group cursor-pointer pointer-events-auto"
                       >
-                        <div className="absolute w-[90%] h-[90%] rounded-full bg-[#f2f2f2] shadow-[0_3px_10px_rgba(0,0,0,0.6)] group-hover:bg-white group-hover:scale-105 transition-all duration-150"></div>
+                        <div className="absolute w-[90%] h-[90%] rounded-full bg-zinc-100 shadow-[0_5px_15px_rgba(0,0,0,0.5)] group-hover:bg-white group-hover:scale-110 transition-all duration-200"></div>
                         <img 
                           src={pieceSvgs[customPromotion.color][type]} 
                           alt={type} 
-                          className="relative z-10 w-[85%] h-[85%] object-contain drop-shadow-sm pointer-events-none" 
+                          className="relative z-10 w-[85%] h-[85%] object-contain drop-shadow-md pointer-events-none" 
                           draggable={false} 
                         />
                       </button>
@@ -552,12 +563,13 @@ export default function PlayAI() {
                 )}
                 
                 {gameOver && (
-                  <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-300">
-                    <Trophy size={48} className={gameOver.winner === 'white' ? 'text-amber-400 mb-4' : 'text-gray-400 mb-4'} />
-                    <h2 className="text-3xl font-bold text-white mb-2">
-                      {gameOver.winner === 'white' ? 'شما بردید!' : gameOver.winner === 'black' ? 'ربات پیروز شد!' : 'تساوی!'}
+                  <div className="absolute inset-0 bg-zinc-900/80 backdrop-blur-md flex flex-col items-center justify-center z-20 animate-in fade-in zoom-in-95 duration-300">
+                    <Trophy size={56} className={gameOver.winner === 'white' ? 'text-amber-400 mb-5 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 'text-zinc-400 mb-5'} />
+                    <h2 className="text-4xl font-extrabold text-white mb-3 tracking-tight">
+                      {gameOver.winner === 'white' ? 'شما بردید!' : gameOver.winner === 'black' ? 'فرزین پیروز شد!' : 'تساوی!'}
                     </h2>
-                    <button onClick={() => navigate('/archive')} className="mt-6 px-6 py-2 bg-[#262421] hover:bg-gray-700 text-white rounded font-bold border border-gray-600 transition-colors">
+                    <p className="text-zinc-300 mb-8 font-medium">بازی با {gameOver.status} خاتمه یافت.</p>
+                    <button onClick={() => navigate('/archive')} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-indigo-500/25 active:scale-95">
                       تحلیل بازی
                     </button>
                   </div>
@@ -566,31 +578,37 @@ export default function PlayAI() {
             </div>
             
             {isPlayerWhite ? (
-              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...whitePlayerProps} />
+              <PlayerInfo name="شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...whitePlayerProps} />
             ) : (
-              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...blackPlayerProps} />
+              <PlayerInfo name="شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...blackPlayerProps} />
             )}
             
           </div>
         </div>
 
-        <div className="flex-none w-full lg:w-[350px] flex flex-col bg-[#262421] border border-[#35332e] rounded-sm shadow-xl h-[30vh] lg:h-full shrink-0 relative z-10">
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2" dir="ltr">
+        <div className="flex-none w-full lg:w-[360px] flex flex-col bg-[#1C1B19] border border-zinc-800/50 rounded-2xl shadow-2xl h-[35vh] lg:h-full shrink-0 relative z-10 overflow-hidden mt-4 lg:mt-0">
+          
+          <div className="bg-[#242320] px-4 py-3 border-b border-zinc-800/80 flex items-center justify-between">
+             <span className="font-bold text-zinc-300 text-sm">تاریخچه حرکات</span>
+             <span className="text-[11px] bg-zinc-800 text-zinc-400 px-2 py-1 rounded-md">{history.length} حرکت</span>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2 px-1 pb-4" dir="ltr">
             {movePairs.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-gray-500 text-sm">منتظر حرکت سفید...</div>
+              <div className="h-full flex items-center justify-center text-zinc-600 text-sm font-medium">منتظر حرکت سفید...</div>
             ) : (
-              <div className="flex flex-col text-[15px]">
+              <div className="flex flex-col text-[15px] px-2 font-medium">
                 {movePairs.map((pair, index) => {
                   const whiteMoveIndex = index * 2 + 1;
                   const blackMoveIndex = index * 2 + 2;
                   
                   return (
-                    <div key={index} className={`flex px-2 py-1 ${index % 2 === 0 ? 'bg-[#2b2927]' : 'bg-[#262421]'}`}>
-                      <div className="w-10 text-gray-500 font-mono text-right pr-3 select-none">{index + 1}.</div>
-                      <div onClick={() => setViewIndex(whiteMoveIndex)} className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === whiteMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}>
+                    <div key={index} className={`flex px-2 py-1.5 rounded-lg mb-1 ${index % 2 === 0 ? 'bg-zinc-800/30' : 'bg-transparent'}`}>
+                      <div className="w-10 text-zinc-500 font-mono text-right pr-3 select-none py-1">{index + 1}.</div>
+                      <div onClick={() => setViewIndex(whiteMoveIndex)} className={`flex-1 flex items-center justify-center cursor-pointer px-2 rounded-md transition-colors ${viewIndex === whiteMoveIndex ? 'bg-indigo-600/90 text-white shadow-sm' : 'text-zinc-300 hover:bg-zinc-800'}`}>
                         {pair[0]}
                       </div>
-                      <div onClick={() => pair[1] && setViewIndex(blackMoveIndex)} className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === blackMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}>
+                      <div onClick={() => pair[1] && setViewIndex(blackMoveIndex)} className={`flex-1 flex items-center justify-center cursor-pointer px-2 rounded-md transition-colors ${viewIndex === blackMoveIndex ? 'bg-indigo-600/90 text-white shadow-sm' : 'text-zinc-300 hover:bg-zinc-800'}`}>
                         {pair[1] || ''}
                       </div>
                     </div>
@@ -600,17 +618,17 @@ export default function PlayAI() {
             )}
           </div>
 
-          <div dir="ltr" className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
-            <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 hover:bg-white/5 rounded transition-colors mr-4 pr-4 border-r border-[#35332e]" title="چرخش تخته"><RefreshCw size={20}/></button>
-            <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors" title="اولین حرکت"><Rewind size={20}/></button>
-            <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-white/5 rounded transition-colors" title="حرکت قبلی"><ChevronLeft size={24}/></button>
-            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-white/5 rounded transition-colors" title="حرکت بعدی"><ChevronRight size={24}/></button>
-            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors" title="آخرین حرکت"><FastForward size={20}/></button>
+          <div dir="ltr" className="flex-none flex items-center justify-center gap-1.5 bg-[#18181b] text-zinc-400 p-2.5 border-y border-zinc-800/80 shadow-inner">
+            <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 hover:bg-zinc-800 hover:text-zinc-200 rounded-lg transition-all mr-3 pr-5 border-r border-zinc-700/50" title="چرخش تخته"><RefreshCw size={18}/></button>
+            <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-zinc-800 hover:text-zinc-200 rounded-lg transition-all" title="اولین حرکت"><Rewind size={18}/></button>
+            <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-zinc-800 hover:text-zinc-200 rounded-lg transition-all" title="حرکت قبلی"><ChevronLeft size={22}/></button>
+            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-zinc-800 hover:text-zinc-200 rounded-lg transition-all" title="حرکت بعدی"><ChevronRight size={22}/></button>
+            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-zinc-800 hover:text-zinc-200 rounded-lg transition-all" title="آخرین حرکت"><FastForward size={18}/></button>
           </div>
 
-          <div className="flex-none flex bg-[#201e1b] p-3 gap-3">
-            <button onClick={handleDraw} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]"><Handshake size={18}/> تساوی</button>
-            <button onClick={handleResign} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]"><Flag size={18}/> تسلیم</button>
+          <div className="flex-none flex bg-[#121212] p-4 gap-3">
+            <button onClick={handleDraw} className="flex-1 py-3 bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200 font-bold rounded-xl flex items-center justify-center gap-2 transition-all border border-zinc-700/50 active:scale-95 shadow-sm"><Handshake size={18}/> تساوی</button>
+            <button onClick={handleResign} className="flex-1 py-3 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 hover:text-rose-400 font-bold rounded-xl flex items-center justify-center gap-2 transition-all border border-rose-500/20 active:scale-95 shadow-sm"><Flag size={18}/> تسلیم</button>
           </div>
         </div>
       </div>

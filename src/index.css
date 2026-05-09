@@ -10,17 +10,18 @@
     font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif !important;
     direction: rtl; 
     
-    /* 🔥 بافت شبکه‌ای ظریف (Dot Grid Texture) */
-    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
-    background-size: 28px 28px;
+    /* 🔥 بافت شبکه‌ای (محسوس‌تر، متراکم‌تر و واضح‌تر) */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1.5px, transparent 1.5px);
+    background-size: 22px 22px;
   }
 
-  /* 🔥 افکت سایه دور صفحه (Vignette) برای تمرکز روی مرکز */
+  /* 🔥 افکت سایه دور صفحه (غلیظ‌تر برای فوکوس استودیویی روی مرکز) */
   body::after {
     content: "";
     position: fixed;
     inset: 0;
-    background: radial-gradient(circle at center, transparent 20%, #161512 120%);
+    /* لبه‌ها کاملا تاریک میشن تا مرکز مثل یک لامپ روشن به نظر برسه */
+    background: radial-gradient(circle at center, transparent 10%, rgba(10, 9, 8, 0.85) 100%);
     pointer-events: none;
     z-index: -1;
   }

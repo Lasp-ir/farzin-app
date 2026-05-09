@@ -1,89 +1,144 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { ArrowRight, ArrowLeft, Lock, Play, Zap } from 'lucide-react';
-import { useAuthStore } from '../store/useAuthStore';
+import { Brain, Cpu, Zap, Activity, Shield, ChevronLeft } from 'lucide-react';
 
-export default function BotSelection() {
-  const { t, i18n } = useTranslation();
+const bots = [
+  {
+    id: 'bot_easy',
+    name: 'شبیه‌ساز (مبتدی)',
+    rating: 800,
+    type: 'standard',
+    icon: <Cpu size={28} className="text-zinc-400" />,
+    description: 'یک موتور شطرنج ساده با حرکات تصادفی و خطاهای انسانی بالا.',
+    color: 'from-[#35332e] to-[#262421]',
+    glow: 'hover:shadow-[#35332e]/50 hover:border-[#45433e]'
+  },
+  {
+    id: 'bot_medium',
+    name: 'استاک‌فیش (متوسط)',
+    rating: 1500,
+    type: 'standard',
+    icon: <Shield size={28} className="text-blue-400" />,
+    description: 'موتور قدرتمند شطرنج با محدودیت محاسبه. سبکی کاملاً ماشینی و دقیق.',
+    color: 'from-[#2e3e50] to-[#1c2836]',
+    glow: 'hover:shadow-blue-500/20 hover:border-blue-500/30'
+  },
+  {
+    id: 'farzin_alpha',
+    name: 'فرزین (نسخه آلفا)',
+    rating: 1800,
+    type: 'neural',
+    icon: <Zap size={28} className="text-amber-500" />,
+    description: 'هوش مصنوعی مبتنی بر شبکه عصبی. دارای سبک بازی تهاجمی و غیرقابل پیش‌بینی.',
+    color: 'from-[#5e3a1f] to-[#3a200d]',
+    glow: 'hover:shadow-amber-600/20 hover:border-amber-600/30'
+  },
+  {
+    id: 'farzin_pro',
+    name: 'فرزین (مدل انسانی)',
+    rating: 2400,
+    type: 'neural',
+    icon: <Brain size={28} className="text-[#ebecd0]" />,
+    description: 'مدل پیشرفته فرزین که بر روی میلیون‌ها بازی انسانی آموزش دیده است.',
+    color: 'from-[#779556] to-[#4c6331]',
+    glow: 'ai-glow' 
+  }
+];
+
+export default function SelectBot() {
   const navigate = useNavigate();
-  const { userTier, openPaywall } = useAuthStore();
+  const [selectedBot, setSelectedBot] = useState(bots[3]);
 
-  // لیست آزمایشی شبیه‌سازها (بعداً این لیست از دیتابیس/API خوانده می‌شود)
-  const bots = [
-    { id: 1, name: 'بازیکن مبتدی', rating: 1200, type: 'FREE', accuracy: 'پایه' },
-    { id: 2, name: 'بازیکن متوسط', rating: 1600, type: 'FREE', accuracy: 'پایه' },
-    { id: 3, name: 'شبیه‌ساز Lichess (Amir)', rating: 2100, type: 'PREMIUM', accuracy: 'دقت ۴۵٪ - رفتار طبیعی' },
-    { id: 4, name: 'شبیه‌ساز Lichess (Master)', rating: 2500, type: 'PREMIUM', accuracy: 'دقت ۶۰٪ تا ۸۰٪ - فوق‌انسانی' },
-  ];
-
-  const handlePlay = (bot: any) => {
-    if (bot.type === 'PREMIUM' && userTier === 'FREE') {
-      openPaywall();
-      return;
-    }
-    // اگر مجاز بود، او را به صفحه بازی (با اطلاعات ربات) بفرست
-    navigate('/play-ai', { state: { selectedBot: bot } });
+  const handleStartGame = () => {
+    const { icon, ...safeBotData } = selectedBot;
+    navigate('/play-ai', { state: { selectedBot: safeBotData } });
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-white p-4">
-      {/* هدر */}
-      <div className="flex items-center mb-8 pt-2">
-        <button 
-          onClick={() => navigate('/home')} 
-          className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition-colors shadow-lg border border-gray-700"
-        >
-          {i18n.language === 'fa' ? <ArrowRight size={24} /> : <ArrowLeft size={24} />}
-        </button>
-        <h1 className="text-2xl font-bold mx-4">انتخاب حریف</h1>
-      </div>
+    <div className="min-h-screen bg-transparent text-zinc-200 p-4 md:p-8 flex flex-col items-center relative overflow-hidden">
+      {/* هاله‌های نوری کلاسیک در پس‌زمینه */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#779556]/5 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#ebecd0]/5 rounded-full blur-[120px] pointer-events-none"></div>
 
-      {/* لیست ربات‌ها */}
-      <div className="flex flex-col gap-4 max-w-lg mx-auto w-full pb-10">
-        {bots.map((bot) => {
-          const isLocked = bot.type === 'PREMIUM' && userTier === 'FREE';
+      <div className="max-w-5xl w-full z-10 flex flex-col pt-8">
+        
+        {/* هدر صفحه */}
+        <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-farzin-accent/10 border border-farzin-accent/20 text-farzin-glow text-sm font-bold mb-4">
+            <Activity size={16} className="animate-pulse" />
+            سیستم انتخاب حریف
+          </div>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4 drop-shadow-md">
+            نبرد با <span className="text-farzin-accent">هوش مصنوعی</span>
+          </h1>
+          <p className="text-zinc-400 max-w-2xl mx-auto text-lg">
+            رقیب خود را انتخاب کنید. از موتورهای کلاسیک تا شبکه‌های عصبی پیشرفته فرزین که الگوهای انسانی را شبیه‌سازی می‌کنند.
+          </p>
+        </div>
 
-          return (
+        {/* گرید انتخاب ربات‌ها */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {bots.map((bot, index) => (
             <div 
-              key={bot.id} 
-              className={`relative flex items-center p-5 rounded-2xl border transition-all duration-200 
-                ${isLocked ? 'bg-gray-800/60 border-gray-700/50' : 'bg-gray-800 border-gray-600 hover:border-blue-500 shadow-lg'}
+              key={bot.id}
+              onClick={() => setSelectedBot(bot)}
+              className={`relative cursor-pointer glass-panel rounded-2xl p-6 transition-all duration-300 animate-in fade-in slide-in-from-bottom-8 flex flex-col h-full
+                ${selectedBot.id === bot.id ? 'border-farzin-accent/60 shadow-[0_0_20px_rgba(119,149,86,0.15)] transform -translate-y-2' : `border-farzin-border ${bot.glow}`}
               `}
+              style={{ animationDelay: `${index * 150}ms` }}
             >
-              <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center font-bold text-lg border-2 border-gray-500 shrink-0">
-                {bot.name.charAt(0)}
-              </div>
-              
-              <div className="flex-1 mx-4">
-                <div className="flex items-center gap-2">
-                  <h3 className={`font-bold text-lg ${isLocked ? 'text-gray-400' : 'text-gray-100'}`}>
-                    {bot.name}
-                  </h3>
-                  {bot.type === 'PREMIUM' && (
-                    <span className="bg-amber-500/20 text-amber-500 text-[10px] px-2 py-0.5 rounded font-bold border border-amber-500/30">
-                      PRO
-                    </span>
-                  )}
+              {/* خط بالایی کارت (نشانگر انتخاب) */}
+              {selectedBot.id === bot.id && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-gradient-to-r from-transparent via-farzin-accent to-transparent rounded-full shadow-[0_0_10px_rgba(119,149,86,0.8)]"></div>
+              )}
+
+              <div className="flex items-center gap-4 mb-5">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br border border-white/5 ${bot.color} ${bot.type === 'neural' ? 'animate-pulse-glow' : ''}`}>
+                  {bot.icon}
                 </div>
-                <div className="flex items-center gap-4 mt-1">
-                  <span className="text-sm text-gray-400">ریتیگ: {bot.rating}</span>
-                  <span className="text-xs text-blue-400 flex items-center gap-1">
-                    <Zap size={12} /> {bot.accuracy}
-                  </span>
+                <div>
+                  <h3 className="font-bold text-lg text-white leading-tight">{bot.name}</h3>
+                  <div className="text-farzin-glow font-mono font-bold text-sm mt-1">ELO: {bot.rating}</div>
                 </div>
               </div>
 
-              <button 
-                onClick={() => handlePlay(bot)}
-                className={`p-3 rounded-xl flex items-center justify-center transition-colors
-                  ${isLocked ? 'bg-gray-700 text-gray-500' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/30'}
-                `}
-              >
-                {isLocked ? <Lock size={20} /> : <Play size={20} className="ml-1" />}
-              </button>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-6 flex-1">
+                {bot.description}
+              </p>
+
+              {/* تگ‌های پایین کارت */}
+              <div className="flex items-center justify-between mt-auto pt-4 border-t border-farzin-border">
+                <span className={`text-[10px] px-2 py-1 rounded-md border font-bold tracking-wider
+                  ${bot.type === 'neural' ? 'bg-farzin-accent/10 text-farzin-glow border-farzin-accent/20' : 'bg-[#1e1c19] text-zinc-400 border-[#35332e]'}
+                `}>
+                  {bot.type === 'neural' ? 'NEURAL NET' : 'CLASSIC ENGINE'}
+                </span>
+                
+                {/* رادیو باتن کاستوم */}
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
+                  ${selectedBot.id === bot.id ? 'border-farzin-accent' : 'border-zinc-600'}
+                `}>
+                  {selectedBot.id === bot.id && <div className="w-2.5 h-2.5 bg-farzin-accent rounded-full animate-in zoom-in"></div>}
+                </div>
+              </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* دکمه شروع بازی */}
+        <div className="flex justify-center mt-auto pb-10 animate-in fade-in duration-1000 delay-500">
+          <button 
+            onClick={handleStartGame}
+            className="group relative px-8 py-4 bg-farzin-accent hover:bg-[#86a566] text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_0_20px_rgba(119,149,86,0.3)] hover:shadow-[0_0_30px_rgba(119,149,86,0.5)] active:scale-95 flex items-center gap-3 overflow-hidden border border-[#86a566]"
+          >
+            {/* افکت نوری رد شونده */}
+            <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"></div>
+            
+            <span>شروع مسابقه</span>
+            <ChevronLeft size={22} className="group-hover:-translate-x-1 transition-transform" />
+          </button>
+        </div>
+
       </div>
     </div>
   );
