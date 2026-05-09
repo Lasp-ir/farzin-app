@@ -20,10 +20,19 @@ export default function PlayAI() {
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [gameOver, setGameOver] = useState<{ status: string; winner: string | null } | null>(null);
 
-  // استیت‌های جدید برای ظاهر و چرخش تخته
+  // استیت‌های چرخش و هایلایت
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
+
+  // استیت‌های مربوط به ارتقای مهره (Promotion)
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  const [moveFrom, setMoveFrom] = useState<string | null>(null);
+  const [showPromotionDialog, setShowPromotionDialog] = useState(false);
+
+  // استیت‌های تاریخچه بازی (برای دکمه‌های ناوبری)
+  const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
+  const [viewIndex, setViewIndex] = useState<number>(0);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
@@ -34,20 +43,15 @@ export default function PlayAI() {
   useEffect(() => {
     if (gameOver) return;
     const timer = setInterval(() => {
+      if (viewIndex !== fenHistory.length - 1) return; // اگر در حال مرور تاریخچه هستیم تایمر متوقف نمی‌شود اما منطق پیچیده‌تر است، فعلا ساده می‌گیریم
       if (isPlayerTurn) {
-        setPlayerTime((prev) => {
-          if (prev <= 1) handleGameOver('timeout', 'black');
-          return prev - 1;
-        });
+        setPlayerTime((prev) => { if (prev <= 1) handleGameOver('timeout', 'black'); return prev - 1; });
       } else {
-        setOpponentTime((prev) => {
-          if (prev <= 1) handleGameOver('timeout', 'white');
-          return prev - 1;
-        });
+        setOpponentTime((prev) => { if (prev <= 1) handleGameOver('timeout', 'white'); return prev - 1; });
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [isPlayerTurn, gameOver]);
+  }, [isPlayerTurn, gameOver, viewIndex, fenHistory.length]);
 
   const makeMove = (move: any) => {
     try {
@@ -58,19 +62,23 @@ export default function PlayAI() {
       if (result) {
         setGame(gameCopy);
         
-        // تنظیم هایلایت زرد برای آخرین حرکت
+        // ثبت FEN جدید در تاریخچه
+        const newFen = gameCopy.fen();
+        setFenHistory(prev => {
+          const newHistory = [...prev, newFen];
+          setViewIndex(newHistory.length - 1); // همیشه برو به آخرین حرکت
+          return newHistory;
+        });
+
         setMoveSquares({
           [result.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
           [result.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
         });
-        setOptionSquares({}); // پاک کردن نقطه‌های راهنما
+        setOptionSquares({});
 
         if (gameCopy.isGameOver()) {
-          if (gameCopy.isCheckmate()) {
-            handleGameOver('checkmate', gameCopy.turn() === 'w' ? 'black' : 'white');
-          } else {
-            handleGameOver('draw', null);
-          }
+          if (gameCopy.isCheckmate()) handleGameOver('checkmate', gameCopy.turn() === 'w' ? 'black' : 'white');
+          else handleGameOver('draw', null);
         }
         return true;
       }
@@ -80,39 +88,63 @@ export default function PlayAI() {
     return false;
   };
 
-  // تابعی که وقتی کاربر مهره را کلیک می‌کند اجرا می‌شود (برای نمایش نقطه‌ها)
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (!isPlayerTurn || gameOver) return;
-    
-    // گرفتن لیست حرکات قانونی برای مهره انتخاب شده
+    if (!isPlayerTurn || gameOver || viewIndex !== fenHistory.length - 1) return;
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
     if (moves.length === 0) return;
 
     const newSquares: any = {};
     moves.forEach((m: any) => {
       newSquares[m.to] = {
-        background:
-          game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color
-            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)' // دایره توخالی برای زدن مهره حریف
-            : 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)', // نقطه توپر برای حرکت عادی
+        background: game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color
+            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)' 
+            : 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)',
         borderRadius: '50%'
       };
     });
-    // هایلایت کردن خانه‌ای که مهره در آن است
     newSquares[sourceSquare] = { background: 'rgba(255, 255, 0, 0.4)' };
     setOptionSquares(newSquares);
   };
 
-  const onDrop = (sourceSquare: string, targetSquare: string) => {
-    setOptionSquares({}); // همیشه بعد از رها کردن مهره نقطه‌ها را پاک کن
-    if (!isPlayerTurn || gameOver) return false;
+  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
+    setOptionSquares({}); 
+    // اگر کاربر در حال نگاه کردن به گذشته است، اجازه حرکت نمی‌دهیم
+    if (!isPlayerTurn || gameOver || viewIndex !== fenHistory.length - 1) {
+      setViewIndex(fenHistory.length - 1); // برش گردان به حال
+      return false; 
+    }
     
-    const move = makeMove({ from: sourceSquare, to: targetSquare, promotion: 'q' });
+    // تشخیص اینکه آیا حرکت نیاز به ارتقا دارد یا نه
+    const isPromotion = (piece[1].toLowerCase() === 'p') && 
+                        ((piece[0] === 'w' && targetSquare[1] === '8') || 
+                         (piece[0] === 'b' && targetSquare[1] === '1'));
+
+    if (isPromotion) {
+      setMoveFrom(sourceSquare);
+      setMoveTo(targetSquare);
+      setShowPromotionDialog(true);
+      return true; // منتظر انتخاب در پاپ‌آپ می‌ماند
+    }
+
+    const move = makeMove({ from: sourceSquare, to: targetSquare });
     if (move) {
       setIsPlayerTurn(false);
       return true;
     }
     return false;
+  };
+
+  // تابعی که بعد از انتخاب قطعه از پاپ‌آپ ارتقا فراخوانی می‌شود
+  const onPromotionPieceSelect = (piece: string | undefined) => {
+    if (piece && moveFrom && moveTo) {
+      const promotionPiece = piece[1].toLowerCase(); // 'wQ' -> 'q'
+      const move = makeMove({ from: moveFrom, to: moveTo, promotion: promotionPiece });
+      if (move) setIsPlayerTurn(false);
+    }
+    setMoveFrom(null);
+    setMoveTo(null);
+    setShowPromotionDialog(false);
+    return true;
   };
 
   useEffect(() => {
@@ -140,6 +172,8 @@ export default function PlayAI() {
     movePairs.push([history[i], history[i + 1]]);
   }
 
+  const isPlayerWhite = boardOrientation === 'white';
+
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1">
       <div className="flex items-center gap-2">
@@ -153,18 +187,14 @@ export default function PlayAI() {
           )}
         </div>
       </div>
-      <div className={`text-2xl font-mono font-bold px-3 py-1 rounded transition-colors shadow-sm ${isActive ? 'bg-gray-200 text-gray-900' : (time < 60 ? 'bg-red-500/20 text-red-400' : 'bg-[#262421] text-gray-400')}`}>
+      <div className={`text-2xl font-mono font-bold px-3 py-1 rounded transition-colors shadow-sm ${isActive && viewIndex === fenHistory.length - 1 ? 'bg-gray-200 text-gray-900' : (time < 60 ? 'bg-red-500/20 text-red-400' : 'bg-[#262421] text-gray-400')}`}>
         {formatTime(time)}
       </div>
     </div>
   );
 
-  // منطق جابجایی پروفایل‌ها با چرخش تخته
-  const isPlayerWhite = boardOrientation === 'white';
-
   return (
     <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans">
-      
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
            <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
@@ -182,7 +212,6 @@ export default function PlayAI() {
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full">
             
-            {/* نمایش داینامیک پروفایل بالای تخته بر اساس جهت تخته */}
             {isPlayerWhite ? (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
             ) : (
@@ -191,8 +220,10 @@ export default function PlayAI() {
             
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center">
               <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e]">
+                
+                {/* تغییر مهم: پوزیشن به جای game.fen() از تاریخچه خوانده می‌شود */}
                 <Board 
-                  position={game.fen()} 
+                  position={fenHistory[viewIndex]} 
                   onPieceDrop={onDrop}
                   onPieceDragBegin={onPieceDragBegin}
                   boardOrientation={boardOrientation}
@@ -200,6 +231,10 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                  // تنظیمات پاپ‌آپ ارتقا
+                  promotionToSquare={moveTo}
+                  showPromotionDialog={showPromotionDialog}
+                  onPromotionPieceSelect={onPromotionPieceSelect}
                 />
                 
                 {gameOver && (
@@ -216,7 +251,6 @@ export default function PlayAI() {
               </div>
             </div>
             
-            {/* نمایش داینامیک پروفایل پایین تخته بر اساس جهت تخته */}
             {isPlayerWhite ? (
               <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
             ) : (
@@ -233,23 +267,43 @@ export default function PlayAI() {
               <div className="h-full flex items-center justify-center text-gray-500 text-sm">منتظر حرکت سفید...</div>
             ) : (
               <div className="flex flex-col text-[15px]">
-                {movePairs.map((pair, index) => (
-                  <div key={index} className={`flex px-2 py-1 ${index % 2 === 0 ? 'bg-[#2b2927]' : 'bg-[#262421]'}`}>
-                    <div className="w-10 text-gray-500 font-mono text-right pr-3 select-none">{index + 1}.</div>
-                    <div className="flex-1 font-bold text-[#b0aba2] hover:text-white cursor-pointer px-1">{pair[0]}</div>
-                    <div className="flex-1 font-bold text-[#b0aba2] hover:text-white cursor-pointer px-1">{pair[1] || ''}</div>
-                  </div>
-                ))}
+                {movePairs.map((pair, index) => {
+                  const whiteMoveIndex = index * 2 + 1;
+                  const blackMoveIndex = index * 2 + 2;
+                  
+                  return (
+                    <div key={index} className={`flex px-2 py-1 ${index % 2 === 0 ? 'bg-[#2b2927]' : 'bg-[#262421]'}`}>
+                      <div className="w-10 text-gray-500 font-mono text-right pr-3 select-none">{index + 1}.</div>
+                      
+                      {/* حرکت سفید */}
+                      <div 
+                        onClick={() => setViewIndex(whiteMoveIndex)}
+                        className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === whiteMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}
+                      >
+                        {pair[0]}
+                      </div>
+                      
+                      {/* حرکت سیاه */}
+                      <div 
+                        onClick={() => pair[1] && setViewIndex(blackMoveIndex)}
+                        className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === blackMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}
+                      >
+                        {pair[1] || ''}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
           <div className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
-            <button className="p-2 hover:bg-white/5 rounded transition-colors"><Rewind size={20}/></button>
-            <button className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronLeft size={24}/></button>
-            <button className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
-            <button className="p-2 hover:bg-white/5 rounded transition-colors"><FastForward size={20}/></button>
-            {/* دکمه چرخش تخته */}
+            {/* اتصال دکمه‌های ناوبری به ایندکس تاریخچه */}
+            <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors"><Rewind size={20}/></button>
+            <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronLeft size={24}/></button>
+            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
+            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors"><FastForward size={20}/></button>
+            
             <button 
               onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} 
               className="p-2 hover:bg-white/5 rounded transition-colors ml-4 border-l border-[#35332e] pl-4"
