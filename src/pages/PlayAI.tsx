@@ -9,6 +9,22 @@ const Board = Chessboard as any;
 
 const pieceChars: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 
+// 🔥 لود کردن فایل‌های صوتی باکیفیت (مستقیم از سرورهای شطرنج)
+const sounds = {
+  move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
+  capture: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3'),
+  check: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-check.mp3'),
+  gameOver: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/game-end.mp3'),
+  promote: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/promote.mp3'),
+};
+
+// تابع کمکی برای پخش صدا بدون تداخل
+const playSound = (type: keyof typeof sounds) => {
+  const audio = sounds[type];
+  audio.currentTime = 0; // ریست کردن صدا برای پخش پشت سر هم (مثل Premove)
+  audio.play().catch(e => console.log('Audio blocked by browser:', e));
+};
+
 export default function PlayAI() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
@@ -67,9 +83,9 @@ export default function PlayAI() {
     const timer = setInterval(() => {
       if (isViewingHistory) return;
       if (isPlayerTurn) {
-        setPlayerTime((prev) => { if (prev <= 1) handleGameOver('timeout', 'black'); return prev - 1; });
+        setPlayerTime((prev) => { if (prev <= 1) { handleGameOver('timeout', 'black'); playSound('gameOver'); } return prev - 1; });
       } else {
-        setOpponentTime((prev) => { if (prev <= 1) handleGameOver('timeout', 'white'); return prev - 1; });
+        setOpponentTime((prev) => { if (prev <= 1) { handleGameOver('timeout', 'white'); playSound('gameOver'); } return prev - 1; });
       }
     }, 1000);
     return () => clearInterval(timer);
@@ -96,10 +112,21 @@ export default function PlayAI() {
         });
         setOptionSquares({});
 
+        // 🔥 منطق بی‌نقص صداگذاری
         if (gameCopy.isGameOver()) {
           if (gameCopy.isCheckmate()) handleGameOver('checkmate', gameCopy.turn() === 'w' ? 'black' : 'white');
           else handleGameOver('draw', null);
+          playSound('gameOver');
+        } else if (gameCopy.isCheck()) {
+          playSound('check');
+        } else if (result.promotion) {
+          playSound('promote');
+        } else if (result.captured) {
+          playSound('capture');
+        } else {
+          playSound('move');
         }
+
         return true;
       }
     } catch (e) {
@@ -296,8 +323,8 @@ export default function PlayAI() {
   }, [isPlayerTurn, gameOver, game, opponent.accuracy, customPromotion]);
 
   const handleGameOver = (reason: string, winnerColor: string | null) => setGameOver({ status: reason, winner: winnerColor });
-  const handleResign = () => { if (!gameOver) handleGameOver('resign', 'black'); };
-  const handleDraw = () => { if (!gameOver) handleGameOver('draw_agreed', null); };
+  const handleResign = () => { if (!gameOver) { handleGameOver('resign', 'black'); playSound('gameOver'); } };
+  const handleDraw = () => { if (!gameOver) { handleGameOver('draw_agreed', null); playSound('gameOver'); } };
 
   const history = game.history();
   const movePairs = [];
@@ -573,7 +600,6 @@ export default function PlayAI() {
             )}
           </div>
 
-          {/* 🔥 جهت‌دهی LTR برای دکمه‌های کنترل حرکات */}
           <div dir="ltr" className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
             <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 hover:bg-white/5 rounded transition-colors mr-4 pr-4 border-r border-[#35332e]" title="چرخش تخته"><RefreshCw size={20}/></button>
             <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors" title="اولین حرکت"><Rewind size={20}/></button>
