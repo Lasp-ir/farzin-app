@@ -193,27 +193,25 @@ export default function PlayAI() {
   return (
     <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
       
-      {/* مدال سفارشی ارتقای مهره - رفع قطعی بیرون‌زدگی */}
+      {/* پاپ‌آپ ارتقای مهره مینیمال (دقیقاً سبک لیچس) */}
       {showCustomPromotion && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center animate-in fade-in duration-300 p-4">
-          <div className="bg-[#262421] border border-gray-700 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col items-center max-w-[320px] w-full max-h-[85vh] overflow-y-auto custom-scrollbar">
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">ارتقای مهره</h3>
-            
-            <div className="flex flex-wrap justify-center gap-3 sm:gap-4 w-full">
-              {['q', 'r', 'b', 'n'].map((type) => (
-                <button 
-                  key={type}
-                  onClick={() => handlePromotionSelect(type)}
-                  className="w-16 h-16 sm:w-20 sm:h-20 bg-[#35332e] hover:bg-[#4a4740] rounded-xl p-2 transition-all border-2 border-transparent hover:border-amber-500 group flex items-center justify-center shadow-inner"
-                >
-                  <img src={pieceSvgs[type]} alt={`ارتقا به ${type}`} className="w-full h-full object-contain group-hover:scale-110 transition-transform drop-shadow-md" />
-                </button>
-              ))}
-            </div>
-            
-            <button onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }} className="mt-5 px-4 py-2 bg-[#35332e] rounded-lg text-sm text-gray-400 hover:text-white transition-colors">
-              لغو حرکت
-            </button>
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }} // کلیک روی سیاهی = لغو
+        >
+          <div 
+            className="bg-[#262421] rounded-xl p-3 shadow-2xl flex gap-2 sm:gap-3 animate-in zoom-in-95 duration-200 border border-[#35332e]"
+            onClick={(e) => e.stopPropagation()} // جلوگیری از بسته شدن با کلیک روی خود باکس
+          >
+            {['q', 'r', 'b', 'n'].map((type) => (
+              <button 
+                key={type}
+                onClick={() => handlePromotionSelect(type)}
+                className="w-14 h-14 sm:w-20 sm:h-20 bg-[#35332e] hover:bg-[#4a4740] rounded-lg p-2 transition-all flex items-center justify-center hover:scale-105 active:scale-95 shadow-inner"
+              >
+                <img src={pieceSvgs[type]} alt={type} className="w-full h-full object-contain drop-shadow-md" />
+              </button>
+            ))}
           </div>
         </div>
       )}
