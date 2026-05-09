@@ -27,10 +27,26 @@ export default function PlayAI() {
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
-  // استیت‌های مربوط به ارتقای نیتیو روی تخته
-  const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
+  // استیت ارتقای مهره اختصاصی (با ذخیره رنگ مهره)
+  const [promotionMove, setPromotionMove] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
+
+  // فایل‌های SVG جداگانه برای سفید و سیاه
+  const pieceSvgs: Record<string, Record<string, string>> = {
+    w: {
+      q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
+      n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
+      r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
+      b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg'
+    },
+    b: {
+      q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg',
+      n: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Chess_ndt45.svg',
+      r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg',
+      b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg'
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
@@ -109,13 +125,14 @@ export default function PlayAI() {
       return false; 
     }
     
-    // تشخیص دقیق حرکت ارتقا
-    const isPromotion = (piece === 'wP' && targetSquare[1] === '8') || 
-                        (piece === 'bP' && targetSquare[1] === '1');
+    const isPromotion = (piece[1].toLowerCase() === 'p') && 
+                        ((piece[0] === 'w' && targetSquare[1] === '8') || 
+                         (piece[0] === 'b' && targetSquare[1] === '1'));
 
     if (isPromotion) {
-      setPromotionMove({ from: sourceSquare, to: targetSquare });
-      return false; // منتظر انتخاب کاربر از روی تخته می‌مانیم
+      // ثبت اطلاعات برای نمایش ستون ارتقا روی تخته
+      setPromotionMove({ from: sourceSquare, to: targetSquare, color: piece[0] });
+      return false; // بازگشت موقت مهره تا زمانی که کاربر از منو انتخاب کند
     }
 
     const move = makeMove({ from: sourceSquare, to: targetSquare });
@@ -126,19 +143,16 @@ export default function PlayAI() {
     return false;
   };
 
-  // تابع هندل کردن انتخاب مهره از روی خود تخته
-  const onPromotionPieceSelect = (piece: string | undefined) => {
-    if (piece && promotionMove) {
-      const type = piece[1].toLowerCase(); // 'wQ' -> 'q'
-      const move = makeMove({ from: promotionMove.from, to: promotionMove.to, promotion: type });
+  const handlePromotionSelect = (pieceType: string) => {
+    if (promotionMove) {
+      const move = makeMove({ ...promotionMove, promotion: pieceType });
       if (move) setIsPlayerTurn(false);
     }
     setPromotionMove(null);
-    return true;
   };
 
   useEffect(() => {
-    if (!isPlayerTurn && !gameOver) {
+    if (!isPlayerTurn && !gameOver && !promotionMove) {
       const thinkTime = opponent.accuracy === 'پایه' ? 1000 : 2500;
       const botMoveTimer = setTimeout(() => {
         const possibleMoves = game.moves({ verbose: true });
@@ -151,7 +165,7 @@ export default function PlayAI() {
       }, thinkTime);
       return () => clearTimeout(botMoveTimer);
     }
-  }, [isPlayerTurn, gameOver, game, opponent.accuracy]);
+  }, [isPlayerTurn, gameOver, game, opponent.accuracy, promotionMove]);
 
   const handleGameOver = (reason: string, winnerColor: string | null) => setGameOver({ status: reason, winner: winnerColor });
   const handleResign = () => { if (!gameOver) handleGameOver('resign', 'black'); };
@@ -164,6 +178,30 @@ export default function PlayAI() {
   }
 
   const isPlayerWhite = boardOrientation === 'white';
+
+  // فرمول جادویی برای محاسبه دقیق موقعیت ستون ارتقا روی تخته
+  const getPromotionOverlayStyle = (): React.CSSProperties => {
+    if (!promotionMove) return {};
+    const { to } = promotionMove;
+    const file = to.charCodeAt(0) - 97; // a=0, b=1 ...
+    const rank = parseInt(to[1], 10);   // 1 to 8
+
+    const leftPercent = isPlayerWhite ? file * 12.5 : (7 - file) * 12.5;
+    const isTopEdge = (rank === 8 && isPlayerWhite) || (rank === 1 && !isPlayerWhite);
+
+    return {
+      position: 'absolute',
+      left: `${leftPercent}%`,
+      top: isTopEdge ? '0%' : '50%',
+      width: '12.5%',
+      height: '50%', // دقیقا اندازه 4 خانه شطرنج
+      backgroundColor: '#2b2927',
+      zIndex: 100,
+      display: 'flex',
+      flexDirection: isTopEdge ? 'column' : 'column-reverse',
+      boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+    };
+  };
 
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
@@ -185,7 +223,7 @@ export default function PlayAI() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
+    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" onClick={() => setPromotionMove(null)}>
       
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
@@ -211,6 +249,8 @@ export default function PlayAI() {
             
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
               <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e] z-0">
+                
+                {/* تخته اصلی */}
                 <Board 
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
@@ -220,13 +260,26 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                  
-                  /* تنظیمات مربوط به ارتقای مهره دقیقاً شبیه لیچس (روی تخته) */
-                  promotionToSquare={promotionMove?.to ?? null}
-                  showPromotionDialog={!!promotionMove}
-                  onPromotionPieceSelect={onPromotionPieceSelect}
-                  customPromotionSquareStyles={{ backgroundColor: '#35332e' }}
                 />
+
+                {/* ستون ارتقای محاسبه‌شده با ریاضی (جایگزین ۱۰۰٪ لیچس) */}
+                {promotionMove && (
+                  <div style={getPromotionOverlayStyle()} className="promotion-overlay rounded-md overflow-hidden border-2 border-[#b0aba2]/30">
+                    {['q', 'n', 'r', 'b'].map((type) => (
+                      <button 
+                        key={type}
+                        onClick={(e) => { e.stopPropagation(); handlePromotionSelect(type); }}
+                        className="w-full h-1/4 hover:bg-[#b0aba2]/20 transition-colors flex items-center justify-center border-b border-[#161512]/50 last:border-b-0"
+                      >
+                        <img 
+                          src={pieceSvgs[promotionMove.color][type]} 
+                          alt={type} 
+                          className="w-[85%] h-[85%] object-contain drop-shadow-md" 
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
                 
                 {gameOver && (
                   <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-300">
