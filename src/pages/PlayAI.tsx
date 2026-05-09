@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 
 const Board = Chessboard as any;
 
-// کاراکترهای استاندارد شطرنج برای مهره‌های زده‌شده
 const pieceChars: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 
 export default function PlayAI() {
@@ -382,8 +381,8 @@ export default function PlayAI() {
     scoreAdvantage: blackScoreAdv
   };
 
-  // 🔥 استفاده از کاراکترها (متن) با رنگ‌بندی داینامیک برای مهره‌های زده‌شده
-  const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy, capturedPieces, capturedColor, scoreAdvantage }: any) => (
+  // 🔥 آپدیت قدرتمند PlayerInfo برای پشتیبانی از انیمیشن تفکر
+  const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy, capturedPieces, capturedColor, scoreAdvantage, isThinking }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
       <div className="flex flex-col justify-center">
         <div className="flex items-center gap-2">
@@ -392,8 +391,16 @@ export default function PlayAI() {
           </div>
           <div className="font-bold text-gray-200 text-sm flex items-center gap-2 leading-none">
             {name} <span className="text-gray-500 font-normal">{rating}</span>
-            {isOpponent && accuracy && accuracy !== 'پایه' && (
+            {isOpponent && accuracy && accuracy !== 'پایه' && !isThinking && (
                <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1 py-0.5 rounded border border-amber-500/30">PRO</span>
+            )}
+            {/* 🔥 نشانگر تفکر ربات */}
+            {isThinking && (
+               <div className="flex items-center gap-[3px] ml-1 bg-[#2b2927] px-2 py-1.5 rounded-full border border-[#4a4740] shadow-sm h-[20px]">
+                  <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-1"></span>
+                  <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-2"></span>
+                  <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-3"></span>
+               </div>
             )}
           </div>
         </div>
@@ -403,9 +410,8 @@ export default function PlayAI() {
                {capturedPieces.map((piece: string, idx: number) => (
                  <span 
                    key={idx} 
-                   className={`${idx === 0 ? '' : '-ml-[5px]'}`} // هم‌پوشانی جذاب شبیه لیچس
+                   className={`${idx === 0 ? '' : '-ml-[5px]'}`}
                    style={{
-                     // اگر مهره سفید باشه رنگش سفید با استروک تیره، اگه سیاه باشه رنگش مشکی با استروک روشن‌تر
                      color: capturedColor === 'w' ? '#fff' : '#1b1b1b',
                      WebkitTextStroke: capturedColor === 'w' ? '1px #333' : '1px #666',
                      textShadow: '0px 1px 1px rgba(0,0,0,0.5)'
@@ -438,6 +444,17 @@ export default function PlayAI() {
         setOptionSquares({}); 
       }}
     >
+      {/* 🔥 اضافه شدن استایل‌های اختصاصی انیمیشن */}
+      <style>{`
+        @keyframes typing {
+          0%, 100% { transform: translateY(0); opacity: 0.4; }
+          50% { transform: translateY(-3px); opacity: 1; }
+        }
+        .dot-typing { animation: typing 1.2s infinite ease-in-out; }
+        .dot-1 { animation-delay: 0ms; }
+        .dot-2 { animation-delay: 200ms; }
+        .dot-3 { animation-delay: 400ms; }
+      `}</style>
       
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
@@ -455,10 +472,11 @@ export default function PlayAI() {
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0">
             
+            {/* 🔥 ارسال isThinking به ربات */}
             {isPlayerWhite ? (
-              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} {...blackPlayerProps} />
+              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...blackPlayerProps} />
             ) : (
-              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} {...whitePlayerProps} />
+              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...whitePlayerProps} />
             )}
             
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
@@ -524,10 +542,11 @@ export default function PlayAI() {
               </div>
             </div>
             
+            {/* بازیکن (شما) به این انیمیشن نیازی نداره */}
             {isPlayerWhite ? (
-              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} {...whitePlayerProps} />
+              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...whitePlayerProps} />
             ) : (
-              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} {...blackPlayerProps} />
+              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...blackPlayerProps} />
             )}
             
           </div>
