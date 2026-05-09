@@ -27,7 +27,7 @@ export default function PlayAI() {
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
-  // استیت ارتقای مهره اختصاصی (با ذخیره رنگ مهره)
+  // استیت ارتقای مهره اختصاصی (بدون وابستگی به کتابخانه)
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
@@ -130,9 +130,8 @@ export default function PlayAI() {
                          (piece[0] === 'b' && targetSquare[1] === '1'));
 
     if (isPromotion) {
-      // ثبت اطلاعات برای نمایش ستون ارتقا روی تخته
       setPromotionMove({ from: sourceSquare, to: targetSquare, color: piece[0] });
-      return false; // بازگشت موقت مهره تا زمانی که کاربر از منو انتخاب کند
+      return false; // متوقف کردن حرکت برای نمایش ستون ارتقا
     }
 
     const move = makeMove({ from: sourceSquare, to: targetSquare });
@@ -179,27 +178,36 @@ export default function PlayAI() {
 
   const isPlayerWhite = boardOrientation === 'white';
 
-  // فرمول جادویی برای محاسبه دقیق موقعیت ستون ارتقا روی تخته
+  // فرمول قطعی ریاضی برای محاسبه جایگاه دقیق ستون ارتقا روی تخته (بدون بیرون‌زدگی)
   const getPromotionOverlayStyle = (): React.CSSProperties => {
     if (!promotionMove) return {};
     const { to } = promotionMove;
     const file = to.charCodeAt(0) - 97; // a=0, b=1 ...
     const rank = parseInt(to[1], 10);   // 1 to 8
 
-    const leftPercent = isPlayerWhite ? file * 12.5 : (7 - file) * 12.5;
-    const isTopEdge = (rank === 8 && isPlayerWhite) || (rank === 1 && !isPlayerWhite);
+    // محاسبه بر اساس جهت تخته (چرخیده یا نچرخیده)
+    const isFlipped = boardOrientation === 'black';
+    const visualFile = isFlipped ? 7 - file : file;
+    const visualRank = isFlipped ? 9 - rank : rank;
+    
+    // هر ستون دقیقاً ۱۲.۵ درصد از عرض تخته است
+    const leftPercent = visualFile * 12.5;
+    const isTopEdge = visualRank === 8;
 
     return {
       position: 'absolute',
       left: `${leftPercent}%`,
-      top: isTopEdge ? '0%' : '50%',
+      [isTopEdge ? 'top' : 'bottom']: '0%',
       width: '12.5%',
       height: '50%', // دقیقا اندازه 4 خانه شطرنج
-      backgroundColor: '#2b2927',
-      zIndex: 100,
+      backgroundColor: '#f2f2f2', // رنگ پس‌زمینه مثل لیچس
+      zIndex: 1000,
       display: 'flex',
       flexDirection: isTopEdge ? 'column' : 'column-reverse',
       boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+      borderRadius: '4px',
+      overflow: 'hidden',
+      border: '1px solid #d9d9d9'
     };
   };
 
@@ -248,9 +256,10 @@ export default function PlayAI() {
             )}
             
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
-              <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e] z-0">
+              {/* کانتینر تخته که سایز رو قفل میکنه */}
+              <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm z-0">
                 
-                {/* تخته اصلی */}
+                {/* تخته اصلی (پاپ‌آپ خودش رو غیرفعال کردیم) */}
                 <Board 
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
@@ -260,21 +269,22 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                  showPromotionDialog={false} // قطع کامل پاپ‌آپ پیش‌فرض
                 />
 
                 {/* ستون ارتقای محاسبه‌شده با ریاضی (جایگزین ۱۰۰٪ لیچس) */}
                 {promotionMove && (
-                  <div style={getPromotionOverlayStyle()} className="promotion-overlay rounded-md overflow-hidden border-2 border-[#b0aba2]/30">
+                  <div style={getPromotionOverlayStyle()}>
                     {['q', 'n', 'r', 'b'].map((type) => (
                       <button 
                         key={type}
                         onClick={(e) => { e.stopPropagation(); handlePromotionSelect(type); }}
-                        className="w-full h-1/4 hover:bg-[#b0aba2]/20 transition-colors flex items-center justify-center border-b border-[#161512]/50 last:border-b-0"
+                        className="w-full h-1/4 hover:bg-[#d9d9d9] transition-colors flex items-center justify-center border-b border-[#cccccc] last:border-b-0"
                       >
                         <img 
                           src={pieceSvgs[promotionMove.color][type]} 
                           alt={type} 
-                          className="w-[85%] h-[85%] object-contain drop-shadow-md" 
+                          className="w-[85%] h-[85%] object-contain drop-shadow-sm" 
                         />
                       </button>
                     ))}
