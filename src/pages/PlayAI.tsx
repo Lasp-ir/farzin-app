@@ -117,22 +117,36 @@ export default function PlayAI() {
     setOptionSquares(newSquares);
   };
 
-  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
+  // 🔴 مشکل اینجا بود که کامل بازنویسی و ۱۰۰٪ ضدگلوله شد
+  const onDrop = (sourceSquare: string, targetSquare: string) => {
     setOptionSquares({}); 
     if (!isPlayerTurn || gameOver || isViewingHistory) {
       setViewIndex(fenHistory.length - 1);
       return false; 
     }
     
-    const isPromotion = (piece[1].toLowerCase() === 'p') && 
-                        ((piece[0] === 'w' && targetSquare[1] === '8') || 
-                         (piece[0] === 'b' && targetSquare[1] === '1'));
+    // گرفتن تمام حرکات ممکن و قانونی از خود موتور شطرنج
+    const moves = game.moves({ verbose: true });
+    
+    // تشخیص اینکه آیا کاربر داره حرکت ارتقا انجام میده یا نه (از موتور شطرنج می‌پرسیم)
+    const isPromotion = moves.some(
+      (m: any) => m.from === sourceSquare && m.to === targetSquare && m.promotion
+    );
 
     if (isPromotion) {
-      setPromotionMove({ from: sourceSquare, to: targetSquare, color: piece[0] });
-      return false; 
+      const pieceOnBoard = game.get(sourceSquare as any);
+      setPromotionMove({ from: sourceSquare, to: targetSquare, color: pieceOnBoard?.color || 'w' });
+      return false; // منتظر کلیک کاربر روی پاپ‌آپ می‌مونیم
     }
 
+    // اگر ارتقا نیست، چک می‌کنیم حرکت اصلاً قانونی هست یا نه
+    const isLegalMove = moves.some(
+      (m: any) => m.from === sourceSquare && m.to === targetSquare
+    );
+
+    if (!isLegalMove) return false;
+
+    // حرکت معمولی انجام میشه
     const move = makeMove({ from: sourceSquare, to: targetSquare });
     if (move) {
       setIsPlayerTurn(false);
@@ -141,7 +155,6 @@ export default function PlayAI() {
     return false;
   };
 
-  // 🐛 باگ دقیقاً اینجا فیکس شد! استخراج تمیز متغیرها برای جلوگیری از رد شدن حرکت توسط موتور
   const handlePromotionSelect = (pieceType: string) => {
     if (promotionMove) {
       const move = makeMove({ 
