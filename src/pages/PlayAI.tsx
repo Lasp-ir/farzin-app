@@ -193,23 +193,24 @@ export default function PlayAI() {
   return (
     <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
       
-      {/* پاپ‌آپ ارتقای مهره مینیمال (دقیقاً سبک لیچس) */}
+      {/* پاپ‌آپ ارتقای مهره (Lichess Vertical Style) */}
       {showCustomPromotion && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-          onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }} // کلیک روی سیاهی = لغو
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center"
+          onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }}
         >
           <div 
-            className="bg-[#262421] rounded-xl p-3 shadow-2xl flex gap-2 sm:gap-3 animate-in zoom-in-95 duration-200 border border-[#35332e]"
-            onClick={(e) => e.stopPropagation()} // جلوگیری از بسته شدن با کلیک روی خود باکس
+            className="bg-[#2b2927] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 border border-[#4a4740]"
+            onClick={(e) => e.stopPropagation()}
           >
-            {['q', 'r', 'b', 'n'].map((type) => (
+            {/* ترتیب دقیق لیچس: وزیر، اسب، رخ، فیل */}
+            {['q', 'n', 'r', 'b'].map((type) => (
               <button 
                 key={type}
                 onClick={() => handlePromotionSelect(type)}
-                className="w-14 h-14 sm:w-20 sm:h-20 bg-[#35332e] hover:bg-[#4a4740] rounded-lg p-2 transition-all flex items-center justify-center hover:scale-105 active:scale-95 shadow-inner"
+                className="w-16 h-16 sm:w-20 sm:h-20 hover:bg-[#4a4740] transition-colors flex items-center justify-center border-b border-[#35332e] last:border-b-0 active:bg-[#5a5750]"
               >
-                <img src={pieceSvgs[type]} alt={type} className="w-full h-full object-contain drop-shadow-md" />
+                <img src={pieceSvgs[type]} alt={type} className="w-12 h-12 sm:w-16 sm:h-16 object-contain drop-shadow-md" />
               </button>
             ))}
           </div>
