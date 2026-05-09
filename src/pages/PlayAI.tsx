@@ -27,12 +27,10 @@ export default function PlayAI() {
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
-  // استیت ارتقای مهره اختصاصی (بدون وابستگی به کتابخانه)
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
 
-  // فایل‌های SVG جداگانه برای سفید و سیاه
   const pieceSvgs: Record<string, Record<string, string>> = {
     w: {
       q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
@@ -131,7 +129,7 @@ export default function PlayAI() {
 
     if (isPromotion) {
       setPromotionMove({ from: sourceSquare, to: targetSquare, color: piece[0] });
-      return false; // متوقف کردن حرکت برای نمایش ستون ارتقا
+      return false; 
     }
 
     const move = makeMove({ from: sourceSquare, to: targetSquare });
@@ -142,9 +140,14 @@ export default function PlayAI() {
     return false;
   };
 
+  // باگ دقیقاً اینجا بود! فیلد رنگ رو جدا کردیم و فقط مختصات رو دادیم
   const handlePromotionSelect = (pieceType: string) => {
     if (promotionMove) {
-      const move = makeMove({ ...promotionMove, promotion: pieceType });
+      const move = makeMove({ 
+        from: promotionMove.from, 
+        to: promotionMove.to, 
+        promotion: pieceType 
+      });
       if (move) setIsPlayerTurn(false);
     }
     setPromotionMove(null);
@@ -178,19 +181,16 @@ export default function PlayAI() {
 
   const isPlayerWhite = boardOrientation === 'white';
 
-  // فرمول قطعی ریاضی برای محاسبه جایگاه دقیق ستون ارتقا روی تخته (بدون بیرون‌زدگی)
   const getPromotionOverlayStyle = (): React.CSSProperties => {
     if (!promotionMove) return {};
     const { to } = promotionMove;
-    const file = to.charCodeAt(0) - 97; // a=0, b=1 ...
-    const rank = parseInt(to[1], 10);   // 1 to 8
+    const file = to.charCodeAt(0) - 97; 
+    const rank = parseInt(to[1], 10);   
 
-    // محاسبه بر اساس جهت تخته (چرخیده یا نچرخیده)
     const isFlipped = boardOrientation === 'black';
     const visualFile = isFlipped ? 7 - file : file;
     const visualRank = isFlipped ? 9 - rank : rank;
     
-    // هر ستون دقیقاً ۱۲.۵ درصد از عرض تخته است
     const leftPercent = visualFile * 12.5;
     const isTopEdge = visualRank === 8;
 
@@ -199,8 +199,8 @@ export default function PlayAI() {
       left: `${leftPercent}%`,
       [isTopEdge ? 'top' : 'bottom']: '0%',
       width: '12.5%',
-      height: '50%', // دقیقا اندازه 4 خانه شطرنج
-      backgroundColor: '#f2f2f2', // رنگ پس‌زمینه مثل لیچس
+      height: '50%',
+      backgroundColor: '#f2f2f2',
       zIndex: 1000,
       display: 'flex',
       flexDirection: isTopEdge ? 'column' : 'column-reverse',
@@ -256,10 +256,8 @@ export default function PlayAI() {
             )}
             
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
-              {/* کانتینر تخته که سایز رو قفل میکنه */}
               <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm z-0">
                 
-                {/* تخته اصلی (پاپ‌آپ خودش رو غیرفعال کردیم) */}
                 <Board 
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
@@ -269,10 +267,9 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                  showPromotionDialog={false} // قطع کامل پاپ‌آپ پیش‌فرض
+                  showPromotionDialog={false}
                 />
 
-                {/* ستون ارتقای محاسبه‌شده با ریاضی (جایگزین ۱۰۰٪ لیچس) */}
                 {promotionMove && (
                   <div style={getPromotionOverlayStyle()}>
                     {['q', 'n', 'r', 'b'].map((type) => (
@@ -284,7 +281,7 @@ export default function PlayAI() {
                         <img 
                           src={pieceSvgs[promotionMove.color][type]} 
                           alt={type} 
-                          className="w-[85%] h-[85%] object-contain drop-shadow-sm" 
+                          className="w-[85%] h-[85%] object-contain drop-shadow-sm cursor-pointer" 
                         />
                       </button>
                     ))}
