@@ -25,14 +25,21 @@ export default function PlayAI() {
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
 
-  // استیت‌های مربوط به ارتقای مهره (Promotion)
-  const [moveTo, setMoveTo] = useState<string | null>(null);
-  const [moveFrom, setMoveFrom] = useState<string | null>(null);
-  const [showPromotionDialog, setShowPromotionDialog] = useState(false);
-
-  // استیت‌های تاریخچه بازی (برای دکمه‌های ناوبری)
+  // استیت‌های مربوط به تاریخچه بازی
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
+
+  // --- مدیریت ارتقای مهره سفارشی (Lichess Style) ---
+  const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
+  const [showCustomPromotion, setShowCustomPromotion] = useState(false);
+
+  // مهره‌های باکیفیت Staunton برای پاپ‌آپ ارتقا (از SVGهای استاندارد استفاده کنید)
+  const pieceSvgs: Record<string, string> = {
+    q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', // وزیر سفید
+    r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', // رخ سفید
+    b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', // فیل سفید
+    n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg'  // اسب سفید
+  };
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
@@ -43,7 +50,7 @@ export default function PlayAI() {
   useEffect(() => {
     if (gameOver) return;
     const timer = setInterval(() => {
-      if (viewIndex !== fenHistory.length - 1) return; // اگر در حال مرور تاریخچه هستیم تایمر متوقف نمی‌شود اما منطق پیچیده‌تر است، فعلا ساده می‌گیریم
+      if (viewIndex !== fenHistory.length - 1) return;
       if (isPlayerTurn) {
         setPlayerTime((prev) => { if (prev <= 1) handleGameOver('timeout', 'black'); return prev - 1; });
       } else {
@@ -61,12 +68,10 @@ export default function PlayAI() {
       
       if (result) {
         setGame(gameCopy);
-        
-        // ثبت FEN جدید در تاریخچه
         const newFen = gameCopy.fen();
         setFenHistory(prev => {
           const newHistory = [...prev, newFen];
-          setViewIndex(newHistory.length - 1); // همیشه برو به آخرین حرکت
+          setViewIndex(newHistory.length - 1);
           return newHistory;
         });
 
@@ -108,22 +113,19 @@ export default function PlayAI() {
 
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
     setOptionSquares({}); 
-    // اگر کاربر در حال نگاه کردن به گذشته است، اجازه حرکت نمی‌دهیم
     if (!isPlayerTurn || gameOver || viewIndex !== fenHistory.length - 1) {
-      setViewIndex(fenHistory.length - 1); // برش گردان به حال
+      setViewIndex(fenHistory.length - 1);
       return false; 
     }
     
-    // تشخیص اینکه آیا حرکت نیاز به ارتقا دارد یا نه
     const isPromotion = (piece[1].toLowerCase() === 'p') && 
                         ((piece[0] === 'w' && targetSquare[1] === '8') || 
                          (piece[0] === 'b' && targetSquare[1] === '1'));
 
     if (isPromotion) {
-      setMoveFrom(sourceSquare);
-      setMoveTo(targetSquare);
-      setShowPromotionDialog(true);
-      return true; // منتظر انتخاب در پاپ‌آپ می‌ماند
+      setPromotionMove({ from: sourceSquare, to: targetSquare });
+      setShowCustomPromotion(true);
+      return false; 
     }
 
     const move = makeMove({ from: sourceSquare, to: targetSquare });
@@ -134,17 +136,13 @@ export default function PlayAI() {
     return false;
   };
 
-  // تابعی که بعد از انتخاب قطعه از پاپ‌آپ ارتقا فراخوانی می‌شود
-  const onPromotionPieceSelect = (piece: string | undefined) => {
-    if (piece && moveFrom && moveTo) {
-      const promotionPiece = piece[1].toLowerCase(); // 'wQ' -> 'q'
-      const move = makeMove({ from: moveFrom, to: moveTo, promotion: promotionPiece });
+  const handlePromotionSelect = (pieceType: string) => {
+    if (promotionMove) {
+      const move = makeMove({ ...promotionMove, promotion: pieceType });
       if (move) setIsPlayerTurn(false);
     }
-    setMoveFrom(null);
-    setMoveTo(null);
-    setShowPromotionDialog(false);
-    return true;
+    setPromotionMove(null);
+    setShowCustomPromotion(false);
   };
 
   useEffect(() => {
@@ -154,7 +152,7 @@ export default function PlayAI() {
         const possibleMoves = game.moves();
         if (possibleMoves.length > 0) {
           const randomIndex = Math.floor(Math.random() * possibleMoves.length);
-          makeMove(possibleMoves[randomIndex]);
+          makeMove({ ...game.move(possibleMoves[randomIndex], {verbose: true}), promotion: 'q'});
           setIsPlayerTurn(true);
         }
       }, thinkTime);
@@ -175,7 +173,7 @@ export default function PlayAI() {
   const isPlayerWhite = boardOrientation === 'white';
 
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
-    <div className="flex-none flex items-center justify-between w-full py-2 px-1">
+    <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
       <div className="flex items-center gap-2">
         <div className={`w-8 h-8 rounded-sm flex items-center justify-center font-bold text-sm ${isOpponent ? 'bg-gray-700 text-gray-300' : 'bg-blue-600 text-white'}`}>
            {name.charAt(0)}
@@ -194,7 +192,42 @@ export default function PlayAI() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
+      
+      {/* مدال سفارشی ارتقای مهره با باگ‌فیکسِ اسکرول */}
+      {showCustomPromotion && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-300 p-4">
+          
+          {/* تغییر کلیدی: اضافه شدن max-h-[90vh] و overflow-y-auto برای جلوگیری از بیرون زدن پاپ‌آپ */}
+          <div className="bg-[#262421] border border-gray-700 rounded-lg p-6 shadow-2xl flex flex-col items-center max-w-sm w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <h3 className="text-xl font-bold text-white mb-6">ارتقای مهره</h3>
+            
+            <div className="grid grid-cols-4 gap-4 w-full">
+              {['q', 'r', 'b', 'n'].map((type) => (
+                <button 
+                  key={type}
+                  onClick={() => handlePromotionSelect(type)}
+                  className="aspect-square bg-[#35332e] hover:bg-[#4a4740] rounded-lg p-2 transition-colors border-2 border-transparent hover:border-amber-500 group"
+                >
+                  <img 
+                    src={pieceSvgs[type]} 
+                    alt={`ارتقا به ${type}`} 
+                    className="w-full h-full object-contain group-hover:scale-110 transition-transform" 
+                  />
+                </button>
+              ))}
+            </div>
+            
+            <button 
+              onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }} 
+              className="mt-6 text-sm text-gray-500 hover:text-white transition-colors"
+            >
+              لغو حرکت
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
            <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
@@ -207,10 +240,10 @@ export default function PlayAI() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2 lg:p-6 w-full max-w-[1200px] mx-auto gap-4 lg:gap-6">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2 lg:p-6 w-full max-w-[1200px] mx-auto gap-4 lg:gap-6 relative z-0">
         
-        <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center">
-          <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full">
+        <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
+          <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0">
             
             {isPlayerWhite ? (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
@@ -218,10 +251,8 @@ export default function PlayAI() {
               <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
             )}
             
-            <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center">
-              <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e]">
-                
-                {/* تغییر مهم: پوزیشن به جای game.fen() از تاریخچه خوانده می‌شود */}
+            <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
+              <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e] z-0">
                 <Board 
                   position={fenHistory[viewIndex]} 
                   onPieceDrop={onDrop}
@@ -231,10 +262,6 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                  // تنظیمات پاپ‌آپ ارتقا
-                  promotionToSquare={moveTo}
-                  showPromotionDialog={showPromotionDialog}
-                  onPromotionPieceSelect={onPromotionPieceSelect}
                 />
                 
                 {gameOver && (
@@ -260,7 +287,7 @@ export default function PlayAI() {
           </div>
         </div>
 
-        <div className="flex-none w-full lg:w-[350px] flex flex-col bg-[#262421] border border-[#35332e] rounded-sm shadow-xl h-[30vh] lg:h-full shrink-0">
+        <div className="flex-none w-full lg:w-[350px] flex flex-col bg-[#262421] border border-[#35332e] rounded-sm shadow-xl h-[30vh] lg:h-full shrink-0 relative z-10">
           
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2" dir="ltr">
             {movePairs.length === 0 ? (
@@ -275,7 +302,6 @@ export default function PlayAI() {
                     <div key={index} className={`flex px-2 py-1 ${index % 2 === 0 ? 'bg-[#2b2927]' : 'bg-[#262421]'}`}>
                       <div className="w-10 text-gray-500 font-mono text-right pr-3 select-none">{index + 1}.</div>
                       
-                      {/* حرکت سفید */}
                       <div 
                         onClick={() => setViewIndex(whiteMoveIndex)}
                         className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === whiteMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}
@@ -283,7 +309,6 @@ export default function PlayAI() {
                         {pair[0]}
                       </div>
                       
-                      {/* حرکت سیاه */}
                       <div 
                         onClick={() => pair[1] && setViewIndex(blackMoveIndex)}
                         className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === blackMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}
@@ -298,10 +323,9 @@ export default function PlayAI() {
           </div>
 
           <div className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
-            {/* اتصال دکمه‌های ناوبری به ایندکس تاریخچه */}
             <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors"><Rewind size={20}/></button>
             <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronLeft size={24}/></button>
-            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
+            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
             <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors"><FastForward size={20}/></button>
             
             <button 
