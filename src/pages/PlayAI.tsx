@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Flag, Handshake, Trophy, Zap, ChevronLeft, ChevronRight, FastForward, Rewind } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Flag, Handshake, Trophy, Zap, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const Board = Chessboard as any;
@@ -14,12 +14,16 @@ export default function PlayAI() {
   
   const opponent = location.state?.selectedBot || { name: 'شبیه‌ساز (مبتدی)', rating: 1200, accuracy: 'پایه' };
 
-  // حذف استیت‌های اضافی و اتکا به خودِ آبجکتِ chess.js به عنوان منبع حقیقت (Source of Truth)
   const [game, setGame] = useState(new Chess());
   const [playerTime, setPlayerTime] = useState(600);
   const [opponentTime, setOpponentTime] = useState(600);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [gameOver, setGameOver] = useState<{ status: string; winner: string | null } | null>(null);
+
+  // استیت‌های جدید برای ظاهر و چرخش تخته
+  const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
+  const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
+  const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
@@ -48,12 +52,19 @@ export default function PlayAI() {
   const makeMove = (move: any) => {
     try {
       const gameCopy = new Chess();
-      // کلید حل باگ لاگ حرکات: لود کردن کل PGN برای حفظ تاریخچه به جای FEN
       gameCopy.loadPgn(game.pgn());
       const result = gameCopy.move(move);
       
       if (result) {
         setGame(gameCopy);
+        
+        // تنظیم هایلایت زرد برای آخرین حرکت
+        setMoveSquares({
+          [result.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+          [result.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
+        });
+        setOptionSquares({}); // پاک کردن نقطه‌های راهنما
+
         if (gameCopy.isGameOver()) {
           if (gameCopy.isCheckmate()) {
             handleGameOver('checkmate', gameCopy.turn() === 'w' ? 'black' : 'white');
@@ -69,8 +80,33 @@ export default function PlayAI() {
     return false;
   };
 
+  // تابعی که وقتی کاربر مهره را کلیک می‌کند اجرا می‌شود (برای نمایش نقطه‌ها)
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
+    if (!isPlayerTurn || gameOver) return;
+    
+    // گرفتن لیست حرکات قانونی برای مهره انتخاب شده
+    const moves = game.moves({ square: sourceSquare as any, verbose: true });
+    if (moves.length === 0) return;
+
+    const newSquares: any = {};
+    moves.forEach((m: any) => {
+      newSquares[m.to] = {
+        background:
+          game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color
+            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)' // دایره توخالی برای زدن مهره حریف
+            : 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)', // نقطه توپر برای حرکت عادی
+        borderRadius: '50%'
+      };
+    });
+    // هایلایت کردن خانه‌ای که مهره در آن است
+    newSquares[sourceSquare] = { background: 'rgba(255, 255, 0, 0.4)' };
+    setOptionSquares(newSquares);
+  };
+
   const onDrop = (sourceSquare: string, targetSquare: string) => {
+    setOptionSquares({}); // همیشه بعد از رها کردن مهره نقطه‌ها را پاک کن
     if (!isPlayerTurn || gameOver) return false;
+    
     const move = makeMove({ from: sourceSquare, to: targetSquare, promotion: 'q' });
     if (move) {
       setIsPlayerTurn(false);
@@ -98,14 +134,12 @@ export default function PlayAI() {
   const handleResign = () => { if (!gameOver) handleGameOver('resign', 'black'); };
   const handleDraw = () => { if (!gameOver) handleGameOver('draw_agreed', null); };
 
-  // استخراج تاریخچه و جفت‌کردن حرکات (سفید و سیاه) برای نمایش استاندارد
   const history = game.history();
   const movePairs = [];
   for (let i = 0; i < history.length; i += 2) {
     movePairs.push([history[i], history[i + 1]]);
   }
 
-  // کامپوننت پروفایل با طراحی دقیقاً مشابه لیچس (جمع و جور با تایمر توکار)
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1">
       <div className="flex items-center gap-2">
@@ -125,11 +159,12 @@ export default function PlayAI() {
     </div>
   );
 
+  // منطق جابجایی پروفایل‌ها با چرخش تخته
+  const isPlayerWhite = boardOrientation === 'white';
+
   return (
-    // بدنه اصلی با قفل کامل اسکرول
     <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans">
       
-      {/* هدر */}
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
            <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
@@ -142,26 +177,31 @@ export default function PlayAI() {
         </div>
       </div>
 
-      {/* کانتینر اصلی بازی */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2 lg:p-6 w-full max-w-[1200px] mx-auto gap-4 lg:gap-6">
         
-        {/* ستون راست (یا بالا در موبایل): تخته و اطلاعات */}
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full">
-            <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
             
-            {/* حفظ تناسب مربع بودن تخته */}
+            {/* نمایش داینامیک پروفایل بالای تخته بر اساس جهت تخته */}
+            {isPlayerWhite ? (
+              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
+            ) : (
+              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
+            )}
+            
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center">
               <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e]">
                 <Board 
                   position={game.fen()} 
                   onPieceDrop={onDrop}
+                  onPieceDragBegin={onPieceDragBegin}
+                  boardOrientation={boardOrientation}
+                  customSquareStyles={{ ...moveSquares, ...optionSquares }}
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
                 />
                 
-                {/* پرده‌ی پایان بازی */}
                 {gameOver && (
                   <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in fade-in duration-300">
                     <Trophy size={48} className={gameOver.winner === 'white' ? 'text-amber-400 mb-4' : 'text-gray-400 mb-4'} />
@@ -176,14 +216,18 @@ export default function PlayAI() {
               </div>
             </div>
             
-            <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
+            {/* نمایش داینامیک پروفایل پایین تخته بر اساس جهت تخته */}
+            {isPlayerWhite ? (
+              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
+            ) : (
+              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
+            )}
+            
           </div>
         </div>
 
-        {/* ستون چپ (یا پایین در موبایل): پنل PGN و کنترل‌ها */}
         <div className="flex-none w-full lg:w-[350px] flex flex-col bg-[#262421] border border-[#35332e] rounded-sm shadow-xl h-[30vh] lg:h-full shrink-0">
           
-          {/* لیست حرکات PGN */}
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2" dir="ltr">
             {movePairs.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-500 text-sm">منتظر حرکت سفید...</div>
@@ -200,15 +244,21 @@ export default function PlayAI() {
             )}
           </div>
 
-          {/* دکمه‌های ناوبری (عقب و جلو بردن بازی) */}
           <div className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
             <button className="p-2 hover:bg-white/5 rounded transition-colors"><Rewind size={20}/></button>
             <button className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronLeft size={24}/></button>
             <button className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
             <button className="p-2 hover:bg-white/5 rounded transition-colors"><FastForward size={20}/></button>
+            {/* دکمه چرخش تخته */}
+            <button 
+              onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} 
+              className="p-2 hover:bg-white/5 rounded transition-colors ml-4 border-l border-[#35332e] pl-4"
+              title="چرخش تخته"
+            >
+              <RefreshCw size={20}/>
+            </button>
           </div>
 
-          {/* دکمه‌های تسلیم و تساوی */}
           <div className="flex-none flex bg-[#201e1b] p-3 gap-3">
             <button onClick={handleDraw} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]">
               <Handshake size={18}/> تساوی
