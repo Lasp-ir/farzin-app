@@ -7,6 +7,9 @@ import { useTranslation } from 'react-i18next';
 
 const Board = Chessboard as any;
 
+// کاراکترهای استاندارد شطرنج برای مهره‌های زده‌شده
+const pieceChars: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
+
 export default function PlayAI() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
@@ -25,8 +28,6 @@ export default function PlayAI() {
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
   
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
-  
-  // 🔥 استیت قدرتمند برای پیش‌حرکت (Premove)
   const [premove, setPremove] = useState<{from: string, to: string} | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
@@ -42,13 +43,17 @@ export default function PlayAI() {
       q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
       n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
       r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
-      b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg'
+      b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
+      p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
+      k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg'
     },
     b: {
       q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg',
       n: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Chess_ndt45.svg',
       r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg',
-      b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg'
+      b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg',
+      p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg',
+      k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
     }
   };
 
@@ -104,8 +109,6 @@ export default function PlayAI() {
     return false;
   };
 
-  // 🔥 موتور اجرای Premove
-  // به محض اینکه نوبت شما بشه و Premove داشته باشی، تو کسری از ثانیه اجراش می‌کنه
   useEffect(() => {
     if (isPlayerTurn && premove && !gameOver && !isViewingHistory) {
       const moves = game.moves({ verbose: true });
@@ -115,7 +118,7 @@ export default function PlayAI() {
         const success = makeMove({
           from: premove.from,
           to: premove.to,
-          promotion: move.promotion ? 'q' : undefined // پیش‌حرکت ارتقا اتوماتیک وزیر میشه
+          promotion: move.promotion ? 'q' : undefined
         });
         if (success) setIsPlayerTurn(false);
       }
@@ -143,8 +146,6 @@ export default function PlayAI() {
 
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
     if (gameOver || isViewingHistory) return;
-    
-    // اگه نوبت رباته، فقط می‌تونی مهره خودت رو بگیری برای پیش‌حرکت
     if (!isPlayerTurn) {
       if (piece[0] === playerColor) {
         setClickedSquare(sourceSquare);
@@ -152,7 +153,6 @@ export default function PlayAI() {
       }
       return;
     }
-    
     setClickedSquare(sourceSquare);
     highlightLegalMoves(sourceSquare);
   };
@@ -166,12 +166,11 @@ export default function PlayAI() {
       return false; 
     }
 
-    // 🔥 ثبت Premove از طریق درگ کردن
     if (!isPlayerTurn) {
       if (piece[0] === playerColor) {
         setPremove({ from: sourceSquare, to: targetSquare });
       }
-      return false; // همیشه false برمی‌گردونه تا مهره برگرده سر جاش و خطای بصری نده
+      return false; 
     }
 
     const moves = game.moves({ verbose: true });
@@ -193,7 +192,6 @@ export default function PlayAI() {
   const handleSquareClick = (square: string) => {
     if (gameOver || isViewingHistory || customPromotion) return;
 
-    // 🔥 لغو Premove با یک کلیک ساده
     if (premove) {
       setPremove(null);
       setClickedSquare(null);
@@ -201,7 +199,6 @@ export default function PlayAI() {
       return;
     }
 
-    // 🔥 ثبت Premove از طریق کلیک کردن
     if (!isPlayerTurn) {
       if (clickedSquare) {
         setPremove({ from: clickedSquare, to: square });
@@ -217,7 +214,6 @@ export default function PlayAI() {
       return;
     }
 
-    // منطق کلیک برای حرکت‌های عادی
     if (clickedSquare === square) {
        setClickedSquare(null);
        setOptionSquares({});
@@ -284,7 +280,6 @@ export default function PlayAI() {
     setOptionSquares({});
   };
 
-  // شبیه‌سازی فکر کردن و حرکت ربات
   useEffect(() => {
     if (!isPlayerTurn && !gameOver && !customPromotion) {
       const thinkTime = opponent.accuracy === 'پایه' ? 1000 : 2500;
@@ -339,22 +334,90 @@ export default function PlayAI() {
     };
   };
 
-  // 🔥 استایل‌های رنگ قرمز Premove لیچس
   const premoveStyles = premove ? {
     [premove.from]: { backgroundColor: 'rgba(204, 51, 51, 0.6)' },
     [premove.to]: { backgroundColor: 'rgba(204, 51, 51, 0.6)' }
   } : {};
 
-  const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
+  const pieceValues: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+  const sortOrder: Record<string, number> = { q: 1, r: 2, b: 3, n: 4, p: 5 };
+
+  const currentMoves = game.history({ verbose: true }).slice(0, viewIndex);
+  
+  const capturedByWhite = currentMoves
+    .filter(m => m.color === 'w' && m.captured)
+    .map(m => m.captured as string)
+    .sort((a, b) => sortOrder[a] - sortOrder[b]);
+
+  const capturedByBlack = currentMoves
+    .filter(m => m.color === 'b' && m.captured)
+    .map(m => m.captured as string)
+    .sort((a, b) => sortOrder[a] - sortOrder[b]);
+
+  const tempGame = new Chess(fenHistory[viewIndex]);
+  let wScore = 0;
+  let bScore = 0;
+  tempGame.board().forEach(row => {
+    row.forEach(piece => {
+      if (piece) {
+        if (piece.color === 'w') wScore += pieceValues[piece.type];
+        else bScore += pieceValues[piece.type];
+      }
+    });
+  });
+  
+  const whiteAdvantage = wScore - bScore;
+  const whiteScoreAdv = whiteAdvantage > 0 ? whiteAdvantage : 0;
+  const blackScoreAdv = whiteAdvantage < 0 ? Math.abs(whiteAdvantage) : 0;
+
+  const whitePlayerProps = {
+    capturedPieces: capturedByWhite,
+    capturedColor: 'b',
+    scoreAdvantage: whiteScoreAdv
+  };
+
+  const blackPlayerProps = {
+    capturedPieces: capturedByBlack,
+    capturedColor: 'w',
+    scoreAdvantage: blackScoreAdv
+  };
+
+  // 🔥 استفاده از کاراکترها (متن) با رنگ‌بندی داینامیک برای مهره‌های زده‌شده
+  const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy, capturedPieces, capturedColor, scoreAdvantage }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
-      <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded-sm flex items-center justify-center font-bold text-sm ${isOpponent ? 'bg-gray-700 text-gray-300' : 'bg-blue-600 text-white'}`}>
-           {name.charAt(0)}
+      <div className="flex flex-col justify-center">
+        <div className="flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-sm flex items-center justify-center font-bold text-sm ${isOpponent ? 'bg-gray-700 text-gray-300' : 'bg-blue-600 text-white'}`}>
+             {name.charAt(0)}
+          </div>
+          <div className="font-bold text-gray-200 text-sm flex items-center gap-2 leading-none">
+            {name} <span className="text-gray-500 font-normal">{rating}</span>
+            {isOpponent && accuracy && accuracy !== 'پایه' && (
+               <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1 py-0.5 rounded border border-amber-500/30">PRO</span>
+            )}
+          </div>
         </div>
-        <div className="font-bold text-gray-200 text-sm flex items-center gap-2">
-          {name} <span className="text-gray-500 font-normal">{rating}</span>
-          {isOpponent && accuracy && accuracy !== 'پایه' && (
-             <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1 py-0.5 rounded border border-amber-500/30">PRO</span>
+        <div className="flex items-center pl-10 h-[18px] mt-1">
+          {capturedPieces && capturedPieces.length > 0 && (
+             <div className="flex items-center text-lg leading-none">
+               {capturedPieces.map((piece: string, idx: number) => (
+                 <span 
+                   key={idx} 
+                   className={`${idx === 0 ? '' : '-ml-[5px]'}`} // هم‌پوشانی جذاب شبیه لیچس
+                   style={{
+                     // اگر مهره سفید باشه رنگش سفید با استروک تیره، اگه سیاه باشه رنگش مشکی با استروک روشن‌تر
+                     color: capturedColor === 'w' ? '#fff' : '#1b1b1b',
+                     WebkitTextStroke: capturedColor === 'w' ? '1px #333' : '1px #666',
+                     textShadow: '0px 1px 1px rgba(0,0,0,0.5)'
+                   }}
+                 >
+                   {pieceChars[piece]}
+                 </span>
+               ))}
+             </div>
+          )}
+          {scoreAdvantage > 0 && (
+             <span className="text-[11px] text-[#779556] font-bold ml-1.5 leading-none mt-1">+{scoreAdvantage}</span>
           )}
         </div>
       </div>
@@ -368,7 +431,6 @@ export default function PlayAI() {
     <div 
       className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" 
       onClick={() => { if (customPromotion) setCustomPromotion(null); }}
-      // 🔥 کنسل کردن پیش‌حرکت با کلیک راست در هر جای صفحه
       onContextMenu={(e) => { 
         e.preventDefault(); 
         setPremove(null); 
@@ -394,9 +456,9 @@ export default function PlayAI() {
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0">
             
             {isPlayerWhite ? (
-              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
+              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} {...blackPlayerProps} />
             ) : (
-              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
+              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} {...whitePlayerProps} />
             )}
             
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
@@ -408,14 +470,12 @@ export default function PlayAI() {
                   onPieceDragBegin={onPieceDragBegin}
                   onSquareClick={handleSquareClick}
                   onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
-                  // 🔥 اضافه کردن کلیک‌راست روی تخته برای لغو Premove
                   onSquareRightClick={() => {
                     setPremove(null);
                     setClickedSquare(null);
                     setOptionSquares({});
                   }}
                   boardOrientation={boardOrientation}
-                  // 🔥 تزریق استایل‌های قرمز Premove
                   customSquareStyles={{ ...moveSquares, ...optionSquares, ...premoveStyles }}
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
@@ -465,9 +525,9 @@ export default function PlayAI() {
             </div>
             
             {isPlayerWhite ? (
-              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} />
+              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} {...whitePlayerProps} />
             ) : (
-              <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} />
+              <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} {...blackPlayerProps} />
             )}
             
           </div>
