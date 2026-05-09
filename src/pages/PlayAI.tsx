@@ -27,17 +27,10 @@ export default function PlayAI() {
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
+  // استیت‌های مربوط به ارتقای نیتیو روی تخته
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
-  const [showCustomPromotion, setShowCustomPromotion] = useState(false);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
-
-  const pieceSvgs: Record<string, string> = {
-    q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
-    r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
-    b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
-    n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg'
-  };
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
@@ -116,14 +109,13 @@ export default function PlayAI() {
       return false; 
     }
     
-    const isPromotion = (piece[1].toLowerCase() === 'p') && 
-                        ((piece[0] === 'w' && targetSquare[1] === '8') || 
-                         (piece[0] === 'b' && targetSquare[1] === '1'));
+    // تشخیص دقیق حرکت ارتقا
+    const isPromotion = (piece === 'wP' && targetSquare[1] === '8') || 
+                        (piece === 'bP' && targetSquare[1] === '1');
 
     if (isPromotion) {
       setPromotionMove({ from: sourceSquare, to: targetSquare });
-      setShowCustomPromotion(true);
-      return false; 
+      return false; // منتظر انتخاب کاربر از روی تخته می‌مانیم
     }
 
     const move = makeMove({ from: sourceSquare, to: targetSquare });
@@ -134,13 +126,15 @@ export default function PlayAI() {
     return false;
   };
 
-  const handlePromotionSelect = (pieceType: string) => {
-    if (promotionMove) {
-      const move = makeMove({ ...promotionMove, promotion: pieceType });
+  // تابع هندل کردن انتخاب مهره از روی خود تخته
+  const onPromotionPieceSelect = (piece: string | undefined) => {
+    if (piece && promotionMove) {
+      const type = piece[1].toLowerCase(); // 'wQ' -> 'q'
+      const move = makeMove({ from: promotionMove.from, to: promotionMove.to, promotion: type });
       if (move) setIsPlayerTurn(false);
     }
     setPromotionMove(null);
-    setShowCustomPromotion(false);
+    return true;
   };
 
   useEffect(() => {
@@ -193,30 +187,6 @@ export default function PlayAI() {
   return (
     <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
       
-      {/* پاپ‌آپ ارتقای مهره (Lichess Vertical Style) */}
-      {showCustomPromotion && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center"
-          onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }}
-        >
-          <div 
-            className="bg-[#2b2927] rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 border border-[#4a4740]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* ترتیب دقیق لیچس: وزیر، اسب، رخ، فیل */}
-            {['q', 'n', 'r', 'b'].map((type) => (
-              <button 
-                key={type}
-                onClick={() => handlePromotionSelect(type)}
-                className="w-16 h-16 sm:w-20 sm:h-20 hover:bg-[#4a4740] transition-colors flex items-center justify-center border-b border-[#35332e] last:border-b-0 active:bg-[#5a5750]"
-              >
-                <img src={pieceSvgs[type]} alt={type} className="w-12 h-12 sm:w-16 sm:h-16 object-contain drop-shadow-md" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
            <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
@@ -250,6 +220,12 @@ export default function PlayAI() {
                   animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                  
+                  /* تنظیمات مربوط به ارتقای مهره دقیقاً شبیه لیچس (روی تخته) */
+                  promotionToSquare={promotionMove?.to ?? null}
+                  showPromotionDialog={!!promotionMove}
+                  onPromotionPieceSelect={onPromotionPieceSelect}
+                  customPromotionSquareStyles={{ backgroundColor: '#35332e' }}
                 />
                 
                 {gameOver && (
