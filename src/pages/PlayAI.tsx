@@ -381,7 +381,6 @@ export default function PlayAI() {
     scoreAdvantage: blackScoreAdv
   };
 
-  // 🔥 آپدیت قدرتمند PlayerInfo برای پشتیبانی از انیمیشن تفکر
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy, capturedPieces, capturedColor, scoreAdvantage, isThinking }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
       <div className="flex flex-col justify-center">
@@ -394,7 +393,6 @@ export default function PlayAI() {
             {isOpponent && accuracy && accuracy !== 'پایه' && !isThinking && (
                <span className="text-[10px] bg-amber-500/20 text-amber-500 px-1 py-0.5 rounded border border-amber-500/30">PRO</span>
             )}
-            {/* 🔥 نشانگر تفکر ربات */}
             {isThinking && (
                <div className="flex items-center gap-[3px] ml-1 bg-[#2b2927] px-2 py-1.5 rounded-full border border-[#4a4740] shadow-sm h-[20px]">
                   <span className="w-1.5 h-1.5 bg-[#779556] rounded-full dot-typing dot-1"></span>
@@ -444,7 +442,6 @@ export default function PlayAI() {
         setOptionSquares({}); 
       }}
     >
-      {/* 🔥 اضافه شدن استایل‌های اختصاصی انیمیشن */}
       <style>{`
         @keyframes typing {
           0%, 100% { transform: translateY(0); opacity: 0.4; }
@@ -472,7 +469,6 @@ export default function PlayAI() {
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0">
             
-            {/* 🔥 ارسال isThinking به ربات */}
             {isPlayerWhite ? (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...blackPlayerProps} />
             ) : (
@@ -542,7 +538,6 @@ export default function PlayAI() {
               </div>
             </div>
             
-            {/* بازیکن (شما) به این انیمیشن نیازی نداره */}
             {isPlayerWhite ? (
               <PlayerInfo name="کاربر شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...whitePlayerProps} />
             ) : (
@@ -578,12 +573,13 @@ export default function PlayAI() {
             )}
           </div>
 
-          <div className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
-            <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors"><Rewind size={20}/></button>
-            <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronLeft size={24}/></button>
-            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
-            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors"><FastForward size={20}/></button>
-            <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 hover:bg-white/5 rounded transition-colors ml-4 border-l border-[#35332e] pl-4" title="چرخش تخته"><RefreshCw size={20}/></button>
+          {/* 🔥 جهت‌دهی LTR برای دکمه‌های کنترل حرکات */}
+          <div dir="ltr" className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
+            <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 hover:bg-white/5 rounded transition-colors mr-4 pr-4 border-r border-[#35332e]" title="چرخش تخته"><RefreshCw size={20}/></button>
+            <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors" title="اولین حرکت"><Rewind size={20}/></button>
+            <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-white/5 rounded transition-colors" title="حرکت قبلی"><ChevronLeft size={24}/></button>
+            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-white/5 rounded transition-colors" title="حرکت بعدی"><ChevronRight size={24}/></button>
+            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors" title="آخرین حرکت"><FastForward size={20}/></button>
           </div>
 
           <div className="flex-none flex bg-[#201e1b] p-3 gap-3">
