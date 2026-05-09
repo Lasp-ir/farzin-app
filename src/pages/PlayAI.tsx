@@ -93,7 +93,6 @@ export default function PlayAI() {
         return true;
       }
     } catch (e) {
-      console.error("Move error:", e, move); 
       return false;
     }
     return false;
@@ -117,7 +116,6 @@ export default function PlayAI() {
     setOptionSquares(newSquares);
   };
 
-  // 🔴 مشکل اینجا بود که کامل بازنویسی و ۱۰۰٪ ضدگلوله شد
   const onDrop = (sourceSquare: string, targetSquare: string) => {
     setOptionSquares({}); 
     if (!isPlayerTurn || gameOver || isViewingHistory) {
@@ -125,10 +123,8 @@ export default function PlayAI() {
       return false; 
     }
     
-    // گرفتن تمام حرکات ممکن و قانونی از خود موتور شطرنج
     const moves = game.moves({ verbose: true });
     
-    // تشخیص اینکه آیا کاربر داره حرکت ارتقا انجام میده یا نه (از موتور شطرنج می‌پرسیم)
     const isPromotion = moves.some(
       (m: any) => m.from === sourceSquare && m.to === targetSquare && m.promotion
     );
@@ -136,17 +132,15 @@ export default function PlayAI() {
     if (isPromotion) {
       const pieceOnBoard = game.get(sourceSquare as any);
       setPromotionMove({ from: sourceSquare, to: targetSquare, color: pieceOnBoard?.color || 'w' });
-      return false; // منتظر کلیک کاربر روی پاپ‌آپ می‌مونیم
+      return false; 
     }
 
-    // اگر ارتقا نیست، چک می‌کنیم حرکت اصلاً قانونی هست یا نه
     const isLegalMove = moves.some(
       (m: any) => m.from === sourceSquare && m.to === targetSquare
     );
 
     if (!isLegalMove) return false;
 
-    // حرکت معمولی انجام میشه
     const move = makeMove({ from: sourceSquare, to: targetSquare });
     if (move) {
       setIsPlayerTurn(false);
@@ -157,11 +151,12 @@ export default function PlayAI() {
 
   const handlePromotionSelect = (pieceType: string) => {
     if (promotionMove) {
-      const move = makeMove({ 
+      const payload = { 
         from: promotionMove.from, 
         to: promotionMove.to, 
         promotion: pieceType 
-      });
+      };
+      const move = makeMove(payload);
       if (move) setIsPlayerTurn(false);
     }
     setPromotionMove(null);
@@ -285,17 +280,29 @@ export default function PlayAI() {
                 />
 
                 {promotionMove && (
-                  <div style={getPromotionOverlayStyle()}>
+                  <div 
+                    style={getPromotionOverlayStyle()}
+                    // 🛡️ این سه خط همون سپر جادویی هستند که نمی‌ذارن تخته موس رو بدزده!
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
                     {['q', 'n', 'r', 'b'].map((type) => (
                       <button 
                         key={type}
-                        onClick={(e) => { e.stopPropagation(); handlePromotionSelect(type); }}
+                        // به جای onClick از onPointerDown استفاده کردیم تا از تخته سریع‌تر عمل کنه
+                        onPointerDown={(e) => { 
+                          e.preventDefault(); 
+                          e.stopPropagation(); 
+                          handlePromotionSelect(type); 
+                        }}
                         className="w-full h-1/4 hover:bg-[#d9d9d9] transition-colors flex items-center justify-center border-b border-[#cccccc] last:border-b-0"
                       >
                         <img 
                           src={pieceSvgs[promotionMove.color][type]} 
                           alt={type} 
                           className="w-[85%] h-[85%] object-contain drop-shadow-sm cursor-pointer" 
+                          draggable={false} // جلوگیری از درگ شدن خود عکس به جای کلیک
                         />
                       </button>
                     ))}
