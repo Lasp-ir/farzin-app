@@ -23,11 +23,13 @@ export default function PlayAI() {
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
+  
+  // 🔥 استیت جدید برای ذخیره مهره‌ای که روش کلیک شده
+  const [clickedSquare, setClickedSquare] = useState<string | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
-  // پاپ‌آپ کاستوم و هوشمند خودمون
   const [customPromotion, setCustomPromotion] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
@@ -98,67 +100,127 @@ export default function PlayAI() {
     return false;
   };
 
-  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (!isPlayerTurn || gameOver || isViewingHistory) return;
+  // 🔥 تابع هوشمند برای روشن کردن خانه‌های مجاز (مدرن و مشابه لیچس)
+  const highlightLegalMoves = (sourceSquare: string) => {
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
     if (moves.length === 0) return;
 
     const newSquares: any = {};
     moves.forEach((m: any) => {
+      const isCapture = game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color;
       newSquares[m.to] = {
-        background: game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color
-            ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)' 
-            : 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)',
+        // اگر خونه حریف باشه حلقه توخالی میندازه، اگر خالی باشه نقطه توپر میندازه
+        background: isCapture
+            ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.15) 100%)' 
+            : 'radial-gradient(circle, rgba(0,0,0,.15) 20%, transparent 20%)',
         borderRadius: '50%'
       };
     });
+    // روشن کردن خونه‌ی مبدا (همون مهره‌ای که انتخاب شده)
     newSquares[sourceSquare] = { background: 'rgba(255, 255, 0, 0.4)' };
     setOptionSquares(newSquares);
   };
 
-  // 🔥 منطق بی‌رحمانه و دقیق ارزیابی حرکت
-  const onDrop = (sourceSquare: string, targetSquare: string) => {
+  // مدیریت درگ کردن (کشش مهره)
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
+    if (!isPlayerTurn || gameOver || isViewingHistory) return;
+    setClickedSquare(sourceSquare);
+    highlightLegalMoves(sourceSquare);
+  };
+
+  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
     setOptionSquares({}); 
+    setClickedSquare(null); // پاک کردن استیت کلیک
+
     if (!isPlayerTurn || gameOver || isViewingHistory) {
       setViewIndex(fenHistory.length - 1);
       return false; 
     }
 
-    // ۱. لیست تمام حرکات مجاز رو از موتور می‌گیریم
     const moves = game.moves({ verbose: true });
-    
-    // ۲. آیا حرکت شما تو لیست حرکات مجاز هست؟
-    const legalMove = moves.find((m: any) => m.from === sourceSquare && m.to === targetSquare);
+    const isPromotion = moves.some(m => m.from === sourceSquare && m.to === targetSquare && m.promotion);
 
-    // 🛑 ۳. اگر نبود (مثل وقتی که رخ راه رو بسته)، درجا رد میشه! هیچ اتفاقی نمی‌افته و پاپ‌آپی باز نمیشه.
+    if (isPromotion) {
+      setCustomPromotion({ from: sourceSquare, to: targetSquare, color: piece[0] });
+      return false; 
+    }
+
+    const legalMove = moves.find(m => m.from === sourceSquare && m.to === targetSquare);
     if (!legalMove) return false;
 
-    // 🌟 ۴. اگر حرکت کاملاً قانونی بود و از نوع ارتقا بود:
-    if (legalMove.promotion) {
-      const pieceOnBoard = game.get(sourceSquare as any);
-      setCustomPromotion({ from: sourceSquare, to: targetSquare, color: pieceOnBoard.color });
-      return false; // مهره موقتاً برمی‌گرده سر جاش تا کاربر از پاپ‌آپ انتخاب کنه
+    const success = makeMove({ from: sourceSquare, to: targetSquare });
+    if (success) setIsPlayerTurn(false);
+    return success;
+  };
+
+  // 🔥 سیستم کلیک‌محور برای حرکت با انیمیشن
+  const onSquareClick = (square: string) => {
+    if (!isPlayerTurn || gameOver || isViewingHistory || customPromotion) return;
+
+    // اگر قبلاً روی مهره‌ای کلیک کرده بودیم
+    if (clickedSquare) {
+      const moves = game.moves({ square: clickedSquare as any, verbose: true });
+      const move = moves.find(m => m.to === square);
+
+      if (move) {
+        // حرکت مجازه!
+        if (move.promotion) {
+          const pieceColor = game.get(clickedSquare as any)?.color || 'w';
+          setCustomPromotion({ from: clickedSquare, to: square, color: pieceColor });
+          return;
+        }
+
+        // انجام حرکت معمولی با کلیک
+        const success = makeMove({ from: clickedSquare, to: square });
+        if (success) setIsPlayerTurn(false);
+        setClickedSquare(null);
+        setOptionSquares({});
+        return;
+      }
     }
 
-    // ۵. حرکت معمولی و قانونی
-    const success = makeMove({ from: sourceSquare, to: targetSquare });
-    if (success) {
-      setIsPlayerTurn(false);
-      return true; // مهره می‌شینه سر جاش
+    // اگر روی مهره خودمون کلیک کردیم (انتخاب مهره یا تغییر مهره انتخابی)
+    const pieceOnSquare = game.get(square as any);
+    if (pieceOnSquare && pieceOnSquare.color === game.turn()) {
+      setClickedSquare(square);
+      highlightLegalMoves(square);
+    } else {
+      // کلیک روی جای خالی یا نامعتبر (از حالت انتخاب خارج میشه)
+      setClickedSquare(null);
+      setOptionSquares({});
     }
-    return false;
   };
 
   const handleCustomPromotionSelect = (promotionType: string) => {
     if (customPromotion) {
-      const success = makeMove({ 
-        from: customPromotion.from, 
-        to: customPromotion.to, 
-        promotion: promotionType 
-      });
+      const moves = game.moves({ verbose: true });
+      const exactMove = moves.find(m => 
+        m.from === customPromotion.from && 
+        m.to === customPromotion.to && 
+        m.promotion === promotionType
+      );
+
+      let success = false;
+      if (exactMove) {
+        success = makeMove(exactMove.san);
+      } else {
+        success = makeMove({ 
+          from: customPromotion.from, 
+          to: customPromotion.to, 
+          promotion: promotionType 
+        });
+      }
+
       if (success) setIsPlayerTurn(false);
     }
+    cancelPromotion();
+  };
+
+  // تابع کمکی برای بستن پاپ‌آپ و پاک کردن استیت‌ها
+  const cancelPromotion = () => {
     setCustomPromotion(null);
+    setClickedSquare(null);
+    setOptionSquares({});
   };
 
   useEffect(() => {
@@ -189,6 +251,32 @@ export default function PlayAI() {
 
   const isPlayerWhite = boardOrientation === 'white';
 
+  const getPromotionOverlayStyle = (): React.CSSProperties => {
+    if (!customPromotion) return {};
+    const { to } = customPromotion;
+    const file = to.charCodeAt(0) - 97; 
+    const rank = parseInt(to[1], 10);   
+
+    const isFlipped = boardOrientation === 'black';
+    const visualFile = isFlipped ? 7 - file : file;
+    const visualRank = isFlipped ? 9 - rank : rank;
+    
+    const leftPercent = visualFile * 12.5;
+    const isTopEdge = visualRank === 8;
+
+    return {
+      position: 'absolute',
+      left: `${leftPercent}%`,
+      [isTopEdge ? 'top' : 'bottom']: '0%',
+      width: '12.5%',
+      height: '50%', 
+      zIndex: 1000,
+      display: 'flex',
+      flexDirection: isTopEdge ? 'column' : 'column-reverse',
+      pointerEvents: 'none' 
+    };
+  };
+
   const PlayerInfo = ({ name, rating, time, isOpponent, isActive, accuracy }: any) => (
     <div className="flex-none flex items-center justify-between w-full py-2 px-1 relative z-10">
       <div className="flex items-center gap-2">
@@ -209,7 +297,7 @@ export default function PlayAI() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
+    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" onClick={cancelPromotion}>
       
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
@@ -240,41 +328,39 @@ export default function PlayAI() {
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
                   onPieceDragBegin={onPieceDragBegin}
+                  onSquareClick={onSquareClick} // 🔥 اتصال سیستم کلیک
                   boardOrientation={boardOrientation}
                   customSquareStyles={{ ...moveSquares, ...optionSquares }}
-                  animationDuration={200}
+                  animationDuration={200} // 🔥 انیمیشن حرکت با کلیک دقیقاً اینجا تضمین میشه
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                  
-                  // 🚫 پاپ‌آپ احمقانه خود کتابخونه رو برای همیشه خاموش کردیم
-                  showPromotionDialog={false}
+                  autoPromoteToQueen={true} 
                 />
 
-                {/* 🛡️ پاپ‌آپ مرکزی و ۱۰۰٪ ایمن خودمون */}
                 {customPromotion && (
                   <div 
-                    className="absolute inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-                    onClick={() => setCustomPromotion(null)} // کلیک رو پس‌زمینه = لغو
+                    style={getPromotionOverlayStyle()}
+                    className="z-[1000]"
                   >
-                    <div 
-                      className="bg-[#2b2927] p-3 sm:p-5 rounded-xl shadow-2xl flex gap-2 sm:gap-4 border border-[#4a4740] animate-in zoom-in-95 duration-200"
-                      onClick={e => e.stopPropagation()} 
-                    >
-                      {['q', 'n', 'r', 'b'].map((type) => (
-                         <button
-                           key={type}
-                           onClick={() => handleCustomPromotionSelect(type)}
-                           className="w-14 h-14 sm:w-20 sm:h-20 bg-[#35332e] hover:bg-[#4a4740] rounded-lg p-1 sm:p-2 transition-transform hover:scale-105 active:scale-95 border-2 border-transparent hover:border-[#779556] flex items-center justify-center cursor-pointer"
-                         >
-                           <img 
-                             src={pieceSvgs[customPromotion.color][type]} 
-                             alt={type} 
-                             className="w-full h-full object-contain drop-shadow-md pointer-events-none" 
-                             draggable={false} 
-                           />
-                         </button>
-                      ))}
-                    </div>
+                    {['q', 'n', 'r', 'b'].map((type) => (
+                      <button 
+                        key={type}
+                        onPointerDown={(e) => { 
+                          e.preventDefault(); 
+                          e.stopPropagation(); 
+                          handleCustomPromotionSelect(type); 
+                        }}
+                        className="w-full h-1/4 flex items-center justify-center relative group cursor-pointer pointer-events-auto"
+                      >
+                        <div className="absolute w-[90%] h-[90%] rounded-full bg-[#f2f2f2] shadow-[0_3px_10px_rgba(0,0,0,0.6)] group-hover:bg-white group-hover:scale-105 transition-all duration-150"></div>
+                        <img 
+                          src={pieceSvgs[customPromotion.color][type]} 
+                          alt={type} 
+                          className="relative z-10 w-[85%] h-[85%] object-contain drop-shadow-sm pointer-events-none" 
+                          draggable={false} 
+                        />
+                      </button>
+                    ))}
                   </div>
                 )}
                 
@@ -302,7 +388,7 @@ export default function PlayAI() {
         </div>
 
         <div className="flex-none w-full lg:w-[350px] flex flex-col bg-[#262421] border border-[#35332e] rounded-sm shadow-xl h-[30vh] lg:h-full shrink-0 relative z-10">
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2 border-b border-[#35332e]" dir="ltr">
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2" dir="ltr">
             {movePairs.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-500 text-sm">منتظر حرکت سفید...</div>
             ) : (
