@@ -24,7 +24,7 @@ export default function PlayAI() {
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
   
-  // 🔥 استیت جدید برای ذخیره مهره‌ای که روش کلیک شده
+  // استیت برای مدیریت کلیک‌ها
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
@@ -100,7 +100,7 @@ export default function PlayAI() {
     return false;
   };
 
-  // 🔥 تابع هوشمند برای روشن کردن خانه‌های مجاز (مدرن و مشابه لیچس)
+  // 🔥 گرافیک بی‌نقص و مشابه لیچس برای خانه‌های مجاز
   const highlightLegalMoves = (sourceSquare: string) => {
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
     if (moves.length === 0) return;
@@ -109,19 +109,17 @@ export default function PlayAI() {
     moves.forEach((m: any) => {
       const isCapture = game.get(m.to as any) && game.get(m.to as any).color !== game.get(sourceSquare as any)?.color;
       newSquares[m.to] = {
-        // اگر خونه حریف باشه حلقه توخالی میندازه، اگر خالی باشه نقطه توپر میندازه
-        background: isCapture
-            ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.15) 100%)' 
-            : 'radial-gradient(circle, rgba(0,0,0,.15) 20%, transparent 20%)',
-        borderRadius: '50%'
+        // برای زدن: یک حلقه (رینگ) دور مهره | برای حرکت عادی: یک نقطه توپر وسط خانه
+        backgroundImage: isCapture
+            ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.2) 67%, rgba(0,0,0,0.2) 100%)' 
+            : 'radial-gradient(circle, rgba(0,0,0,.2) 22%, transparent 23%)',
       };
     });
-    // روشن کردن خونه‌ی مبدا (همون مهره‌ای که انتخاب شده)
-    newSquares[sourceSquare] = { background: 'rgba(255, 255, 0, 0.4)' };
+    // خونه‌ای که انتخاب شده زرد میشه
+    newSquares[sourceSquare] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
     setOptionSquares(newSquares);
   };
 
-  // مدیریت درگ کردن (کشش مهره)
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
     if (!isPlayerTurn || gameOver || isViewingHistory) return;
     setClickedSquare(sourceSquare);
@@ -130,7 +128,7 @@ export default function PlayAI() {
 
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
     setOptionSquares({}); 
-    setClickedSquare(null); // پاک کردن استیت کلیک
+    setClickedSquare(null);
 
     if (!isPlayerTurn || gameOver || isViewingHistory) {
       setViewIndex(fenHistory.length - 1);
@@ -153,24 +151,28 @@ export default function PlayAI() {
     return success;
   };
 
-  // 🔥 سیستم کلیک‌محور برای حرکت با انیمیشن
-  const onSquareClick = (square: string) => {
+  // 🔥 سیستم کلیک یکپارچه (هم برای مهره‌ها هم برای خانه‌های خالی)
+  const handleSquareClick = (square: string) => {
     if (!isPlayerTurn || gameOver || isViewingHistory || customPromotion) return;
 
-    // اگر قبلاً روی مهره‌ای کلیک کرده بودیم
+    // اگر کاربر دوباره روی همون مهره کلیک کرد (لغو انتخاب)
+    if (clickedSquare === square) {
+       setClickedSquare(null);
+       setOptionSquares({});
+       return;
+    }
+
     if (clickedSquare) {
       const moves = game.moves({ square: clickedSquare as any, verbose: true });
       const move = moves.find(m => m.to === square);
 
       if (move) {
-        // حرکت مجازه!
         if (move.promotion) {
           const pieceColor = game.get(clickedSquare as any)?.color || 'w';
           setCustomPromotion({ from: clickedSquare, to: square, color: pieceColor });
           return;
         }
 
-        // انجام حرکت معمولی با کلیک
         const success = makeMove({ from: clickedSquare, to: square });
         if (success) setIsPlayerTurn(false);
         setClickedSquare(null);
@@ -179,13 +181,12 @@ export default function PlayAI() {
       }
     }
 
-    // اگر روی مهره خودمون کلیک کردیم (انتخاب مهره یا تغییر مهره انتخابی)
+    // انتخاب یک مهره جدید برای حرکت
     const pieceOnSquare = game.get(square as any);
     if (pieceOnSquare && pieceOnSquare.color === game.turn()) {
       setClickedSquare(square);
       highlightLegalMoves(square);
     } else {
-      // کلیک روی جای خالی یا نامعتبر (از حالت انتخاب خارج میشه)
       setClickedSquare(null);
       setOptionSquares({});
     }
@@ -216,7 +217,6 @@ export default function PlayAI() {
     cancelPromotion();
   };
 
-  // تابع کمکی برای بستن پاپ‌آپ و پاک کردن استیت‌ها
   const cancelPromotion = () => {
     setCustomPromotion(null);
     setClickedSquare(null);
@@ -297,7 +297,7 @@ export default function PlayAI() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative" onClick={cancelPromotion}>
+    <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
       
       <div className="flex-none h-14 flex items-center justify-between px-4 bg-[#262421] border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-4">
@@ -328,10 +328,14 @@ export default function PlayAI() {
                   position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
                   onPieceDragBegin={onPieceDragBegin}
-                  onSquareClick={onSquareClick} // 🔥 اتصال سیستم کلیک
+                  
+                  // 🔥 کلید کار اینجاست: هم کلیک روی مهره و هم خانه را هدایت می‌کنیم
+                  onSquareClick={handleSquareClick}
+                  onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
+                  
                   boardOrientation={boardOrientation}
                   customSquareStyles={{ ...moveSquares, ...optionSquares }}
-                  animationDuration={200} // 🔥 انیمیشن حرکت با کلیک دقیقاً اینجا تضمین میشه
+                  animationDuration={200}
                   customDarkSquareStyle={{ backgroundColor: '#779556' }}
                   customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
                   autoPromoteToQueen={true} 
