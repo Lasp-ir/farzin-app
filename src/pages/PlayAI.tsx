@@ -20,25 +20,24 @@ export default function PlayAI() {
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [gameOver, setGameOver] = useState<{ status: string; winner: string | null } | null>(null);
 
-  // استیت‌های چرخش و هایلایت
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
 
-  // استیت‌های مربوط به تاریخچه بازی
   const [fenHistory, setFenHistory] = useState<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
-  // --- مدیریت ارتقای مهره سفارشی (Lichess Style) ---
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   const [showCustomPromotion, setShowCustomPromotion] = useState(false);
 
-  // مهره‌های باکیفیت Staunton برای پاپ‌آپ ارتقا (از SVGهای استاندارد استفاده کنید)
+  // متغیر کمکی برای تشخیص اینکه آیا کاربر در حال مشاهده تاریخچه است یا زمان حال
+  const isViewingHistory = viewIndex < fenHistory.length - 1;
+
   const pieceSvgs: Record<string, string> = {
-    q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', // وزیر سفید
-    r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', // رخ سفید
-    b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', // فیل سفید
-    n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg'  // اسب سفید
+    q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
+    r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
+    b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
+    n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg'
   };
 
   const formatTime = (seconds: number) => {
@@ -50,7 +49,7 @@ export default function PlayAI() {
   useEffect(() => {
     if (gameOver) return;
     const timer = setInterval(() => {
-      if (viewIndex !== fenHistory.length - 1) return;
+      if (isViewingHistory) return;
       if (isPlayerTurn) {
         setPlayerTime((prev) => { if (prev <= 1) handleGameOver('timeout', 'black'); return prev - 1; });
       } else {
@@ -58,7 +57,7 @@ export default function PlayAI() {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [isPlayerTurn, gameOver, viewIndex, fenHistory.length]);
+  }, [isPlayerTurn, gameOver, isViewingHistory]);
 
   const makeMove = (move: any) => {
     try {
@@ -94,7 +93,7 @@ export default function PlayAI() {
   };
 
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (!isPlayerTurn || gameOver || viewIndex !== fenHistory.length - 1) return;
+    if (!isPlayerTurn || gameOver || isViewingHistory) return;
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
     if (moves.length === 0) return;
 
@@ -113,7 +112,7 @@ export default function PlayAI() {
 
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
     setOptionSquares({}); 
-    if (!isPlayerTurn || gameOver || viewIndex !== fenHistory.length - 1) {
+    if (!isPlayerTurn || gameOver || isViewingHistory) {
       setViewIndex(fenHistory.length - 1);
       return false; 
     }
@@ -145,14 +144,19 @@ export default function PlayAI() {
     setShowCustomPromotion(false);
   };
 
+  // حل مشکل تغییر وضعیت مستقیم در ربات
   useEffect(() => {
     if (!isPlayerTurn && !gameOver) {
       const thinkTime = opponent.accuracy === 'پایه' ? 1000 : 2500;
       const botMoveTimer = setTimeout(() => {
-        const possibleMoves = game.moves();
+        // گرفتن لیست حرکات به صورت Object بدون تغییر مستقیم در game اصلی
+        const possibleMoves = game.moves({ verbose: true });
         if (possibleMoves.length > 0) {
           const randomIndex = Math.floor(Math.random() * possibleMoves.length);
-          makeMove({ ...game.move(possibleMoves[randomIndex], {verbose: true}), promotion: 'q'});
+          const chosenMove = possibleMoves[randomIndex];
+          
+          // ارسال ایمن حرکت به تابع makeMove
+          makeMove({ from: chosenMove.from, to: chosenMove.to, promotion: 'q' });
           setIsPlayerTurn(true);
         }
       }, thinkTime);
@@ -185,7 +189,7 @@ export default function PlayAI() {
           )}
         </div>
       </div>
-      <div className={`text-2xl font-mono font-bold px-3 py-1 rounded transition-colors shadow-sm ${isActive && viewIndex === fenHistory.length - 1 ? 'bg-gray-200 text-gray-900' : (time < 60 ? 'bg-red-500/20 text-red-400' : 'bg-[#262421] text-gray-400')}`}>
+      <div className={`text-2xl font-mono font-bold px-3 py-1 rounded transition-colors shadow-sm ${isActive && !isViewingHistory ? 'bg-gray-200 text-gray-900' : (time < 60 ? 'bg-red-500/20 text-red-400' : 'bg-[#262421] text-gray-400')}`}>
         {formatTime(time)}
       </div>
     </div>
@@ -194,14 +198,10 @@ export default function PlayAI() {
   return (
     <div className="flex flex-col h-screen bg-[#161512] text-gray-300 overflow-hidden font-sans relative">
       
-      {/* مدال سفارشی ارتقای مهره با باگ‌فیکسِ اسکرول */}
       {showCustomPromotion && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-300 p-4">
-          
-          {/* تغییر کلیدی: اضافه شدن max-h-[90vh] و overflow-y-auto برای جلوگیری از بیرون زدن پاپ‌آپ */}
           <div className="bg-[#262421] border border-gray-700 rounded-lg p-6 shadow-2xl flex flex-col items-center max-w-sm w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
             <h3 className="text-xl font-bold text-white mb-6">ارتقای مهره</h3>
-            
             <div className="grid grid-cols-4 gap-4 w-full">
               {['q', 'r', 'b', 'n'].map((type) => (
                 <button 
@@ -209,19 +209,11 @@ export default function PlayAI() {
                   onClick={() => handlePromotionSelect(type)}
                   className="aspect-square bg-[#35332e] hover:bg-[#4a4740] rounded-lg p-2 transition-colors border-2 border-transparent hover:border-amber-500 group"
                 >
-                  <img 
-                    src={pieceSvgs[type]} 
-                    alt={`ارتقا به ${type}`} 
-                    className="w-full h-full object-contain group-hover:scale-110 transition-transform" 
-                  />
+                  <img src={pieceSvgs[type]} alt={`ارتقا به ${type}`} className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
                 </button>
               ))}
             </div>
-            
-            <button 
-              onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }} 
-              className="mt-6 text-sm text-gray-500 hover:text-white transition-colors"
-            >
+            <button onClick={() => { setPromotionMove(null); setShowCustomPromotion(false); }} className="mt-6 text-sm text-gray-500 hover:text-white transition-colors">
               لغو حرکت
             </button>
           </div>
@@ -241,7 +233,6 @@ export default function PlayAI() {
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2 lg:p-6 w-full max-w-[1200px] mx-auto gap-4 lg:gap-6 relative z-0">
-        
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0">
             
@@ -254,7 +245,7 @@ export default function PlayAI() {
             <div dir="ltr" className="w-full flex-1 min-h-0 relative flex items-center justify-center z-0">
               <div className="w-full aspect-square max-h-full relative shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden border-[3px] border-[#35332e] z-0">
                 <Board 
-                  position={fenHistory[viewIndex]} 
+                  position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                   onPieceDrop={onDrop}
                   onPieceDragBegin={onPieceDragBegin}
                   boardOrientation={boardOrientation}
@@ -288,7 +279,6 @@ export default function PlayAI() {
         </div>
 
         <div className="flex-none w-full lg:w-[350px] flex flex-col bg-[#262421] border border-[#35332e] rounded-sm shadow-xl h-[30vh] lg:h-full shrink-0 relative z-10">
-          
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2" dir="ltr">
             {movePairs.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-500 text-sm">منتظر حرکت سفید...</div>
@@ -301,18 +291,10 @@ export default function PlayAI() {
                   return (
                     <div key={index} className={`flex px-2 py-1 ${index % 2 === 0 ? 'bg-[#2b2927]' : 'bg-[#262421]'}`}>
                       <div className="w-10 text-gray-500 font-mono text-right pr-3 select-none">{index + 1}.</div>
-                      
-                      <div 
-                        onClick={() => setViewIndex(whiteMoveIndex)}
-                        className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === whiteMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}
-                      >
+                      <div onClick={() => setViewIndex(whiteMoveIndex)} className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === whiteMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}>
                         {pair[0]}
                       </div>
-                      
-                      <div 
-                        onClick={() => pair[1] && setViewIndex(blackMoveIndex)}
-                        className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === blackMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}
-                      >
+                      <div onClick={() => pair[1] && setViewIndex(blackMoveIndex)} className={`flex-1 font-bold cursor-pointer px-1 rounded ${viewIndex === blackMoveIndex ? 'bg-[#779556] text-white' : 'text-[#b0aba2] hover:text-white'}`}>
                         {pair[1] || ''}
                       </div>
                     </div>
@@ -325,28 +307,16 @@ export default function PlayAI() {
           <div className="flex-none flex items-center justify-center gap-2 bg-[#201e1b] text-[#b0aba2] p-2 border-y border-[#35332e]">
             <button onClick={() => setViewIndex(0)} className="p-2 hover:bg-white/5 rounded transition-colors"><Rewind size={20}/></button>
             <button onClick={() => setViewIndex(p => Math.max(0, p - 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronLeft size={24}/></button>
-            <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
+            <button onClick={() => setViewIndex(p => Math.min(fenHistory.length - 1, p + 1))} className="p-2 hover:bg-white/5 rounded transition-colors"><ChevronRight size={24}/></button>
             <button onClick={() => setViewIndex(fenHistory.length - 1)} className="p-2 hover:bg-white/5 rounded transition-colors"><FastForward size={20}/></button>
-            
-            <button 
-              onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} 
-              className="p-2 hover:bg-white/5 rounded transition-colors ml-4 border-l border-[#35332e] pl-4"
-              title="چرخش تخته"
-            >
-              <RefreshCw size={20}/>
-            </button>
+            <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 hover:bg-white/5 rounded transition-colors ml-4 border-l border-[#35332e] pl-4" title="چرخش تخته"><RefreshCw size={20}/></button>
           </div>
 
           <div className="flex-none flex bg-[#201e1b] p-3 gap-3">
-            <button onClick={handleDraw} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]">
-              <Handshake size={18}/> تساوی
-            </button>
-            <button onClick={handleResign} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]">
-              <Flag size={18}/> تسلیم
-            </button>
+            <button onClick={handleDraw} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]"><Handshake size={18}/> تساوی</button>
+            <button onClick={handleResign} className="flex-1 py-2.5 bg-[#2b2927] hover:bg-[#35332e] text-gray-300 font-bold rounded flex items-center justify-center gap-2 transition-colors border border-[#35332e]"><Flag size={18}/> تسلیم</button>
           </div>
         </div>
-
       </div>
     </div>
   );
