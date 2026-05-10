@@ -62,9 +62,9 @@ export default function BotSelection() {
   };
 
   const timeControls = [
-    { title: 'بولت', icon: <Zap size={14} />, options: [{ l: '۱ دقیقه', v: 60, inc: 0 }, { l: '۱|۱', v: 60, inc: 1 }, { l: '۲|۱', v: 120, inc: 1 }] },
-    { title: 'بلیتس', icon: <Flame size={14} />, options: [{ l: '۳ دقیقه', v: 180, inc: 0 }, { l: '۳|۲', v: 180, inc: 2 }, { l: '۵ دقیقه', v: 300, inc: 0 }] },
-    { title: 'رپید', icon: <Timer size={14} />, options: [{ l: '۱۰ دقیقه', v: 600, inc: 0 }, { l: '۱۵|۱۰', v: 900, inc: 10 }, { l: '۳۰ دقیقه', v: 1800, inc: 0 }] },
+    { title: 'بولت', icon: <Zap size={14} className="text-orange-200" />, options: [{ l: '۱ دقیقه', v: 60, inc: 0 }, { l: '۱|۱', v: 60, inc: 1 }, { l: '۲|۱', v: 120, inc: 1 }] },
+    { title: 'بلیتس', icon: <Flame size={14} className="text-rose-400" />, options: [{ l: '۳ دقیقه', v: 180, inc: 0 }, { l: '۳|۲', v: 180, inc: 2 }, { l: '۵ دقیقه', v: 300, inc: 0 }] },
+    { title: 'رپید', icon: <Timer size={14} className="text-sky-300" />, options: [{ l: '۱۰ دقیقه', v: 600, inc: 0 }, { l: '۱۵|۱۰', v: 900, inc: 10 }, { l: '۳۰ دقیقه', v: 1800, inc: 0 }] },
   ];
 
   const handleStartGame = () => {
@@ -84,7 +84,7 @@ export default function BotSelection() {
 
       <div className="w-full max-w-2xl px-4 pb-64 flex flex-col gap-6 mt-2 relative">
         
-        {/* 🔥 باکس Hero پین شده (Sticky) بدون تاری، کاملا سالید */}
+        {/* باکس Hero پین شده (Sticky) بدون تاری، کاملا سالید */}
         <div 
           className={`sticky top-4 z-40 relative group p-[1px] transition-all duration-1000 ease-out ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
           style={{ perspective: '1500px' }}
@@ -177,19 +177,19 @@ export default function BotSelection() {
           <div className="flex items-center justify-between gap-3">
             <button 
               onClick={() => setShowOptions(!showOptions)}
-              className="flex-1 flex items-center justify-between bg-[#1e1c19] px-5 py-3.5 rounded-[18px] text-sm font-bold text-zinc-300 hover:bg-[#262421] transition-all border border-[#35332e] active:scale-95 shadow-inner"
+              className="flex-1 flex items-center justify-between bg-gradient-to-b from-[#2a2926] to-[#1e1c19] px-5 py-3.5 rounded-[18px] text-sm font-bold text-zinc-300 hover:bg-[#262421] transition-all border border-[#3a3731] active:scale-95 shadow-[inset_0_2px_5px_rgba(255,255,255,0.03)]"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#161512] flex items-center justify-center border border-[#35332e]">
-                    {selectedTime.value === 0 ? <InfinityIcon size={18} className="text-zinc-400" /> : <Clock size={18} className="text-zinc-400" />}
+                <div className="w-9 h-9 rounded-lg bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner">
+                    {selectedTime.value === 0 ? <InfinityIcon size={18} className="text-zinc-500" /> : <Clock size={18} className="text-zinc-500" />}
                 </div>
                 <div className="flex flex-col items-start leading-none gap-1">
-                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-wider">فرمت بازی</span>
-                    <span className="font-bold">{selectedTime.label}</span>
+                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-wider">تنظیم زمان</span>
+                    <span className="font-bold text-zinc-200">{selectedTime.label}</span>
                 </div>
               </div>
               <div className={`transition-transform duration-300 ${showOptions ? 'rotate-180' : ''}`}>
-                 <ChevronDown size={20} className="text-zinc-500" />
+                 <ChevronDown size={22} className="text-zinc-500" />
               </div>
             </button>
 
@@ -215,29 +215,31 @@ export default function BotSelection() {
             </div>
           </div>
 
-          <div className={`w-full overflow-hidden transition-all duration-400 ease-in-out ${showOptions ? 'max-h-[600px] opacity-100 mb-2' : 'max-h-0 opacity-0'}`}>
-            <div className="bg-[#262421] p-5 rounded-[24px] border border-[#35332e] shadow-2xl space-y-5 shadow-black/80">
+          <div className={`w-full overflow-hidden transition-all duration-300 ease-out ${showOptions ? 'max-h-[600px] opacity-100 mb-2' : 'max-h-0 opacity-0'}`}>
+            <div className="bg-gradient-to-br from-[#2a2926] to-[#1e1c19] p-5 rounded-[26px] border border-[#403e3a] shadow-2xl space-y-5 shadow-black/80">
               <button
                 onClick={() => { setSelectedTime({ label: 'نامحدود', value: 0, inc: 0 }); setShowOptions(false); }}
-                className={`w-full py-4 rounded-xl text-sm font-bold transition-all border flex items-center justify-center gap-3 shadow-inner ${selectedTime.value === 0 ? 'bg-farzin-accent text-white border-transparent' : 'bg-[#1e1c19] text-zinc-400 hover:bg-[#35332e] border-[#35332e]'}`}
+                className={`w-full py-4 rounded-xl text-sm font-bold transition-all border flex items-center justify-center gap-3 shadow-[inset_0_2px_5px_rgba(255,255,255,0.03)] ${selectedTime.value === 0 ? 'bg-farzin-accent text-white border-transparent' : 'bg-gradient-to-t from-[#1e1c19] to-[#2a2926] text-zinc-300 hover:from-[#2a2926] hover:to-[#35332e] border-[#3a3731]'}`}
               >
                 <InfinityIcon size={18} /> بدون محدودیت زمانی
               </button>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-8 pt-1">
                 {timeControls.map(tc => (
-                  <div key={tc.title} className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 text-zinc-500 text-[10px] font-black uppercase tracking-widest pl-1">
-                      {tc.icon} {tc.title}
+                  <div key={tc.title} className="flex flex-col gap-3.5 border-r border-[#3a3731] pr-5 last:border-r-0 last:pr-0">
+                    <div className="flex items-center gap-2.5 pl-1">
+                      {tc.icon}
+                      <span className="text-[11px] font-black uppercase tracking-widest text-zinc-100">{tc.title}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 gap-2.5">
                       {tc.options.map(opt => (
                         <button 
                           key={opt.l}
                           onClick={() => { setSelectedTime({ label: opt.l, value: opt.v, inc: opt.inc }); setShowOptions(false); }}
-                          className={`py-2.5 rounded-xl text-[12px] font-bold transition-all border shadow-inner ${selectedTime.label === opt.l ? 'bg-farzin-accent text-white border-transparent' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border-[#35332e]'}`}
+                          className={`py-3 rounded-xl text-[13px] font-black transition-all border shadow-[inset_0_2px_5px_rgba(255,255,255,0.03)] group relative overflow-hidden ${selectedTime.label === opt.l ? 'bg-farzin-accent text-white border-transparent' : 'bg-gradient-to-t from-[#1a1916] to-[#22211e] text-zinc-200 hover:scale-105 border-[#3a3731]'}`}
                         >
-                          {opt.l}
+                          <div className={`absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity ${selectedTime.label === opt.l ? 'hidden' : ''}`}></div>
+                          <span className="relative z-10">{opt.l}</span>
                         </button>
                       ))}
                     </div>
