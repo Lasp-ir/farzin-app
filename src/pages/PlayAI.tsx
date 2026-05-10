@@ -30,8 +30,10 @@ export default function PlayAI() {
   
   const opponent = location.state?.selectedBot || { name: 'فرزین (آلفا)', rating: 1500, accuracy: 'پیشرفته' };
   
-  // 🔥 دریافت زمان از روت و مقداردهی اولیه به زمان‌ها
+  // 🔥 دریافت زمان پایه و پاداش زمانی (Increment)
   const initialTime = location.state?.time !== undefined ? location.state.time : 600;
+  const timeIncrement = location.state?.increment !== undefined ? location.state.increment : 0;
+  
   const [playerTime, setPlayerTime] = useState(initialTime);
   const [opponentTime, setOpponentTime] = useState(initialTime);
 
@@ -61,25 +63,10 @@ export default function PlayAI() {
   const playerPieceColor = initialPlayerColor === 'white' ? 'w' : 'b';
 
   const pieceSvgs: Record<string, Record<string, string>> = {
-    w: {
-      q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
-      n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
-      r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
-      b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
-      p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
-      k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg'
-    },
-    b: {
-      q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg',
-      n: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Chess_ndt45.svg',
-      r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg',
-      b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg',
-      p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg',
-      k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
-    }
+    w: { q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
+    b: { q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Chess_ndt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg', p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
   };
 
-  // 🔥 اگر زمان 0 باشه، علامت بی‌نهایت رو برمی‌گردونه
   const formatTime = (seconds: number) => {
     if (initialTime === 0) return '∞';
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
@@ -88,9 +75,7 @@ export default function PlayAI() {
   };
 
   useEffect(() => {
-    // 🔥 اگر زمان 0 (بدون محدودیت) انتخاب شده باشه، تایمر کلا متوقف میشه
     if (gameOver || initialTime === 0) return;
-    
     const timer = setInterval(() => {
       if (isViewingHistory) return;
       if (isPlayerTurn) {
@@ -156,12 +141,16 @@ export default function PlayAI() {
           to: premove.to,
           promotion: move.promotion ? 'q' : undefined
         });
-        if (success) setIsPlayerTurn(false);
+        if (success) {
+           // 🔥 اعمال پاداش زمانی به کاربر (اگر زمان بی‌نهایت نباشد)
+           if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
+           setIsPlayerTurn(false);
+        }
       }
       setPremove(null);
       setOptionSquares({});
     }
-  }, [isPlayerTurn, game, premove, gameOver, isViewingHistory]);
+  }, [isPlayerTurn, game, premove, gameOver, isViewingHistory, initialTime, timeIncrement]);
 
   const highlightLegalMoves = (sourceSquare: string) => {
     const moves = game.moves({ square: sourceSquare as any, verbose: true });
@@ -221,7 +210,11 @@ export default function PlayAI() {
     if (!legalMove) return false;
 
     const success = makeMove({ from: sourceSquare, to: targetSquare });
-    if (success) setIsPlayerTurn(false);
+    if (success) {
+       // 🔥 اعمال پاداش زمانی به کاربر
+       if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
+       setIsPlayerTurn(false);
+    }
     return success;
   };
 
@@ -268,7 +261,11 @@ export default function PlayAI() {
         }
 
         const success = makeMove({ from: clickedSquare, to: square });
-        if (success) setIsPlayerTurn(false);
+        if (success) {
+           // 🔥 اعمال پاداش زمانی به کاربر
+           if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
+           setIsPlayerTurn(false);
+        }
         setClickedSquare(null);
         setOptionSquares({});
         return;
@@ -305,7 +302,11 @@ export default function PlayAI() {
         });
       }
 
-      if (success) setIsPlayerTurn(false);
+      if (success) {
+         // 🔥 اعمال پاداش زمانی به کاربر در صورت ارتقا
+         if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
+         setIsPlayerTurn(false);
+      }
     }
     cancelPromotion();
   };
@@ -324,17 +325,21 @@ export default function PlayAI() {
         if (possibleMoves.length > 0) {
           const randomIndex = Math.floor(Math.random() * possibleMoves.length);
           const chosenMove = possibleMoves[randomIndex];
-          makeMove({ from: chosenMove.from, to: chosenMove.to, promotion: 'q' });
-          setIsPlayerTurn(true);
+          const success = makeMove({ from: chosenMove.from, to: chosenMove.to, promotion: 'q' });
+          if (success) {
+             // 🔥 اعمال پاداش زمانی به ربات بعد از حرکت
+             if(initialTime !== 0) setOpponentTime(prev => prev + timeIncrement);
+             setIsPlayerTurn(true);
+          }
         }
       }, thinkTime);
       return () => clearTimeout(botMoveTimer);
     }
-  }, [isPlayerTurn, gameOver, game, opponent.accuracy, customPromotion]);
+  }, [isPlayerTurn, gameOver, game, opponent.accuracy, customPromotion, initialTime, timeIncrement]);
 
   const handleGameOver = (reason: string, winnerColor: string | null) => setGameOver({ status: reason, winner: winnerColor });
-  const handleResign = () => { if (!gameOver) { handleGameOver('resign', playerPieceColor === 'w' ? 'black' : 'white'); playSound('gameOver'); } };
-  const handleDraw = () => { if (!gameOver) { handleGameOver('draw_agreed', null); playSound('gameOver'); } };
+  const handleResign = () => { if (!gameOver) { handleGameOver('تسلیم', playerPieceColor === 'w' ? 'black' : 'white'); playSound('gameOver'); } };
+  const handleDraw = () => { if (!gameOver) { handleGameOver('توافق', null); playSound('gameOver'); } };
 
   const history = game.history();
   const movePairs = [];
@@ -463,7 +468,6 @@ export default function PlayAI() {
           </div>
         </div>
       </div>
-      {/* 🔥 قرمز شدن ساعت فقط وقتی اتفاق میفته که زمان بی‌نهایت نباشه */}
       <div className={`text-2xl font-mono font-bold px-4 py-1.5 rounded-lg transition-all duration-300 shadow-inner ${isActive && !isViewingHistory ? 'bg-zinc-200 text-zinc-900 shadow-md scale-105' : (time < 60 && initialTime !== 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50')}`}>
         {formatTime(time)}
       </div>
@@ -488,9 +492,8 @@ export default function PlayAI() {
            </button>
            <div className="flex flex-col">
              <span className="font-bold text-zinc-100 text-[15px] tracking-wide">کلاسیک</span>
-             {/* 🔥 زمان انتخابی رو در هدر هم نشون میدیم */}
              <span className="text-[11px] text-zinc-500 font-medium">
-               {initialTime === 0 ? 'بدون محدودیت زمانی' : `${Math.floor(initialTime / 60)} دقیقه`} • دوستانه
+               {initialTime === 0 ? 'بدون محدودیت زمانی' : `${Math.floor(initialTime / 60)}${timeIncrement > 0 ? `|${timeIncrement}` : ''} • دوستانه`}
              </span>
            </div>
         </div>

@@ -41,12 +41,14 @@ export default function BotSelection() {
   const [selectedBot, setSelectedBot] = useState(botCategories[2].bots[1]);
   const [playerColor, setPlayerColor] = useState<'white' | 'random' | 'black'>('white');
   const [showOptions, setShowOptions] = useState(false);
-  const [selectedTime, setSelectedTime] = useState({ label: '۱۰ دقیقه', value: 600 });
+  
+  // 🔥 اضافه شدن فیلد inc (افزایش زمان به ثانیه) بر اساس استاندارد فیشر
+  const [selectedTime, setSelectedTime] = useState({ label: '۱۰ دقیقه', value: 600, inc: 0 });
 
   const timeControls = [
-    { title: 'بولت', icon: <Zap size={14} />, options: [{ l: '۱ دقیقه', v: 60 }, { l: '۱|۱', v: 61 }, { l: '۲|۱', v: 121 }] },
-    { title: 'بلیتس', icon: <Flame size={14} />, options: [{ l: '۳ دقیقه', v: 180 }, { l: '۳|۲', v: 182 }, { l: '۵ دقیقه', v: 300 }] },
-    { title: 'رپید', icon: <Timer size={14} />, options: [{ l: '۱۰ دقیقه', v: 600 }, { l: '۱۵|۱۰', v: 910 }, { l: '۳۰ دقیقه', v: 1800 }] },
+    { title: 'بولت', icon: <Zap size={14} />, options: [{ l: '۱ دقیقه', v: 60, inc: 0 }, { l: '۱|۱', v: 60, inc: 1 }, { l: '۲|۱', v: 120, inc: 1 }] },
+    { title: 'بلیتس', icon: <Flame size={14} />, options: [{ l: '۳ دقیقه', v: 180, inc: 0 }, { l: '۳|۲', v: 180, inc: 2 }, { l: '۵ دقیقه', v: 300, inc: 0 }] },
+    { title: 'رپید', icon: <Timer size={14} />, options: [{ l: '۱۰ دقیقه', v: 600, inc: 0 }, { l: '۱۵|۱۰', v: 900, inc: 10 }, { l: '۳۰ دقیقه', v: 1800, inc: 0 }] },
   ];
 
   const handleStartGame = () => {
@@ -56,7 +58,8 @@ export default function BotSelection() {
       rating: selectedBot.rating,
       accuracy: selectedBot.type === 'neural' ? 'پیشرفته' : 'پایه'
     };
-    navigate('/play-ai', { state: { selectedBot: safeBotData, color: playerColor, time: selectedTime.value } });
+    // ارسال دقیق زمانِ پایه و پاداشِ زمانی (increment) به صفحه بازی
+    navigate('/play-ai', { state: { selectedBot: safeBotData, color: playerColor, time: selectedTime.value, increment: selectedTime.inc } });
   };
 
   return (
@@ -68,8 +71,7 @@ export default function BotSelection() {
         <div className="w-8"></div>
       </div>
 
-      <div className="w-full max-w-2xl px-4 pb-60 flex flex-col gap-6 mt-6">
-        
+      <div className="w-full max-w-2xl px-4 pb-64 flex flex-col gap-6 mt-6">
         <div className="flex items-center gap-4 p-4 glass-panel rounded-2xl bg-[#262421]">
           <img src={selectedBot.avatar} className="w-20 h-20 rounded-xl bg-zinc-800" alt="" />
           <div className="flex-1">
@@ -102,20 +104,22 @@ export default function BotSelection() {
           <div className="flex items-center justify-between gap-2">
             <button 
               onClick={() => setShowOptions(!showOptions)}
-              className="flex items-center gap-2 bg-[#262421] px-4 py-3 rounded-xl text-sm font-bold text-zinc-300 hover:bg-[#35332e] transition-all border border-white/5"
+              className="flex-1 flex items-center justify-between bg-[#1e1c19] px-4 py-3 rounded-xl text-sm font-bold text-zinc-300 hover:bg-[#35332e] transition-all border border-white/5"
             >
-              {selectedTime.value === 0 ? <InfinityIcon size={16} className="text-zinc-400" /> : <Clock size={16} className="text-zinc-400" />} 
-              <span>زمان بازی: {selectedTime.label}</span>
-              {showOptions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div className="flex items-center gap-2">
+                {selectedTime.value === 0 ? <InfinityIcon size={16} className="text-zinc-400" /> : <Clock size={16} className="text-zinc-400" />} 
+                <span>زمان: {selectedTime.label}</span>
+              </div>
+              {showOptions ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-500" />}
             </button>
 
-            {/* 🔥 انتخاب رنگ با کاراکترهای دقیق و استایل‌دهی شده */}
-            <div className="flex items-center gap-1 bg-[#262421] p-1.5 rounded-xl border border-white/5 shadow-inner">
+            {/* 🔥 انتخاب رنگ با آیکون پیاده توپر و چینش منظم */}
+            <div className="flex items-center gap-1 bg-[#1e1c19] p-1.5 rounded-xl border border-white/5 shadow-inner">
                <button 
-                 onClick={() => setPlayerColor('black')} 
-                 className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'black' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
+                 onClick={() => setPlayerColor('white')} 
+                 className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'white' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
                >
-                 <span className="text-[32px] leading-none pb-2 drop-shadow-sm" style={{ color: '#111', WebkitTextStroke: '1px #999' }}>♚</span>
+                 <span className="text-[28px] leading-none pb-1 drop-shadow-sm" style={{ color: '#f4f4f5', WebkitTextStroke: '1px #52525b' }}>♟</span>
                </button>
                <button 
                  onClick={() => setPlayerColor('random')} 
@@ -124,26 +128,25 @@ export default function BotSelection() {
                  ?
                </button>
                <button 
-                 onClick={() => setPlayerColor('white')} 
-                 className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'white' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
+                 onClick={() => setPlayerColor('black')} 
+                 className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'black' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
                >
-                 <span className="text-[32px] leading-none pb-2 drop-shadow-sm" style={{ color: '#fff', WebkitTextStroke: '1px #555' }}>♚</span>
+                 <span className="text-[28px] leading-none pb-1 drop-shadow-sm" style={{ color: '#18181b', WebkitTextStroke: '1px #71717a' }}>♟</span>
                </button>
             </div>
           </div>
 
-          {showOptions && (
-            <div className="bg-[#262421] p-4 rounded-2xl border border-white/5 shadow-xl animate-in slide-in-from-bottom-2">
-              
-              {/* 🔥 دکمه بدون محدودیت زمانی */}
+          {/* 🔥 انیمیشن کشویی نرم با max-height و overflow */}
+          <div className={`w-full overflow-hidden transition-all duration-300 ease-in-out ${showOptions ? 'max-h-[500px] opacity-100 mt-1' : 'max-h-0 opacity-0 mt-0'}`}>
+            <div className="bg-[#262421] p-4 rounded-2xl border border-white/5 shadow-xl">
               <button
-                onClick={() => { setSelectedTime({ label: 'بدون محدودیت', value: 0 }); setShowOptions(false); }}
+                onClick={() => { setSelectedTime({ label: 'بدون محدودیت', value: 0, inc: 0 }); setShowOptions(false); }}
                 className={`w-full py-3 mb-4 rounded-lg text-[14px] font-bold transition-all border ${selectedTime.value === 0 ? 'bg-farzin-accent text-white shadow-md border-transparent' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border-white/5'}`}
               >
                 بدون محدودیت زمانی
               </button>
 
-              <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-4">
                 {timeControls.map(tc => (
                   <div key={tc.title} className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold">
@@ -153,8 +156,8 @@ export default function BotSelection() {
                       {tc.options.map(opt => (
                         <button 
                           key={opt.l}
-                          onClick={() => { setSelectedTime({ label: opt.l, value: opt.v }); setShowOptions(false); }}
-                          className={`py-2 rounded-lg text-[13px] font-bold transition-all border ${selectedTime.value === opt.v ? 'bg-farzin-accent text-white shadow-md border-transparent' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border-white/5'}`}
+                          onClick={() => { setSelectedTime({ label: opt.l, value: opt.v, inc: opt.inc }); setShowOptions(false); }}
+                          className={`py-2 rounded-lg text-[13px] font-bold transition-all border ${selectedTime.label === opt.l ? 'bg-farzin-accent text-white shadow-md border-transparent' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border-white/5'}`}
                         >
                           {opt.l}
                         </button>
@@ -164,11 +167,11 @@ export default function BotSelection() {
                 ))}
               </div>
             </div>
-          )}
+          </div>
 
           <button 
             onClick={handleStartGame}
-            className="w-full py-4 bg-farzin-accent hover:bg-[#86a566] text-white rounded-2xl font-bold text-xl transition-all duration-300 shadow-[0_10px_30px_rgba(119,149,86,0.25)] active:scale-95 flex items-center justify-center gap-2"
+            className="w-full py-4 bg-farzin-accent hover:bg-[#86a566] text-white rounded-2xl font-bold text-xl transition-all duration-300 shadow-[0_10px_30px_rgba(119,149,86,0.25)] active:scale-95 flex items-center justify-center gap-2 mt-1"
           >
             شروع مسابقه
             <Play size={22} fill="currentColor" />
