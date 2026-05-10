@@ -8,7 +8,6 @@ const botCategories = [
     title: 'کلاسیک (مبتدی)',
     icon: <Cpu size={18} className="text-zinc-400" />,
     color: 'from-zinc-500/20 to-transparent',
-    // 🔥 رنگ هاله نوری بخش Hero برای این دسته
     heroGlow: 'rgba(161, 161, 170, 0.15)', 
     bots: [
       { id: 'b1', name: 'مارتین', rating: 250, type: 'standard', desc: 'مارتین تازه شطرنج رو یاد گرفته. خیلی اشتباه می‌کنه و بهترین حریف برای دست‌گرمیه!', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Martin&backgroundColor=e5e7eb' },
@@ -22,7 +21,6 @@ const botCategories = [
     title: 'کلاسیک (پیشرفته)',
     icon: <ShieldCheck size={18} className="text-blue-400" />,
     color: 'from-blue-500/10 to-transparent',
-    // 🔥 رنگ هاله نوری بخش Hero برای این دسته
     heroGlow: 'rgba(59, 130, 246, 0.12)',
     bots: [
       { id: 'a1', name: 'استاک‌فیش ۸', rating: 1400, type: 'standard', desc: 'یک موتور قدرتمند که سطحش محدود شده تا بتونی باهاش رقابت کنی.', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Stockfish8&backgroundColor=d8b4fe' },
@@ -35,7 +33,6 @@ const botCategories = [
     title: 'شبکه‌های عصبی (تیم فرزین)',
     icon: <BrainCircuit size={18} className="text-farzin-accent" />,
     color: 'from-farzin-accent/10 to-transparent',
-    // 🔥 رنگ هاله نوری بخش Hero برای این دسته
     heroGlow: 'rgba(119, 149, 86, 0.2)',
     bots: [
       { id: 'n1', name: 'فرزین (آلفا)', rating: 1600, type: 'neural', desc: 'نسخه آزمایشی فرزین. بازی تهاجمی و گاهی غیرقابل پیش‌بینی داره.', avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=FarzinAlpha&backgroundColor=fcd34d' },
@@ -58,7 +55,6 @@ export default function BotSelection() {
     setIsLoaded(true);
   }, []);
 
-  // پیدا کردن دسته‌بندی ربات انتخاب شده برای تغییر رنگ هاله Hero
   const updateSelectedBot = (bot: any) => {
     setSelectedBot(bot);
     const category = botCategories.find(cat => cat.bots.some(b => b.id === bot.id));
@@ -88,37 +84,32 @@ export default function BotSelection() {
 
       <div className="w-full max-w-2xl px-4 pb-64 flex flex-col gap-8 mt-6">
         
-        {/* 🔥 🔥 بازطراحی Hero Card با افکت ۳DTilt، پس‌زمینه شطرنجی و هاله‌های پویا 🔥 🔥 */}
+        {/* 🔥 🔥 Hero Card با افکت ۳DTilt، پس‌زمینه شطرنجی و هاله‌های پویا 🔥 🔥 */}
         <div 
           className={`relative group p-[1px] rounded-3xl transition-all duration-1000 ease-out z-10 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-          style={{ perspective: '1500px' }} // ایجاد فضای سه بعدی
+          style={{ perspective: '1500px' }}
         >
-            {/* استایلِ سه بعدی Tilt روی کارت اصلی هنگام هاور */}
             <div 
                 className="flex flex-col md:flex-row items-center gap-6 p-6 glass-panel rounded-[23px] bg-[#1e1c19]/95 relative overflow-hidden transition-all duration-500 ease-out shadow-2xl border border-white/5 group-hover:shadow-farzin-accent/15
-                    group-hover:[transform:rotateX(3deg)_rotateY(-3deg)] group-hover:border-white/10" // افکت چرخشی لوکس
+                    group-hover:[transform:rotateX(3deg)_rotateY(-3deg)] group-hover:border-white/10"
                 style={{
-                   // 🔥 پس‌زمینه شطرنجی سه بعدی لوکس در عمق کارت
                    backgroundImage: `
                      radial-gradient(circle at center, transparent 0%, rgba(22, 21, 18, 0.8) 100%),
                      repeating-conic-gradient(rgba(38, 36, 33, 0.4) 0% 25%, transparent 25% 50%)
                    `,
-                   backgroundSize: '100% 100%, 32px 32px', // اندازه خانه‌های شطرنجی
-                   boxShadow: `0 25px 60px -10px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.5), inset 0 0 100px -10px ${selectedCategory.heroGlow}` // سایه‌ها و هاله داخلی
+                   backgroundSize: '100% 100%, 32px 32px',
+                   boxShadow: `0 25px 60px -10px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.5), inset 0 0 100px -10px ${selectedCategory.heroGlow}`
                 }}
             >
-                {/* هاله‌های نوری گوشه‌ها که با تغییر نوع ربات رنگشان عوض می‌شود */}
                 <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-[70px] -mr-16 -mt-16 transition-colors duration-1000" style={{ backgroundColor: selectedCategory.heroGlow }}></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-[50px] -ml-10 -mb-10 opacity-70 transition-colors duration-1000" style={{ backgroundColor: selectedCategory.heroGlow }}></div>
 
-                {/* آواتار در قاب تکنولوژیک با انیمیشن Floating */}
                 <div className="relative shrink-0 animate-float z-10 p-1 rounded-2xl bg-gradient-to-br from-white/10 to-transparent border border-white/5 shadow-inner">
                     <div className="w-24 h-24 md:w-28 md:h-28 rounded-xl overflow-hidden bg-zinc-900 border border-white/10 shadow-2xl">
                         <img src={selectedBot.avatar} className="w-full h-full object-cover" alt="" />
                     </div>
                 </div>
 
-                {/* توضیحات با استایل Engraved (حک شده) شبیه ترمینال */}
                 <div className="flex flex-col flex-1 z-10 text-center md:text-right">
                     <div className="flex items-center gap-3 mb-2 justify-center md:justify-start">
                         <h2 className="text-2xl md:text-3xl font-black text-white drop-shadow-[0_2px_3px_rgba(0,0,0,0.6)]">{selectedBot.name}</h2>
@@ -128,13 +119,9 @@ export default function BotSelection() {
                         </div>
                     </div>
                     
-                    {/* باکس توضیحات با افکت Engraved و تاری ظریف */}
                     <div className="relative mt-2 p-3.5 rounded-xl bg-black/20 backdrop-blur-sm border border-white/5 text-zinc-300 text-[13px] leading-relaxed italic shadow-inner animate-in fade-in duration-1000"
-                        style={{
-                            boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5), 0 1px 1px rgba(255,255,255,0.03)'
-                        }}
+                        style={{ boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5), 0 1px 1px rgba(255,255,255,0.03)' }}
                     >
-                        {/* مثلث دیالوگ باکس مدرن */}
                         <div className="absolute top-0 md:top-1/2 md:-translate-y-1/2 right-1/2 md:right-[-6px] translate-x-1/2 md:translate-x-0 w-3 h-3 bg-black/20 border-t border-r md:border-t md:border-r border-white/5 transform rotate-45 -translate-y-1 md:translate-y-0"></div>
                         <span className="relative z-10">"{selectedBot.desc}"</span>
                     </div>
@@ -159,7 +146,7 @@ export default function BotSelection() {
                 return (
                   <div 
                     key={bot.id} 
-                    onClick={() => updateSelectedBot(bot)} // 🔥 استفاده از تابع جدید برای تغییر هاله Hero
+                    onClick={() => updateSelectedBot(bot)}
                     className={`group relative flex flex-col items-center gap-2 cursor-pointer transition-all duration-300 ${isSelected ? 'scale-110 z-20' : 'hover:scale-105 opacity-60 hover:opacity-100'}`}
                   >
                     {isSelected && (
