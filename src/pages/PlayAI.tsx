@@ -29,14 +29,24 @@ export default function PlayAI() {
   const location = useLocation();
   
   const opponent = location.state?.selectedBot || { name: 'فرزین (آلفا)', rating: 1500, accuracy: 'پیشرفته' };
+  
+  // 🔥 خواندن رنگ انتخاب شده (و پردازش حالت رندوم) فقط یک بار در زمان لود صفحه
+  const [initialPlayerColor] = useState<'white' | 'black'>(() => {
+    const passedColor = location.state?.color || 'white';
+    if (passedColor === 'random') return Math.random() > 0.5 ? 'white' : 'black';
+    return passedColor;
+  });
 
   const [game, setGame] = useState(new Chess());
   const [playerTime, setPlayerTime] = useState(600);
   const [opponentTime, setOpponentTime] = useState(600);
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
+  
+  // 🔥 نوبت کاربر بر اساس رنگی که انتخاب کرده تعیین میشه
+  const [isPlayerTurn, setIsPlayerTurn] = useState(initialPlayerColor === 'white');
   const [gameOver, setGameOver] = useState<{ status: string; winner: string | null } | null>(null);
 
-  const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
+  // چرخش تخته با رنگ کاربر ست میشه
+  const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>(initialPlayerColor);
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
   
@@ -49,7 +59,7 @@ export default function PlayAI() {
   const [customPromotion, setCustomPromotion] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
-  const playerColor = boardOrientation === 'white' ? 'w' : 'b';
+  const playerPieceColor = initialPlayerColor === 'white' ? 'w' : 'b'; // حرف اختصاری رنگ مهره کاربر
 
   const pieceSvgs: Record<string, Record<string, string>> = {
     w: {
@@ -170,7 +180,7 @@ export default function PlayAI() {
   const onPieceDragBegin = (piece: string, sourceSquare: string) => {
     if (gameOver || isViewingHistory) return;
     if (!isPlayerTurn) {
-      if (piece[0] === playerColor) {
+      if (piece[0] === playerPieceColor) {
         setClickedSquare(sourceSquare);
         setOptionSquares({ [sourceSquare]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } });
       }
@@ -190,7 +200,7 @@ export default function PlayAI() {
     }
 
     if (!isPlayerTurn) {
-      if (piece[0] === playerColor) {
+      if (piece[0] === playerPieceColor) {
         setPremove({ from: sourceSquare, to: targetSquare });
       }
       return false; 
@@ -229,7 +239,7 @@ export default function PlayAI() {
         setOptionSquares({});
       } else {
         const pieceOnSquare = game.get(square as any);
-        if (pieceOnSquare && pieceOnSquare.color === playerColor) {
+        if (pieceOnSquare && pieceOnSquare.color === playerPieceColor) {
           setClickedSquare(square);
           setOptionSquares({ [square]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } });
         }
@@ -320,7 +330,7 @@ export default function PlayAI() {
   }, [isPlayerTurn, gameOver, game, opponent.accuracy, customPromotion]);
 
   const handleGameOver = (reason: string, winnerColor: string | null) => setGameOver({ status: reason, winner: winnerColor });
-  const handleResign = () => { if (!gameOver) { handleGameOver('resign', 'black'); playSound('gameOver'); } };
+  const handleResign = () => { if (!gameOver) { handleGameOver('resign', playerPieceColor === 'w' ? 'black' : 'white'); playSound('gameOver'); } };
   const handleDraw = () => { if (!gameOver) { handleGameOver('draw_agreed', null); playSound('gameOver'); } };
 
   const history = game.history();
@@ -328,8 +338,6 @@ export default function PlayAI() {
   for (let i = 0; i < history.length; i += 2) {
     movePairs.push([history[i], history[i + 1]]);
   }
-
-  const isPlayerWhite = boardOrientation === 'white';
 
   const getPromotionOverlayStyle = (): React.CSSProperties => {
     if (!customPromotion) return {};
@@ -460,7 +468,7 @@ export default function PlayAI() {
 
   return (
     <div 
-      className="flex flex-col h-screen bg-transparent text-gray-300 overflow-hidden font-sans relative"
+      className="flex flex-col h-screen bg-transparent text-gray-300 overflow-hidden font-sans relative" 
       onClick={() => { if (customPromotion) setCustomPromotion(null); }}
       onContextMenu={(e) => { 
         e.preventDefault(); 
@@ -469,28 +477,6 @@ export default function PlayAI() {
         setOptionSquares({}); 
       }}
     >
-      <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css');
-        
-        .font-sans {
-          font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif !important;
-        }
-
-        @keyframes typing {
-          0%, 100% { transform: translateY(0); opacity: 0.3; }
-          50% { transform: translateY(-3px); opacity: 1; }
-        }
-        .dot-typing { animation: typing 1.4s infinite ease-in-out; }
-        .dot-1 { animation-delay: 0ms; }
-        .dot-2 { animation-delay: 200ms; }
-        .dot-3 { animation-delay: 400ms; }
-        
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
-      `}</style>
-      
       <div className="flex-none h-16 flex items-center justify-between px-6 bg-[#18181b] border-b border-zinc-800/80 shadow-sm z-20">
         <div className="flex items-center gap-5">
            <button onClick={() => navigate(-1)} className="text-zinc-400 hover:text-white transition-colors p-1.5 hover:bg-zinc-800 rounded-lg">
@@ -507,7 +493,8 @@ export default function PlayAI() {
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0 justify-center">
             
-            {isPlayerWhite ? (
+            {/* 🔥 اگر کاربر سفید باشه، ربات (سیاه) بالا نشون داده میشه، و بالعکس */}
+            {initialPlayerColor === 'white' ? (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...blackPlayerProps} />
             ) : (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...whitePlayerProps} />
@@ -566,7 +553,7 @@ export default function PlayAI() {
                   <div className="absolute inset-0 bg-zinc-900/80 backdrop-blur-md flex flex-col items-center justify-center z-20 animate-in fade-in zoom-in-95 duration-300">
                     <Trophy size={56} className={gameOver.winner === 'white' ? 'text-amber-400 mb-5 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 'text-zinc-400 mb-5'} />
                     <h2 className="text-4xl font-extrabold text-white mb-3 tracking-tight">
-                      {gameOver.winner === 'white' ? 'شما بردید!' : gameOver.winner === 'black' ? 'فرزین پیروز شد!' : 'تساوی!'}
+                      {gameOver.winner === initialPlayerColor ? 'شما بردید!' : gameOver.winner === null ? 'تساوی!' : 'ربات پیروز شد!'}
                     </h2>
                     <p className="text-zinc-300 mb-8 font-medium">بازی با {gameOver.status} خاتمه یافت.</p>
                     <button onClick={() => navigate('/archive')} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-indigo-500/25 active:scale-95">
@@ -577,7 +564,7 @@ export default function PlayAI() {
               </div>
             </div>
             
-            {isPlayerWhite ? (
+            {initialPlayerColor === 'white' ? (
               <PlayerInfo name="شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...whitePlayerProps} />
             ) : (
               <PlayerInfo name="شما" rating={1500} time={playerTime} isOpponent={false} isActive={isPlayerTurn && !gameOver} isThinking={false} {...blackPlayerProps} />
