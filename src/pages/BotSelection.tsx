@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ChevronRight, ShieldCheck, Cpu, BrainCircuit, Clock, ChevronDown, ChevronUp, Zap, Flame, Timer } from 'lucide-react';
+import { Play, ChevronRight, ShieldCheck, Cpu, BrainCircuit, Clock, ChevronDown, ChevronUp, Zap, Flame, Timer, Infinity as InfinityIcon } from 'lucide-react';
 
 const botCategories = [
   {
@@ -36,14 +36,13 @@ const botCategories = [
   }
 ];
 
-export default function SelectBot() {
+export default function BotSelection() {
   const navigate = useNavigate();
   const [selectedBot, setSelectedBot] = useState(botCategories[2].bots[1]);
   const [playerColor, setPlayerColor] = useState<'white' | 'random' | 'black'>('white');
   const [showOptions, setShowOptions] = useState(false);
   const [selectedTime, setSelectedTime] = useState({ label: '۱۰ دقیقه', value: 600 });
 
-  // تمام گزینه‌ها کاملاً فارسی شدند
   const timeControls = [
     { title: 'بولت', icon: <Zap size={14} />, options: [{ l: '۱ دقیقه', v: 60 }, { l: '۱|۱', v: 61 }, { l: '۲|۱', v: 121 }] },
     { title: 'بلیتس', icon: <Flame size={14} />, options: [{ l: '۳ دقیقه', v: 180 }, { l: '۳|۲', v: 182 }, { l: '۵ دقیقه', v: 300 }] },
@@ -63,7 +62,6 @@ export default function SelectBot() {
   return (
     <div className="min-h-screen bg-transparent text-zinc-200 flex flex-col items-center">
       
-      {/* هدر */}
       <div className="w-full max-w-2xl px-4 py-4 flex items-center justify-between border-b border-white/5">
         <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white"><ChevronRight size={28} /></button>
         <h1 className="text-lg font-bold">انتخاب حریف</h1>
@@ -72,7 +70,6 @@ export default function SelectBot() {
 
       <div className="w-full max-w-2xl px-4 pb-60 flex flex-col gap-6 mt-6">
         
-        {/* ویترین حریف */}
         <div className="flex items-center gap-4 p-4 glass-panel rounded-2xl bg-[#262421]">
           <img src={selectedBot.avatar} className="w-20 h-20 rounded-xl bg-zinc-800" alt="" />
           <div className="flex-1">
@@ -83,7 +80,6 @@ export default function SelectBot() {
           </div>
         </div>
 
-        {/* لیست ربات‌ها */}
         {botCategories.map(cat => (
           <div key={cat.id} className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold px-2">
@@ -100,51 +96,53 @@ export default function SelectBot() {
         ))}
       </div>
 
-      {/* بخش پایینی فیکس شده (Sticky Bottom) */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#161512]/95 backdrop-blur-md border-t border-white/5 z-50 flex flex-col items-center">
         <div className="w-full max-w-2xl flex flex-col gap-3">
           
-          {/* نوار Options و انتخاب رنگ */}
           <div className="flex items-center justify-between gap-2">
-            {/* دکمه Options کاملاً فارسی */}
             <button 
               onClick={() => setShowOptions(!showOptions)}
               className="flex items-center gap-2 bg-[#262421] px-4 py-3 rounded-xl text-sm font-bold text-zinc-300 hover:bg-[#35332e] transition-all border border-white/5"
             >
-              <Clock size={16} className="text-zinc-400" /> 
+              {selectedTime.value === 0 ? <InfinityIcon size={16} className="text-zinc-400" /> : <Clock size={16} className="text-zinc-400" />} 
               <span>زمان بازی: {selectedTime.label}</span>
               {showOptions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
 
-            {/* 🔥 انتخاب رنگ با کاراکترهای متنی جذاب */}
+            {/* 🔥 انتخاب رنگ با کاراکترهای دقیق و استایل‌دهی شده */}
             <div className="flex items-center gap-1 bg-[#262421] p-1.5 rounded-xl border border-white/5 shadow-inner">
-               {/* شاه سفید */}
-               <button 
-                 onClick={() => setPlayerColor('white')} 
-                 className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'white' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-               >
-                 <span className="text-[32px] text-white leading-none pb-2">♔</span>
-               </button>
-               {/* تصادفی */}
-               <button 
-                 onClick={() => setPlayerColor('random')} 
-                 className={`w-12 h-10 flex items-center justify-center rounded-lg font-bold text-2xl transition-all duration-200 ${playerColor === 'random' ? 'bg-[#35332e] ring-1 ring-farzin-accent text-white shadow-sm' : 'text-zinc-400 opacity-40 hover:opacity-100'}`}
-               >
-                 ?
-               </button>
-               {/* شاه سیاه (متن تیره با حاشیه روشن برای دیده شدن در تم تاریک) */}
                <button 
                  onClick={() => setPlayerColor('black')} 
                  className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'black' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
                >
                  <span className="text-[32px] leading-none pb-2 drop-shadow-sm" style={{ color: '#111', WebkitTextStroke: '1px #999' }}>♚</span>
                </button>
+               <button 
+                 onClick={() => setPlayerColor('random')} 
+                 className={`w-12 h-10 flex items-center justify-center rounded-lg font-bold text-2xl transition-all duration-200 ${playerColor === 'random' ? 'bg-[#35332e] ring-1 ring-farzin-accent text-white shadow-sm' : 'text-zinc-400 opacity-40 hover:opacity-100'}`}
+               >
+                 ?
+               </button>
+               <button 
+                 onClick={() => setPlayerColor('white')} 
+                 className={`w-12 h-10 flex items-center justify-center rounded-lg transition-all duration-200 ${playerColor === 'white' ? 'bg-[#35332e] ring-1 ring-farzin-accent shadow-sm' : 'opacity-40 hover:opacity-100'}`}
+               >
+                 <span className="text-[32px] leading-none pb-2 drop-shadow-sm" style={{ color: '#fff', WebkitTextStroke: '1px #555' }}>♚</span>
+               </button>
             </div>
           </div>
 
-          {/* پنل بازشوی تنظیم زمان */}
           {showOptions && (
             <div className="bg-[#262421] p-4 rounded-2xl border border-white/5 shadow-xl animate-in slide-in-from-bottom-2">
+              
+              {/* 🔥 دکمه بدون محدودیت زمانی */}
+              <button
+                onClick={() => { setSelectedTime({ label: 'بدون محدودیت', value: 0 }); setShowOptions(false); }}
+                className={`w-full py-3 mb-4 rounded-lg text-[14px] font-bold transition-all border ${selectedTime.value === 0 ? 'bg-farzin-accent text-white shadow-md border-transparent' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border-white/5'}`}
+              >
+                بدون محدودیت زمانی
+              </button>
+
               <div className="flex flex-col gap-5">
                 {timeControls.map(tc => (
                   <div key={tc.title} className="flex flex-col gap-2.5">
@@ -156,7 +154,7 @@ export default function SelectBot() {
                         <button 
                           key={opt.l}
                           onClick={() => { setSelectedTime({ label: opt.l, value: opt.v }); setShowOptions(false); }}
-                          className={`py-2 rounded-lg text-[13px] font-bold transition-all ${selectedTime.label === opt.l ? 'bg-farzin-accent text-white shadow-md' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border border-white/5'}`}
+                          className={`py-2 rounded-lg text-[13px] font-bold transition-all border ${selectedTime.value === opt.v ? 'bg-farzin-accent text-white shadow-md border-transparent' : 'bg-[#1e1c19] text-zinc-300 hover:bg-[#35332e] border-white/5'}`}
                         >
                           {opt.l}
                         </button>
@@ -168,7 +166,6 @@ export default function SelectBot() {
             </div>
           )}
 
-          {/* دکمه شروع بازی */}
           <button 
             onClick={handleStartGame}
             className="w-full py-4 bg-farzin-accent hover:bg-[#86a566] text-white rounded-2xl font-bold text-xl transition-all duration-300 shadow-[0_10px_30px_rgba(119,149,86,0.25)] active:scale-95 flex items-center justify-center gap-2"

@@ -30,7 +30,11 @@ export default function PlayAI() {
   
   const opponent = location.state?.selectedBot || { name: 'فرزین (آلفا)', rating: 1500, accuracy: 'پیشرفته' };
   
-  // 🔥 خواندن رنگ انتخاب شده (و پردازش حالت رندوم) فقط یک بار در زمان لود صفحه
+  // 🔥 دریافت زمان از روت و مقداردهی اولیه به زمان‌ها
+  const initialTime = location.state?.time !== undefined ? location.state.time : 600;
+  const [playerTime, setPlayerTime] = useState(initialTime);
+  const [opponentTime, setOpponentTime] = useState(initialTime);
+
   const [initialPlayerColor] = useState<'white' | 'black'>(() => {
     const passedColor = location.state?.color || 'white';
     if (passedColor === 'random') return Math.random() > 0.5 ? 'white' : 'black';
@@ -38,14 +42,9 @@ export default function PlayAI() {
   });
 
   const [game, setGame] = useState(new Chess());
-  const [playerTime, setPlayerTime] = useState(600);
-  const [opponentTime, setOpponentTime] = useState(600);
-  
-  // 🔥 نوبت کاربر بر اساس رنگی که انتخاب کرده تعیین میشه
   const [isPlayerTurn, setIsPlayerTurn] = useState(initialPlayerColor === 'white');
   const [gameOver, setGameOver] = useState<{ status: string; winner: string | null } | null>(null);
 
-  // چرخش تخته با رنگ کاربر ست میشه
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>(initialPlayerColor);
   const [moveSquares, setMoveSquares] = useState<Record<string, any>>({});
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
@@ -59,7 +58,7 @@ export default function PlayAI() {
   const [customPromotion, setCustomPromotion] = useState<{ from: string; to: string; color: string } | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
-  const playerPieceColor = initialPlayerColor === 'white' ? 'w' : 'b'; // حرف اختصاری رنگ مهره کاربر
+  const playerPieceColor = initialPlayerColor === 'white' ? 'w' : 'b';
 
   const pieceSvgs: Record<string, Record<string, string>> = {
     w: {
@@ -80,14 +79,18 @@ export default function PlayAI() {
     }
   };
 
+  // 🔥 اگر زمان 0 باشه، علامت بی‌نهایت رو برمی‌گردونه
   const formatTime = (seconds: number) => {
+    if (initialTime === 0) return '∞';
     const m = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0');
     const s = Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
 
   useEffect(() => {
-    if (gameOver) return;
+    // 🔥 اگر زمان 0 (بدون محدودیت) انتخاب شده باشه، تایمر کلا متوقف میشه
+    if (gameOver || initialTime === 0) return;
+    
     const timer = setInterval(() => {
       if (isViewingHistory) return;
       if (isPlayerTurn) {
@@ -97,7 +100,7 @@ export default function PlayAI() {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [isPlayerTurn, gameOver, isViewingHistory]);
+  }, [isPlayerTurn, gameOver, isViewingHistory, initialTime]);
 
   const makeMove = (movePayload: any) => {
     try {
@@ -460,7 +463,8 @@ export default function PlayAI() {
           </div>
         </div>
       </div>
-      <div className={`text-2xl font-mono font-bold px-4 py-1.5 rounded-lg transition-all duration-300 shadow-inner ${isActive && !isViewingHistory ? 'bg-zinc-200 text-zinc-900 shadow-md scale-105' : (time < 60 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50')}`}>
+      {/* 🔥 قرمز شدن ساعت فقط وقتی اتفاق میفته که زمان بی‌نهایت نباشه */}
+      <div className={`text-2xl font-mono font-bold px-4 py-1.5 rounded-lg transition-all duration-300 shadow-inner ${isActive && !isViewingHistory ? 'bg-zinc-200 text-zinc-900 shadow-md scale-105' : (time < 60 && initialTime !== 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50')}`}>
         {formatTime(time)}
       </div>
     </div>
@@ -484,7 +488,10 @@ export default function PlayAI() {
            </button>
            <div className="flex flex-col">
              <span className="font-bold text-zinc-100 text-[15px] tracking-wide">کلاسیک</span>
-             <span className="text-[11px] text-zinc-500 font-medium">۱۰+۰ • دوستانه</span>
+             {/* 🔥 زمان انتخابی رو در هدر هم نشون میدیم */}
+             <span className="text-[11px] text-zinc-500 font-medium">
+               {initialTime === 0 ? 'بدون محدودیت زمانی' : `${Math.floor(initialTime / 60)} دقیقه`} • دوستانه
+             </span>
            </div>
         </div>
       </div>
@@ -493,7 +500,6 @@ export default function PlayAI() {
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0 justify-center">
             
-            {/* 🔥 اگر کاربر سفید باشه، ربات (سیاه) بالا نشون داده میشه، و بالعکس */}
             {initialPlayerColor === 'white' ? (
               <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} accuracy={opponent.accuracy} isThinking={!isPlayerTurn && !gameOver && !isViewingHistory} {...blackPlayerProps} />
             ) : (
