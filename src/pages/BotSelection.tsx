@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ChevronRight, ShieldCheck, Cpu, BrainCircuit } from 'lucide-react';
+import { Play, ChevronRight, ShieldCheck, Cpu, BrainCircuit, Clock, ChevronDown, ChevronUp, Zap, Flame, Timer } from 'lucide-react';
 
 const botCategories = [
   {
@@ -36,11 +36,32 @@ const botCategories = [
   }
 ];
 
+// آیکون‌های شاه برای انتخاب رنگ
+const WhiteKingIcon = () => (
+  <svg viewBox="0 0 100 100" className="w-8 h-8 fill-zinc-100 stroke-zinc-900 stroke-2">
+    <path d="M20 80h60v10H20zM25 75l5-35 20-15 20 15 5 35z" />
+    <circle cx="50" cy="20" r="8" />
+  </svg>
+);
+const BlackKingIcon = () => (
+  <svg viewBox="0 0 100 100" className="w-8 h-8 fill-zinc-800 stroke-zinc-500 stroke-2">
+    <path d="M20 80h60v10H20zM25 75l5-35 20-15 20 15 5 35z" />
+    <circle cx="50" cy="20" r="8" />
+  </svg>
+);
+
 export default function SelectBot() {
   const navigate = useNavigate();
   const [selectedBot, setSelectedBot] = useState(botCategories[2].bots[1]);
-  // 🔥 استیت برای انتخاب رنگ کاربر
   const [playerColor, setPlayerColor] = useState<'white' | 'random' | 'black'>('white');
+  const [showOptions, setShowOptions] = useState(false);
+  const [selectedTime, setSelectedTime] = useState({ label: '10 min', value: 600 });
+
+  const timeControls = [
+    { title: 'Bullet', icon: <Zap size={14} />, options: [{ l: '1 min', v: 60 }, { l: '1|1', v: 61 }, { l: '2|1', v: 121 }] },
+    { title: 'Blitz', icon: <Flame size={14} />, options: [{ l: '3 min', v: 180 }, { l: '3|2', v: 182 }, { l: '5 min', v: 300 }] },
+    { title: 'Rapid', icon: <Timer size={14} />, options: [{ l: '10 min', v: 600 }, { l: '15|10', v: 910 }, { l: '30 min', v: 1800 }] },
+  ];
 
   const handleStartGame = () => {
     const safeBotData = {
@@ -49,129 +70,114 @@ export default function SelectBot() {
       rating: selectedBot.rating,
       accuracy: selectedBot.type === 'neural' ? 'پیشرفته' : 'پایه'
     };
-    // رنگ رو هم به صفحه بازی ارسال می‌کنیم
-    navigate('/play-ai', { state: { selectedBot: safeBotData, color: playerColor } });
+    navigate('/play-ai', { state: { selectedBot: safeBotData, color: playerColor, time: selectedTime.value } });
   };
 
   return (
     <div className="min-h-screen bg-transparent text-zinc-200 flex flex-col items-center">
       
-      <div className="w-full max-w-2xl px-4 py-6 flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="text-zinc-400 hover:text-white transition-colors p-2 hover:bg-[#262421] rounded-xl">
-          <ChevronRight size={24} />
-        </button>
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
-           بازی با ربات‌ها
-        </h1>
-        <div className="w-10"></div>
+      {/* هدر */}
+      <div className="w-full max-w-2xl px-4 py-4 flex items-center justify-between border-b border-white/5">
+        <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white"><ChevronRight size={28} /></button>
+        <h1 className="text-lg font-bold">انتخاب حریف</h1>
+        <div className="w-8"></div>
       </div>
 
-      <div className="w-full max-w-2xl px-4 pb-40 flex flex-col gap-6 animate-in fade-in duration-500">
+      <div className="w-full max-w-2xl px-4 pb-60 flex flex-col gap-6 mt-6">
         
-        <div className="flex items-start gap-4 p-5 glass-panel rounded-2xl bg-[#262421] border border-[#35332e] shadow-lg">
-          <div className="relative shrink-0">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden bg-zinc-800 shadow-inner border border-[#35332e]">
-              <img src={selectedBot.avatar} alt={selectedBot.name} className="w-full h-full object-cover" />
-            </div>
-            {selectedBot.type === 'neural' && (
-              <div className="absolute -bottom-2 -right-2 bg-farzin-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-md border border-[#86a566]">PRO</div>
-            )}
-          </div>
-          
-          <div className="flex flex-col flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <h2 className="text-xl font-bold text-white">{selectedBot.name}</h2>
-              <span className="text-sm font-mono text-[#b0aba2] bg-[#1e1c19] px-2 py-0.5 rounded-md border border-[#35332e]">
-                {selectedBot.rating}
-              </span>
-            </div>
-            
-            <div className="relative mt-2 p-3 bg-[#1e1c19] rounded-xl rounded-tr-none border border-[#35332e] text-zinc-300 text-sm leading-relaxed shadow-inner">
-               <div className="absolute top-0 right-[-6px] w-3 h-3 bg-[#1e1c19] border-t border-r border-[#35332e] transform rotate-45 -translate-y-[1px]"></div>
-               <span className="relative z-10">{selectedBot.desc}</span>
-            </div>
+        {/* ویترین حریف */}
+        <div className="flex items-center gap-4 p-4 glass-panel rounded-2xl bg-[#262421]">
+          <img src={selectedBot.avatar} className="w-20 h-20 rounded-xl bg-zinc-800" alt="" />
+          <div className="flex-1">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              {selectedBot.name} <span className="text-sm font-mono text-farzin-accent">({selectedBot.rating})</span>
+            </h2>
+            <p className="text-zinc-400 text-sm mt-1">{selectedBot.desc}</p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-5 mt-2">
-          {botCategories.map((category) => (
-            <div key={category.id} className="flex flex-col">
-              <div className="flex items-center justify-between px-2 mb-3">
-                <div className="flex items-center gap-2 text-zinc-300 font-bold">
-                  {category.icon}
-                  <h3>{category.title}</h3>
+        {/* لیست ربات‌ها */}
+        {botCategories.map(cat => (
+          <div key={cat.id} className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold px-2">
+              {cat.icon} {cat.title}
+            </div>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 bg-[#262421] p-4 rounded-2xl border border-white/5">
+              {cat.bots.map(bot => (
+                <div key={bot.id} onClick={() => setSelectedBot(bot)} className={`cursor-pointer transition-all ${selectedBot.id === bot.id ? 'scale-110' : 'opacity-60 hover:opacity-100'}`}>
+                  <img src={bot.avatar} className={`w-14 h-14 rounded-xl border-2 ${selectedBot.id === bot.id ? 'border-farzin-accent' : 'border-transparent'}`} alt="" />
                 </div>
-                <span className="text-xs text-zinc-500 font-mono">{category.bots.length} ربات</span>
-              </div>
-
-              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3 p-4 bg-[#262421] border border-[#35332e] rounded-2xl shadow-sm">
-                {category.bots.map((bot) => {
-                  const isSelected = selectedBot.id === bot.id;
-                  return (
-                    <div 
-                      key={bot.id} 
-                      onClick={() => setSelectedBot(bot)}
-                      className="flex flex-col items-center gap-1.5 cursor-pointer group"
-                    >
-                      <div className={`w-14 h-14 rounded-xl overflow-hidden transition-all duration-200 relative
-                        ${isSelected ? 'ring-2 ring-farzin-accent ring-offset-2 ring-offset-[#262421] scale-105 shadow-lg' : 'border border-[#35332e] hover:border-zinc-500 hover:scale-105 opacity-80 hover:opacity-100'}
-                      `}>
-                        <img src={bot.avatar} alt={bot.name} className="w-full h-full object-cover bg-zinc-800" />
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-farzin-accent/10"></div>
-                        )}
-                      </div>
-                      <span className={`text-[11px] font-bold truncate w-full text-center transition-colors
-                        ${isSelected ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}
-                      `}>
-                        {bot.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
+              ))}
             </div>
-          ))}
-        </div>
-
+          </div>
+        ))}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#161512] via-[#161512] to-transparent z-50 flex justify-center pb-8 pt-16">
-        <div className="w-full max-w-2xl px-4 flex flex-col gap-4">
+      {/* 🔥 بخش پایینی فیکس شده (Sticky Bottom) */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#161512]/95 backdrop-blur-md border-t border-white/5 z-50 flex flex-col items-center">
+        <div className="w-full max-w-2xl flex flex-col gap-3">
           
-          {/* 🔥 نوار انتخاب رنگ */}
-          <div className="flex items-center justify-between bg-[#1e1c19] p-1.5 rounded-2xl border border-[#35332e] shadow-lg">
-            <span className="text-zinc-400 text-sm font-bold ml-2 pr-3">بازی با مهره:</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPlayerColor('black')}
-                className={`w-14 h-12 flex items-center justify-center rounded-xl text-3xl pb-1 transition-all duration-300 ${playerColor === 'black' ? 'bg-[#262421] text-zinc-100 shadow-sm border border-[#35332e]' : 'text-zinc-600 hover:text-zinc-400'}`}
-                title="سیاه"
-              >♚</button>
-              <button
-                onClick={() => setPlayerColor('random')}
-                className={`w-14 h-12 flex items-center justify-center rounded-xl text-2xl font-bold transition-all duration-300 ${playerColor === 'random' ? 'bg-[#35332e] text-white shadow-sm border border-[#45433e]' : 'text-zinc-600 hover:text-zinc-400'}`}
-                title="تصادفی"
-              >?</button>
-              <button
-                onClick={() => setPlayerColor('white')}
-                className={`w-14 h-12 flex items-center justify-center rounded-xl text-3xl pb-1 transition-all duration-300 ${playerColor === 'white' ? 'bg-zinc-200 text-zinc-900 shadow-sm border border-white' : 'text-zinc-600 hover:text-zinc-400'}`}
-                title="سفید"
-              >♔</button>
+          {/* نوار Options و انتخاب رنگ */}
+          <div className="flex items-center justify-between">
+            {/* دکمه Options */}
+            <button 
+              onClick={() => setShowOptions(!showOptions)}
+              className="flex items-center gap-2 bg-[#262421] px-4 py-2 rounded-xl text-sm font-bold text-zinc-300 hover:bg-[#35332e] transition-all"
+            >
+              <Clock size={16} /> 
+              <span>Options ({selectedTime.label})</span>
+              {showOptions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {/* انتخاب رنگ (ظریف و لیچس استایل) */}
+            <div className="flex items-center bg-[#262421] p-1 rounded-xl border border-white/5 shadow-inner">
+               <button onClick={() => setPlayerColor('black')} className={`p-2 rounded-lg transition-all ${playerColor === 'black' ? 'bg-[#35332e] ring-1 ring-farzin-accent' : 'opacity-40'}`}>
+                 <BlackKingIcon />
+               </button>
+               <button onClick={() => setPlayerColor('random')} className={`px-4 text-xl font-bold transition-all ${playerColor === 'random' ? 'text-white' : 'opacity-40'}`}>
+                 ?
+               </button>
+               <button onClick={() => setPlayerColor('white')} className={`p-2 rounded-lg transition-all ${playerColor === 'white' ? 'bg-[#35332e] ring-1 ring-farzin-accent' : 'opacity-40'}`}>
+                 <WhiteKingIcon />
+               </button>
             </div>
           </div>
 
+          {/* پنل بازشوی تنظیم زمان */}
+          {showOptions && (
+            <div className="bg-[#262421] p-4 rounded-2xl border border-white/5 animate-in slide-in-from-bottom-2">
+              <div className="flex flex-col gap-4">
+                {timeControls.map(tc => (
+                  <div key={tc.title} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-zinc-500 text-[10px] font-black uppercase tracking-widest">
+                      {tc.icon} {tc.title}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {tc.options.map(opt => (
+                        <button 
+                          key={opt.l}
+                          onClick={() => { setSelectedTime({ label: opt.l, value: opt.v }); setShowOptions(false); }}
+                          className={`py-2 rounded-lg text-sm font-bold transition-all ${selectedTime.label === opt.l ? 'bg-farzin-accent text-white shadow-lg' : 'bg-[#1e1c19] text-zinc-400 hover:bg-[#35332e]'}`}
+                        >
+                          {opt.l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* دکمه شروع بازی */}
           <button 
             onClick={handleStartGame}
-            className="w-full py-4 bg-farzin-accent hover:bg-[#86a566] text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_5px_20px_rgba(119,149,86,0.3)] active:scale-[0.98] flex items-center justify-center gap-3 border border-[#86a566]"
+            className="w-full py-4 bg-farzin-accent hover:bg-[#86a566] text-white rounded-2xl font-bold text-xl transition-all shadow-[0_10px_30px_rgba(119,149,86,0.3)] active:scale-95"
           >
-            شروع مسابقه
-            <Play size={20} fill="currentColor" />
+            Play
           </button>
         </div>
       </div>
-
     </div>
   );
 }
