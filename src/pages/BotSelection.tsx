@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ChevronRight, ShieldCheck, Cpu, BrainCircuit, Clock, ChevronDown, ChevronUp, Zap, Flame, Timer, Infinity as InfinityIcon, Star, Dices } from 'lucide-react';
+import { Play, ChevronRight, ShieldCheck, Cpu, BrainCircuit, ChevronDown, Zap, Flame, Timer, Infinity as InfinityIcon, Star, Dices } from 'lucide-react';
 
 const botCategories = [
   {
@@ -48,7 +48,9 @@ export default function BotSelection() {
   const [selectedCategory, setSelectedCategory] = useState(botCategories[2]);
   const [playerColor, setPlayerColor] = useState<'white' | 'random' | 'black'>('white');
   const [showOptions, setShowOptions] = useState(false);
-  const [selectedTime, setSelectedTime] = useState({ label: '۱۰ دقیقه', value: 600, inc: 0 });
+  
+  // 🔥 اضافه شدن فیلد catId برای تشخیص دینامیک آیکون
+  const [selectedTime, setSelectedTime] = useState({ label: '۱۰ دقیقه', value: 600, inc: 0, catId: 'rapid' });
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -61,16 +63,26 @@ export default function BotSelection() {
     if (category) setSelectedCategory(category);
   };
 
-  // 🔥 فاصله‌گذاری و استایل‌دهی آیکون‌ها برای بخش Options
   const timeControls = [
-    { title: 'بولت', icon: <Zap size={16} className="text-amber-400 drop-shadow-md" />, options: [{ l: '۱ دقیقه', v: 60, inc: 0 }, { l: '۱ | ۱', v: 60, inc: 1 }, { l: '۲ | ۱', v: 120, inc: 1 }] },
-    { title: 'بلیتس', icon: <Flame size={16} className="text-rose-400 drop-shadow-md" />, options: [{ l: '۳ دقیقه', v: 180, inc: 0 }, { l: '۳ | ۲', v: 180, inc: 2 }, { l: '۵ دقیقه', v: 300, inc: 0 }] },
-    { title: 'رپید', icon: <Timer size={16} className="text-emerald-400 drop-shadow-md" />, options: [{ l: '۱۰ دقیقه', v: 600, inc: 0 }, { l: '۱۵ | ۱۰', v: 900, inc: 10 }, { l: '۳۰ دقیقه', v: 1800, inc: 0 }] },
+    { id: 'bullet', title: 'بولت', icon: <Zap size={16} className="text-amber-400 drop-shadow-md" />, options: [{ l: '۱ دقیقه', v: 60, inc: 0 }, { l: '۱ | ۱', v: 60, inc: 1 }, { l: '۲ | ۱', v: 120, inc: 1 }] },
+    { id: 'blitz', title: 'بلیتس', icon: <Flame size={16} className="text-rose-400 drop-shadow-md" />, options: [{ l: '۳ دقیقه', v: 180, inc: 0 }, { l: '۳ | ۲', v: 180, inc: 2 }, { l: '۵ دقیقه', v: 300, inc: 0 }] },
+    { id: 'rapid', title: 'رپید', icon: <Timer size={16} className="text-emerald-400 drop-shadow-md" />, options: [{ l: '۱۰ دقیقه', v: 600, inc: 0 }, { l: '۱۵ | ۱۰', v: 900, inc: 10 }, { l: '۳۰ دقیقه', v: 1800, inc: 0 }] },
   ];
 
   const handleStartGame = () => {
     const safeBotData = { id: selectedBot.id, name: selectedBot.name, rating: selectedBot.rating, accuracy: selectedBot.type === 'neural' ? 'پیشرفته' : 'پایه' };
     navigate('/play-ai', { state: { selectedBot: safeBotData, color: playerColor, time: selectedTime.value, increment: selectedTime.inc } });
+  };
+
+  // 🔥 فانکشن برای رندر آیکون اصلی بر اساس دسته‌بندی انتخاب شده
+  const renderSelectedTimeIcon = () => {
+    if (selectedTime.value === 0) return <InfinityIcon size={18} className="text-zinc-400" />;
+    switch (selectedTime.catId) {
+      case 'bullet': return <Zap size={18} className="text-amber-400 drop-shadow-sm" />;
+      case 'blitz': return <Flame size={18} className="text-rose-400 drop-shadow-sm" />;
+      case 'rapid': return <Timer size={18} className="text-emerald-400 drop-shadow-sm" />;
+      default: return <Timer size={18} className="text-zinc-400" />;
+    }
   };
 
   return (
@@ -180,12 +192,12 @@ export default function BotSelection() {
               className="flex-1 flex items-center justify-between bg-[#1e1c19] px-5 py-3.5 rounded-[18px] text-sm font-bold text-zinc-300 hover:bg-[#262421] transition-all border border-[#35332e] active:scale-95 shadow-inner"
             >
               <div className="flex items-center gap-3">
+                {/* 🔥 باکس آیکون دینامیک */}
                 <div className="w-8 h-8 rounded-lg bg-[#161512] flex items-center justify-center border border-[#35332e]">
-                    {selectedTime.value === 0 ? <InfinityIcon size={18} className="text-zinc-400" /> : <Clock size={18} className="text-zinc-400" />}
+                    {renderSelectedTimeIcon()}
                 </div>
                 <div className="flex flex-col items-start leading-none gap-1">
                     <span className="text-[10px] text-zinc-500 uppercase font-black tracking-wider">فرمت بازی</span>
-                    {/* 🔥 اضافه شدن جهت LTR برای نمایش صحیح عدد تو هدر */}
                     <span dir="ltr" className="font-bold text-right">{selectedTime.label}</span>
                 </div>
               </div>
@@ -216,11 +228,10 @@ export default function BotSelection() {
             </div>
           </div>
 
-          {/* 🔥 پنل Options با طراحی چشم‌نواز و مرتب */}
           <div className={`w-full overflow-hidden transition-all duration-400 ease-in-out ${showOptions ? 'max-h-[600px] opacity-100 mb-2 mt-2' : 'max-h-0 opacity-0'}`}>
             <div className="bg-[#1e1c19] p-5 rounded-[24px] border border-[#35332e] shadow-2xl space-y-6">
               <button
-                onClick={() => { setSelectedTime({ label: 'بدون محدودیت', value: 0, inc: 0 }); setShowOptions(false); }}
+                onClick={() => { setSelectedTime({ label: 'بدون محدودیت', value: 0, inc: 0, catId: 'infinite' }); setShowOptions(false); }}
                 className={`w-full py-4 rounded-[18px] text-[14px] font-bold transition-all border flex items-center justify-center gap-3 ${selectedTime.value === 0 ? 'bg-farzin-accent text-white shadow-[0_4px_15px_rgba(119,149,86,0.3)] border-transparent' : 'bg-[#262421] text-zinc-300 hover:bg-[#35332e] border-[#35332e] hover:border-[#52525b]'}`}
               >
                 <InfinityIcon size={20} /> بدون محدودیت زمانی
@@ -228,8 +239,7 @@ export default function BotSelection() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
                 {timeControls.map(tc => (
-                  <div key={tc.title} className="flex flex-col gap-3.5">
-                    {/* هدر دسته‌بندی با آیکون رنگی و خط جداکننده */}
+                  <div key={tc.id} className="flex flex-col gap-3.5">
                     <div className="flex items-center gap-2 text-zinc-300 text-[11px] font-black uppercase tracking-widest pl-1 border-b border-[#35332e] pb-2">
                       {tc.icon} {tc.title}
                     </div>
@@ -238,10 +248,9 @@ export default function BotSelection() {
                       {tc.options.map(opt => (
                         <button 
                           key={opt.l}
-                          onClick={() => { setSelectedTime({ label: opt.l, value: opt.v, inc: opt.inc }); setShowOptions(false); }}
+                          onClick={() => { setSelectedTime({ label: opt.l, value: opt.v, inc: opt.inc, catId: tc.id }); setShowOptions(false); }}
                           className={`py-3 rounded-xl text-[13px] transition-all border flex items-center justify-center ${selectedTime.label === opt.l ? 'bg-farzin-accent text-white shadow-[0_4px_15px_rgba(119,149,86,0.3)] border-transparent' : 'bg-[#262421] text-zinc-300 hover:bg-[#35332e] border-[#35332e] hover:border-[#52525b]'}`}
                         >
-                          {/* 🔥 استفاده از dir="ltr" برای جلوگیری از جابجا شدن جای ساعت و فیشر */}
                           <span dir="ltr" className="font-bold tracking-widest">{opt.l}</span>
                         </button>
                       ))}
