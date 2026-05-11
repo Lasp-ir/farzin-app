@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Volume2, MousePointer2, Palette, Cpu, Globe, 
-  CheckCircle2, Sliders, Activity, BrainCircuit, Link2, 
-  RefreshCw, ShieldCheck
+  Activity, BrainCircuit, Link2, RefreshCw, ShieldCheck,
+  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2
 } from 'lucide-react';
 
 const defaultSettings = {
@@ -23,19 +23,36 @@ const defaultSettings = {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('accounts'); // تب پیش‌فرض رو گذاشتیم روی اکانت‌ها
   const [settings, setSettings] = useState(defaultSettings);
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // استیت‌های مربوط به پاپ‌آپ بازخورد
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'success'>('idle');
+  const [feedbackData, setFeedbackData] = useState({ text: '', name: '', phone: '', email: '' });
+
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('farzin_active_tab') || 'accounts';
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('farzin_settings');
     if (saved) setSettings(JSON.parse(saved));
+    setIsLoaded(true);
   }, []);
 
   const updateSetting = (key: keyof typeof defaultSettings, value: any) => {
-    const newSettings = { ...settings, [key]: value };
-    setSettings(newSettings);
-    localStorage.setItem('farzin_settings', JSON.stringify(newSettings));
+    setSettings(prevSettings => {
+      const newSettings = { ...prevSettings, [key]: value };
+      localStorage.setItem('farzin_settings', JSON.stringify(newSettings));
+      return newSettings;
+    });
+  };
+
+  const handleTabChange = (id: string) => {
+    setActiveTab(id);
+    localStorage.setItem('farzin_active_tab', id);
   };
 
   const handleConnect = (platform: 'lichess' | 'chessDotCom') => {
@@ -46,6 +63,22 @@ export default function Settings() {
     }, 2000);
   };
 
+  // شبیه‌سازی ارسال بازخورد
+  const handleSendFeedback = () => {
+    if (!feedbackData.text.trim()) return; // متن اجباری است
+    setFeedbackStatus('sending');
+    
+    // شبیه‌سازی ریکوئست به سرور
+    setTimeout(() => {
+      setFeedbackStatus('success');
+      setTimeout(() => {
+        setIsFeedbackOpen(false);
+        setFeedbackStatus('idle');
+        setFeedbackData({ text: '', name: '', phone: '', email: '' }); // ریست کردن فرم
+      }, 2000);
+    }, 1500);
+  };
+
   const tabs = [
     { id: 'accounts', title: 'اتصال اکانت', icon: <Link2 size={16} /> },
     { id: 'gameplay', title: 'گیم‌پلی', icon: <MousePointer2 size={16} /> },
@@ -54,274 +87,455 @@ export default function Settings() {
     { id: 'general', title: 'عمومی', icon: <Globe size={16} /> }
   ];
 
-  // 🔥 مشکل بیرون‌زدگی با استفاده از Flexbox و ویژگی layout برطرف شد
-  const AnimatedToggle = ({ checked, onChange }: any) => (
+  const Switch = ({ checked, onChange }: any) => (
     <div 
       onClick={() => onChange(!checked)}
-      className={`flex items-center w-12 h-6 p-1 rounded-full cursor-pointer transition-colors duration-300 ${checked ? 'bg-farzin-accent justify-end' : 'bg-[#35332e] justify-start'}`}
+      className={`flex items-center w-12 h-6 p-1 rounded-full cursor-pointer transition-colors duration-300 shadow-inner ${checked ? 'bg-farzin-accent' : 'bg-[#35332e]'}`}
+      dir="ltr" 
     >
       <motion.div 
-        layout
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        initial={false}
+        animate={{ x: checked ? 24 : 0 }} 
+        transition={{ type: "spring", stiffness: 600, damping: 30 }}
         className="w-4 h-4 bg-white rounded-full shadow-md"
       />
     </div>
   );
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-20 overflow-x-hidden" 
-      dir="rtl"
-    >
-      {/* هدر */}
-      <div className="w-full max-w-2xl px-5 py-6 flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white transition-transform active:scale-90 bg-[#1e1c19] p-2 rounded-xl border border-[#35332e]">
-          <ChevronRight size={24} />
-        </button>
-        <h1 className="text-lg font-black tracking-tight text-white uppercase">تنظیمات فرزین</h1>
-        <div className="w-10"></div>
-      </div>
-
-      <div className="w-full max-w-2xl px-4 flex flex-col gap-6">
-        
-        {/* منوی تب‌ها */}
-        <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-[13px] transition-all whitespace-nowrap border active:scale-95 ${
-                activeTab === tab.id 
-                ? 'bg-farzin-accent text-white border-transparent shadow-lg shadow-farzin-accent/20' 
-                : 'bg-[#1e1c19] text-zinc-500 border-[#35332e] hover:bg-[#262421]'
-              }`}
-            >
-              {tab.icon} {tab.title}
-            </button>
-          ))}
+    <>
+      <motion.div 
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-20 overflow-x-hidden" 
+        dir="rtl"
+      >
+        <div className="w-full max-w-2xl px-5 py-6 flex items-center justify-between">
+          <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white transition-transform active:scale-90 bg-[#1e1c19] p-2 rounded-xl border border-[#35332e]">
+            <ChevronRight size={24} />
+          </button>
+          <h1 className="text-lg font-black tracking-tight text-white uppercase drop-shadow-md">تنظیمات فرزین</h1>
+          <div className="w-10"></div>
         </div>
 
-        {/* محتوای تب‌ها با انیمیشن */}
-        <div className="relative min-h-[400px]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              
-              {/* 🔥 تب جدید: اکانت‌های متصل */}
-              {activeTab === 'accounts' && (
-                <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-farzin-accent/30 to-transparent"></div>
-                  <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                      <Link2 size={18} />
-                      <h2 className="font-black text-xs uppercase tracking-widest">همگام‌سازی پلتفرم‌ها (Sync)</h2>
-                  </div>
-                  
-                  <div className="flex flex-col gap-4">
-                      {/* Lichess */}
-                      <div className="flex items-center justify-between p-4 rounded-2xl bg-[#161512] border border-[#35332e] shadow-inner">
-                          <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center border border-[#403e3a] shadow-sm">
-                                  <span className="font-black text-xl text-white">L</span>
-                              </div>
-                              <div className="flex flex-col">
-                                  <span className="text-sm font-bold text-white">Lichess.org</span>
-                                  <span className={`text-[10px] font-bold mt-0.5 ${settings.lichessConnected ? 'text-emerald-500' : 'text-zinc-500'}`}>
-                                      {settings.lichessConnected ? 'متصل شده (آماده سینک)' : 'عدم اتصال'}
-                                  </span>
-                              </div>
-                          </div>
-                          <button 
-                              onClick={() => !settings.lichessConnected && handleConnect('lichess')}
-                              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${settings.lichessConnected ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-farzin-accent text-white shadow-lg shadow-farzin-accent/20'}`}
-                          >
-                              {isSyncing === 'lichess' ? <RefreshCw size={16} className="animate-spin" /> : (settings.lichessConnected ? 'متصل' : 'اتصال اکانت')}
-                          </button>
-                      </div>
+        <div className={`w-full max-w-2xl px-4 flex flex-col gap-6 transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          
+          <div className="relative flex overflow-x-auto gap-2 pb-4 pt-2 no-scrollbar px-1">
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`relative flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-[13px] whitespace-nowrap transition-colors duration-300 outline-none ${isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  {isActive && (
+                    <motion.div 
+                      layoutId="activeTabPill"
+                      className="absolute inset-0 bg-[#262421] border border-[#403e3a] rounded-2xl shadow-lg"
+                      transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    <span className={isActive ? "text-farzin-accent" : ""}>{tab.icon}</span>
+                    {tab.title}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-                      {/* Chess.com */}
-                      <div className="flex items-center justify-between p-4 rounded-2xl bg-[#161512] border border-[#35332e] shadow-inner">
-                          <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#7fa650] to-[#5a7d33] flex items-center justify-center border border-[#8cb757] shadow-sm">
-                                  <span className="font-black text-2xl text-white drop-shadow-md leading-none pb-1">♟</span>
-                              </div>
-                              <div className="flex flex-col">
-                                  <span className="text-sm font-bold text-white">Chess.com</span>
-                                  <span className={`text-[10px] font-bold mt-0.5 ${settings.chessDotComConnected ? 'text-emerald-500' : 'text-zinc-500'}`}>
-                                      {settings.chessDotComConnected ? 'متصل شده (آماده سینک)' : 'عدم اتصال'}
-                                  </span>
-                              </div>
-                          </div>
-                          <button 
-                              onClick={() => !settings.chessDotComConnected && handleConnect('chessDotCom')}
-                              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${settings.chessDotComConnected ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-[#35332e] text-white hover:bg-[#403e3a]'}`}
-                          >
-                              {isSyncing === 'chessDotCom' ? <RefreshCw size={16} className="animate-spin" /> : (settings.chessDotComConnected ? 'متصل' : 'اتصال اکانت')}
-                          </button>
-                      </div>
-                  </div>
-                </div>
-              )}
-
-              {/* تب گیم‌پلی */}
-              {activeTab === 'gameplay' && (
-                <div className="flex flex-col gap-4">
-                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+          <div className="relative min-h-[400px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                
+                {/* تب اکانت‌ها */}
+                {activeTab === 'accounts' && (
+                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-farzin-accent/30 to-transparent"></div>
                     <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                        <ShieldCheck size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">قوانین حرکت</h2>
+                        <Link2 size={18} />
+                        <h2 className="font-black text-xs uppercase tracking-widest">همگام‌سازی پلتفرم‌ها</h2>
                     </div>
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between py-3">
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold text-white">پیش‌حرکت (Premove)</span>
-                                <span className="text-[10px] text-zinc-500 mt-1">حرکت مهره قبل از نوبت حریف</span>
+                    
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between p-4 rounded-[20px] bg-[#161512] border border-[#35332e] shadow-inner">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                                    <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-8 h-8" alt="Lichess" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-black text-white">Lichess.org</span>
+                                    <span className={`text-[10px] font-bold mt-0.5 ${settings.lichessConnected ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                                        {settings.lichessConnected ? 'متصل شده' : 'عدم اتصال'}
+                                    </span>
+                                </div>
                             </div>
-                            <AnimatedToggle checked={settings.premove} onChange={(v: boolean) => updateSetting('premove', v)} />
-                        </div>
-                        <div className="flex items-center justify-between py-3 border-t border-white/5">
-                            <div className="flex flex-col">
-                                <span className="text-sm font-bold text-white">تایید حرکت</span>
-                                <span className="text-[10px] text-zinc-500 mt-1">نمایش دکمه تایید بعد از جابجایی</span>
-                            </div>
-                            <AnimatedToggle checked={settings.confirmMove} onChange={(v: boolean) => updateSetting('confirmMove', v)} />
-                        </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                    <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                        <Volume2 size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">صدا</h2>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                        <div className="flex flex-col">
-                            <span className="text-sm font-bold text-white">افکت‌های صوتی</span>
-                            <span className="text-[10px] text-zinc-500 mt-1">صدای مهره‌ها و زمان</span>
-                        </div>
-                        <AnimatedToggle checked={settings.soundEnabled} onChange={(v: boolean) => updateSetting('soundEnabled', v)} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* تب ظاهر */}
-              {activeTab === 'appearance' && (
-                <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                    <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                        <Palette size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">تم‌های بصری</h2>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                        {[
-                            { id: 'green', name: 'سبز فرزین', color: '#779556' },
-                            { id: 'wood', name: 'چوبی لوکس', color: '#b58863' },
-                            { id: 'dark', name: 'سایه گرافیت', color: '#3f3f46' },
-                        ].map(t => (
                             <button 
-                                key={t.id}
-                                onClick={() => updateSetting('boardTheme', t.id)}
-                                className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all ${settings.boardTheme === t.id ? 'border-farzin-accent bg-[#262421]' : 'border-transparent bg-[#161512]'}`}
+                                onClick={() => !settings.lichessConnected && handleConnect('lichess')}
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${settings.lichessConnected ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-farzin-accent text-white shadow-lg shadow-farzin-accent/20 border border-[#86a566]'}`}
                             >
-                                <div className="w-12 h-12 rounded-lg shadow-inner" style={{ backgroundColor: t.color }}></div>
-                                <span className="text-[10px] font-bold">{t.name}</span>
+                                {isSyncing === 'lichess' ? <RefreshCw size={16} className="animate-spin" /> : (settings.lichessConnected ? 'متصل' : 'اتصال')}
                             </button>
-                        ))}
-                    </div>
-                </div>
-              )}
-
-              {/* تب موتور */}
-              {activeTab === 'engine' && (
-                <div className="flex flex-col gap-4">
-                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                    <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                        <Activity size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">تحلیل گرافیکی</h2>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-white">نوار ارزیابی (Eval Bar)</span>
-                            <AnimatedToggle checked={settings.evalBar} onChange={(v: boolean) => updateSetting('evalBar', v)} />
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-white">کیفیت حرکات (Brilliant/Miss)</span>
-                            <AnimatedToggle checked={settings.showMoveQualities} onChange={(v: boolean) => updateSetting('showMoveQualities', v)} />
+
+                        <div className="flex items-center justify-between p-4 rounded-[20px] bg-[#161512] border border-[#35332e] shadow-inner">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm border border-black/10">
+                                    <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-8 h-8 rounded-lg" alt="Chess.com" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-black text-white">Chess.com</span>
+                                    <span className={`text-[10px] font-bold mt-0.5 ${settings.chessDotComConnected ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                                        {settings.chessDotComConnected ? 'متصل شده' : 'عدم اتصال'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => !settings.chessDotComConnected && handleConnect('chessDotCom')}
+                                className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${settings.chessDotComConnected ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-[#35332e] text-white hover:bg-[#403e3a]'}`}
+                            >
+                                {isSyncing === 'chessDotCom' ? <RefreshCw size={16} className="animate-spin" /> : (settings.chessDotComConnected ? 'متصل' : 'اتصال')}
+                            </button>
                         </div>
                     </div>
                   </div>
+                )}
 
-                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                    <div className="flex items-center gap-2 mb-8 text-farzin-accent">
-                        <BrainCircuit size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">قدرت پردازش موتور</h2>
+                {/* تب گیم‌پلی */}
+                {activeTab === 'gameplay' && (
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                      <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                          <ShieldCheck size={18} />
+                          <h2 className="font-black text-xs uppercase tracking-widest">قوانین حرکت</h2>
+                      </div>
+                      <div className="space-y-2">
+                          <div className="flex items-center justify-between py-3">
+                              <div className="flex flex-col">
+                                  <span className="text-sm font-bold text-white">پیش‌حرکت (Premove)</span>
+                                  <span className="text-[10px] text-zinc-500 mt-1">حرکت قبل از نوبت حریف</span>
+                              </div>
+                              <Switch checked={settings.premove} onChange={(v: boolean) => updateSetting('premove', v)} />
+                          </div>
+                          <div className="flex items-center justify-between py-3 border-t border-white/5">
+                              <div className="flex flex-col">
+                                  <span className="text-sm font-bold text-white">تایید حرکت</span>
+                                  <span className="text-[10px] text-zinc-500 mt-1">دکمه تایید بعد از جابجایی</span>
+                              </div>
+                              <Switch checked={settings.confirmMove} onChange={(v: boolean) => updateSetting('confirmMove', v)} />
+                          </div>
+                      </div>
                     </div>
-                    <div className="space-y-8">
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold text-zinc-400">تعداد هسته‌ها (Threads)</span>
-                                <span className="font-mono text-farzin-accent font-bold text-sm bg-[#161512] px-3 py-1 rounded-lg border border-[#35332e]">{settings.engineThreads}</span>
-                            </div>
-                            <input 
-                                type="range" min="1" max="8" 
-                                value={settings.engineThreads}
-                                onChange={(e) => updateSetting('engineThreads', parseInt(e.target.value))}
-                                className="w-full h-1.5 bg-[#35332e] rounded-lg appearance-none accent-farzin-accent outline-none" 
-                            />
+
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                      <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                          <Volume2 size={18} />
+                          <h2 className="font-black text-xs uppercase tracking-widest">صدا</h2>
+                      </div>
+                      <div className="flex items-center justify-between py-1">
+                          <div className="flex flex-col">
+                              <span className="text-sm font-bold text-white">افکت‌های صوتی</span>
+                              <span className="text-[10px] text-zinc-500 mt-1">صدای مهره‌ها و ساعت</span>
+                          </div>
+                          <Switch checked={settings.soundEnabled} onChange={(v: boolean) => updateSetting('soundEnabled', v)} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* تب ظاهر */}
+                {activeTab === 'appearance' && (
+                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                      <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                          <Palette size={18} />
+                          <h2 className="font-black text-xs uppercase tracking-widest">تم‌های بصری تخته</h2>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                          {[
+                              { id: 'green', name: 'سبز فرزین', color: '#779556' },
+                              { id: 'wood', name: 'چوبی لوکس', color: '#b58863' },
+                              { id: 'dark', name: 'سایه گرافیت', color: '#3f3f46' },
+                          ].map(t => (
+                              <button 
+                                  key={t.id}
+                                  onClick={() => updateSetting('boardTheme', t.id)}
+                                  className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all ${settings.boardTheme === t.id ? 'border-farzin-accent bg-[#262421] shadow-lg scale-105' : 'border-transparent bg-[#161512] shadow-inner hover:bg-[#262421]'}`}
+                              >
+                                  <div className="w-12 h-12 rounded-lg shadow-md border border-black/10" style={{ backgroundColor: t.color }}></div>
+                                  <span className="text-[10px] font-black">{t.name}</span>
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+                )}
+
+                {/* تب موتور */}
+                {activeTab === 'engine' && (
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                      <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                          <Activity size={18} />
+                          <h2 className="font-black text-xs uppercase tracking-widest">تحلیل گرافیکی</h2>
+                      </div>
+                      <div className="space-y-6">
+                          <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-white">نوار ارزیابی (Eval Bar)</span>
+                              <Switch checked={settings.evalBar} onChange={(v: boolean) => updateSetting('evalBar', v)} />
+                          </div>
+                          <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-white">کیفیت حرکات (Brilliant/Miss)</span>
+                              <Switch checked={settings.showMoveQualities} onChange={(v: boolean) => updateSetting('showMoveQualities', v)} />
+                          </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                      <div className="flex items-center gap-2 mb-8 text-farzin-accent">
+                          <BrainCircuit size={18} />
+                          <h2 className="font-black text-xs uppercase tracking-widest">قدرت پردازش موتور</h2>
+                      </div>
+                      <div className="space-y-8">
+                          <div className="space-y-4">
+                              <div className="flex justify-between items-center">
+                                  <span className="text-xs font-bold text-zinc-400">هسته‌ها (Threads)</span>
+                                  <span className="font-mono text-farzin-accent font-black text-sm bg-[#161512] px-3 py-1.5 rounded-lg border border-[#35332e] shadow-inner">{settings.engineThreads}</span>
+                              </div>
+                              <input 
+                                  type="range" min="1" max="8" 
+                                  value={settings.engineThreads}
+                                  onChange={(e) => updateSetting('engineThreads', parseInt(e.target.value))}
+                                  className="w-full h-2 bg-[#161512] rounded-lg appearance-none accent-farzin-accent outline-none shadow-inner border border-[#35332e]" 
+                              />
+                          </div>
+                          <div className="space-y-4">
+                              <div className="flex justify-between items-center">
+                                  <span className="text-xs font-bold text-zinc-400">حافظه موقت (Hash MB)</span>
+                                  <span className="font-mono text-farzin-accent font-black text-sm bg-[#161512] px-3 py-1.5 rounded-lg border border-[#35332e] shadow-inner">{settings.engineHash}</span>
+                              </div>
+                              <input 
+                                  type="range" min="16" max="512" step="16"
+                                  value={settings.engineHash}
+                                  onChange={(e) => updateSetting('engineHash', parseInt(e.target.value))}
+                                  className="w-full h-2 bg-[#161512] rounded-lg appearance-none accent-farzin-accent outline-none shadow-inner border border-[#35332e]" 
+                              />
+                          </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 🔥 تب عمومی (شامل زبان و ارتباط با ما) */}
+                {activeTab === 'general' && (
+                  <div className="flex flex-col gap-4">
+                    {/* تنظیمات زبان */}
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                        <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                            <Globe size={18} />
+                            <h2 className="font-black text-xs uppercase tracking-widest">زبان برنامه</h2>
                         </div>
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold text-zinc-400">حافظه موقت (Hash MB)</span>
-                                <span className="font-mono text-farzin-accent font-bold text-sm bg-[#161512] px-3 py-1 rounded-lg border border-[#35332e]">{settings.engineHash}</span>
-                            </div>
-                            <input 
-                                type="range" min="16" max="512" step="16"
-                                value={settings.engineHash}
-                                onChange={(e) => updateSetting('engineHash', parseInt(e.target.value))}
-                                className="w-full h-1.5 bg-[#35332e] rounded-lg appearance-none accent-farzin-accent outline-none" 
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <button 
+                                onClick={() => updateSetting('language', 'fa')}
+                                className={`py-3.5 rounded-2xl border-2 font-black text-sm transition-all ${settings.language === 'fa' ? 'bg-farzin-accent text-white border-transparent shadow-[0_4px_15px_rgba(119,149,86,0.4)]' : 'bg-[#161512] text-zinc-400 border-[#35332e] hover:bg-[#262421] shadow-inner'}`}
+                            >
+                                فارسی
+                            </button>
+                            <button 
+                                onClick={() => updateSetting('language', 'en')}
+                                className={`py-3.5 rounded-2xl border-2 font-black text-sm transition-all ${settings.language === 'en' ? 'bg-farzin-accent text-white border-transparent shadow-[0_4px_15px_rgba(119,149,86,0.4)]' : 'bg-[#161512] text-zinc-400 border-[#35332e] hover:bg-[#262421] shadow-inner'}`}
+                            >
+                                English
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ارتباط با ما و شبکه‌های اجتماعی */}
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                        <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                            <MessageCircle size={18} />
+                            <h2 className="font-black text-xs uppercase tracking-widest">ارتباط با ما</h2>
+                        </div>
+                        
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={() => window.open('https://t.me/lasp_ir', '_blank')}
+                                className="flex items-center justify-between p-4 rounded-xl bg-[#161512] border border-[#35332e] hover:bg-[#262421] transition-colors group active:scale-95"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Send size={18} className="text-sky-400 group-hover:scale-110 transition-transform" />
+                                    <span className="font-bold text-sm text-zinc-200">کانال تلگرام</span>
+                                </div>
+                                <ExternalLink size={16} className="text-zinc-600" />
+                            </button>
+                            
+                            <button 
+                                onClick={() => window.open('https://ble.ir/lasp_ir', '_blank')}
+                                className="flex items-center justify-between p-4 rounded-xl bg-[#161512] border border-[#35332e] hover:bg-[#262421] transition-colors group active:scale-95"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <MessageCircle size={18} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                                    <span className="font-bold text-sm text-zinc-200">کانال بله</span>
+                                </div>
+                                <ExternalLink size={16} className="text-zinc-600" />
+                            </button>
+
+                            <button 
+                                onClick={() => window.open('https://lasp.ir', '_blank')}
+                                className="flex items-center justify-between p-4 rounded-xl bg-[#161512] border border-[#35332e] hover:bg-[#262421] transition-colors group active:scale-95"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Globe size={18} className="text-indigo-400 group-hover:scale-110 transition-transform" />
+                                    <span className="font-bold text-sm text-zinc-200">بازدید از سایت رسمی</span>
+                                </div>
+                                <ExternalLink size={16} className="text-zinc-600" />
+                            </button>
+
+                            <button 
+                                onClick={() => setIsFeedbackOpen(true)}
+                                className="flex items-center justify-between p-4 mt-2 rounded-xl bg-farzin-accent/10 border border-farzin-accent/20 hover:bg-farzin-accent/20 transition-colors group active:scale-95"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <MessageSquare size={18} className="text-farzin-accent group-hover:scale-110 transition-transform" />
+                                    <span className="font-bold text-sm text-farzin-accent">ارسال انتقاد و پیشنهاد</span>
+                                </div>
+                                <ChevronRight size={16} className="text-farzin-accent/60" />
+                            </button>
                         </div>
                     </div>
                   </div>
-                </div>
-              )}
-              
-              {/* تب عمومی */}
-              {activeTab === 'general' && (
-                <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                    <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                        <Globe size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">زبان برنامه</h2>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <button 
-                            onClick={() => updateSetting('language', 'fa')}
-                            className={`py-3.5 rounded-xl border-2 font-black text-sm transition-all ${settings.language === 'fa' ? 'bg-farzin-accent text-white border-transparent shadow-lg' : 'bg-[#161512] text-zinc-400 border-[#35332e] hover:bg-[#262421]'}`}
-                        >
-                            فارسی
-                        </button>
-                        <button 
-                            onClick={() => updateSetting('language', 'en')}
-                            className={`py-3.5 rounded-xl border-2 font-black text-sm transition-all ${settings.language === 'en' ? 'bg-farzin-accent text-white border-transparent shadow-lg' : 'bg-[#161512] text-zinc-400 border-[#35332e] hover:bg-[#262421]'}`}
-                        >
-                            English
-                        </button>
-                    </div>
-                </div>
-              )}
+                )}
 
-            </motion.div>
-          </AnimatePresence>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
         </div>
+      </motion.div>
 
-      </div>
-    </motion.div>
+      {/* 🔥 پاپ‌آپ (Modal) شیک ارسال بازخورد */}
+      <AnimatePresence>
+        {isFeedbackOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+            dir="rtl"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 20, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-[#1e1c19] border border-[#35332e] rounded-[28px] shadow-2xl overflow-hidden flex flex-col"
+            >
+              {/* هدر پاپ‌آپ */}
+              <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#262421]">
+                <h3 className="font-black text-white flex items-center gap-2">
+                  <MessageSquare size={18} className="text-farzin-accent" />
+                  ارسال بازخورد
+                </h3>
+                <button 
+                  onClick={() => { if (feedbackStatus !== 'sending') setIsFeedbackOpen(false); }}
+                  className="p-2 bg-[#161512] rounded-full text-zinc-400 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* بدنه فرم */}
+              <div className="p-5 flex flex-col gap-4">
+                
+                {feedbackStatus === 'success' ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center justify-center py-10 gap-4"
+                  >
+                    <div className="w-16 h-16 bg-farzin-accent/20 rounded-full flex items-center justify-center">
+                      <CheckCircle2 size={32} className="text-farzin-accent" />
+                    </div>
+                    <span className="font-black text-white text-lg">با موفقیت ارسال شد!</span>
+                    <span className="text-xs text-zinc-400">از اینکه به بهبود فرزین کمک می‌کنید متشکریم.</span>
+                  </motion.div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold text-zinc-400 px-1">متن پیام (الزامی)</label>
+                      <textarea 
+                        value={feedbackData.text}
+                        onChange={(e) => setFeedbackData({...feedbackData, text: e.target.value})}
+                        placeholder="مشکل، پیشنهاد یا انتقاد خود را بنویسید..."
+                        className="w-full h-28 resize-none bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl p-3 text-sm text-white placeholder-zinc-600 outline-none transition-colors"
+                      ></textarea>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold text-zinc-400 px-1">نام (اختیاری)</label>
+                        <input 
+                          type="text"
+                          value={feedbackData.name}
+                          onChange={(e) => setFeedbackData({...feedbackData, name: e.target.value})}
+                          placeholder="نام شما"
+                          className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold text-zinc-400 px-1">شماره تماس (اختیاری)</label>
+                        <input 
+                          type="tel"
+                          dir="ltr"
+                          value={feedbackData.phone}
+                          onChange={(e) => setFeedbackData({...feedbackData, phone: e.target.value})}
+                          placeholder="0912..."
+                          className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors text-right"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold text-zinc-400 px-1">ایمیل (اختیاری)</label>
+                      <input 
+                        type="email"
+                        dir="ltr"
+                        value={feedbackData.email}
+                        onChange={(e) => setFeedbackData({...feedbackData, email: e.target.value})}
+                        placeholder="your@email.com"
+                        className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors text-right"
+                      />
+                    </div>
+
+                    <button 
+                      onClick={handleSendFeedback}
+                      disabled={!feedbackData.text.trim() || feedbackStatus === 'sending'}
+                      className={`mt-2 w-full py-3.5 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${!feedbackData.text.trim() ? 'bg-[#35332e] text-zinc-500 cursor-not-allowed' : 'bg-farzin-accent text-white shadow-[0_4px_15px_rgba(119,149,86,0.4)] active:scale-[0.98]'}`}
+                    >
+                      {feedbackStatus === 'sending' ? (
+                        <RefreshCw size={18} className="animate-spin" />
+                      ) : (
+                        <>
+                          <Send size={16} />
+                          ارسال پیام
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
