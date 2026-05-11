@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Volume2, MousePointer2, Palette, Cpu, Globe, 
   Activity, BrainCircuit, Link2, RefreshCw, ShieldCheck,
-  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, Crown, Box
+  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, Crown
 } from 'lucide-react';
 
 const defaultSettings = {
@@ -12,7 +12,7 @@ const defaultSettings = {
   premove: true,
   confirmMove: false,
   boardTheme: 'green',
-  pieceTheme: 'classic', // 🔥 تم مهره جدید
+  pieceTheme: 'neo', // تغییر پیش‌فرض به نئو که گرافیک جذابی دارد
   evalBar: true,
   showMoveQualities: true,
   engineThreads: 2,
@@ -21,6 +21,34 @@ const defaultSettings = {
   lichessConnected: false,
   chessDotComConnected: false
 };
+
+// لیست تم‌های تخته (بافت‌دار و ساده)
+const boardThemes = [
+  { id: 'green', name: 'سبز فرزین', light: '#ebecd0', dark: '#779556' },
+  { id: 'wood', name: 'چوب کالیفرنیا', light: '#f0d9b5', dark: '#b58863', texture: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=200&auto=format&fit=crop' },
+  { id: 'walnut', name: 'گردویی تیره', light: '#d0af88', dark: '#6e472a', texture: 'https://images.unsplash.com/photo-1546484396-fb3fc6f95f98?q=80&w=200&auto=format&fit=crop' },
+  { id: 'marble', name: 'مرمر ایتالیایی', light: '#e8ecef', dark: '#8f9ea8', texture: 'https://images.unsplash.com/photo-1518712398506-64c9d9ff0e65?q=80&w=200&auto=format&fit=crop' },
+  { id: 'granite', name: 'سنگ گرانیت', light: '#c4c8cc', dark: '#50565a', texture: 'https://images.unsplash.com/photo-1508215885820-4585e5610d28?q=80&w=200&auto=format&fit=crop' },
+  { id: 'sand', name: 'ماسه صحرا', light: '#f4dfba', dark: '#d2a66e', texture: 'https://images.unsplash.com/photo-1545464197-e89bd74737dd?q=80&w=200&auto=format&fit=crop' },
+  { id: 'carbon', name: 'فیبر کربن', light: '#888888', dark: '#222222', texture: 'https://images.unsplash.com/photo-1585807469395-586b46b1076b?q=80&w=200&auto=format&fit=crop' },
+  { id: 'canvas', name: 'بوم نقاشی', light: '#f2ece4', dark: '#a59b8c', texture: 'https://images.unsplash.com/photo-1533035353720-f1c6a75cd8ab?q=80&w=200&auto=format&fit=crop' },
+  { id: 'dark', name: 'گرافیت کلاسیک', light: '#bababa', dark: '#4a4a4a' },
+  { id: 'glass', name: 'شیشه‌ای', light: '#dff9fb', dark: '#95afc0' },
+  { id: 'sky', name: 'آبی آسمان', light: '#e0f7fa', dark: '#4fc3f7' },
+];
+
+// لیست تم‌های مهره (متصل به سرور Chess.com)
+const pieceThemes = [
+  { id: 'neo', name: 'نئو (Neo)' },
+  { id: 'classic', name: 'استانتون' },
+  { id: 'neo-wood', name: 'چوبی (Wood)' },
+  { id: 'glass', name: 'شیشه‌ای' },
+  { id: 'metal', name: 'فلزی (Metal)' },
+  { id: 'gothic', name: 'گوتیک' },
+  { id: 'icy_sea', name: 'دریای یخی' },
+  { id: 'nature', name: 'طبیعت' },
+  { id: 'space', name: 'فضایی' },
+];
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -79,7 +107,7 @@ export default function Settings() {
   const tabs = [
     { id: 'accounts', title: 'اتصال اکانت', icon: <Link2 size={16} /> },
     { id: 'gameplay', title: 'گیم‌پلی', icon: <MousePointer2 size={16} /> },
-    { id: 'appearance', title: 'ظاهر و تم', icon: <Palette size={16} /> }, // 🔥 تغییر نام تب
+    { id: 'appearance', title: 'ظاهر و تم', icon: <Palette size={16} /> },
     { id: 'engine', title: 'موتور و تحلیل', icon: <Cpu size={16} /> },
     { id: 'general', title: 'عمومی', icon: <Globe size={16} /> }
   ];
@@ -154,6 +182,7 @@ export default function Settings() {
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
                 
+                {/* تب اکانت‌ها */}
                 {activeTab === 'accounts' && (
                   <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-farzin-accent/30 to-transparent"></div>
@@ -206,6 +235,7 @@ export default function Settings() {
                   </div>
                 )}
 
+                {/* تب گیم‌پلی */}
                 {activeTab === 'gameplay' && (
                   <div className="flex flex-col gap-4">
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
@@ -217,7 +247,7 @@ export default function Settings() {
                           <div className="flex items-center justify-between py-3">
                               <div className="flex flex-col">
                                   <span className="text-sm font-bold text-white">پیش‌حرکت (Premove)</span>
-                                  <span className="text-[10px] text-zinc-500 mt-1">حرکت مهره قبل از نوبت حریف</span>
+                                  <span className="text-[10px] text-zinc-500 mt-1">حرکت قبل از نوبت حریف</span>
                               </div>
                               <Switch checked={settings.premove} onChange={(v: boolean) => updateSetting('premove', v)} />
                           </div>
@@ -247,75 +277,66 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* 🔥 تب ظاهر و تم (نسخه جدید با تم مهره و چهارخونه) */}
+                {/* 🔥 تب ظاهر و تم (نسخه افقی با انیمیشن) */}
                 {activeTab === 'appearance' && (
                   <div className="flex flex-col gap-6">
                     {/* تم تخته شطرنج */}
-                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                        <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                    <div className="bg-[#1e1c19] pt-6 pb-4 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden">
+                        <div className="flex items-center gap-2 mb-4 px-6 text-farzin-accent">
                             <Palette size={18} />
                             <h2 className="font-black text-xs uppercase tracking-widest">تم‌های تخته (چهارخونه)</h2>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {[
-                                { id: 'green', name: 'سبز فرزین', light: '#ebecd0', dark: '#779556' },
-                                { id: 'wood', name: 'چوبی کالیفرنیا', light: '#f0d9b5', dark: '#b58863', texture: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=200&auto=format&fit=crop' },
-                                { id: 'dark', name: 'گرافیت تیره', light: '#bababa', dark: '#4a4a4a' },
-                                { id: 'marble', name: 'مرمر ایتالیایی', light: '#f7f7f7', dark: '#bdc3c7', texture: 'https://images.unsplash.com/photo-1518712398506-64c9d9ff0e65?q=80&w=200&auto=format&fit=crop' },
-                                { id: 'glass', name: 'شیشه‌ای مدرن', light: '#dff9fb', dark: '#95afc0' },
-                                { id: 'sky', name: 'آبی آسمان', light: '#e0f7fa', dark: '#4fc3f7' },
-                            ].map(t => {
+                        {/* لیست افقی اسکرول‌شونده */}
+                        <div className="flex overflow-x-auto gap-4 px-6 pb-4 pt-2 no-scrollbar snap-x snap-mandatory">
+                            {boardThemes.map(t => {
                                 const isSelected = settings.boardTheme === t.id;
                                 return (
-                                    <button 
+                                    <motion.button 
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
                                         key={t.id}
                                         onClick={() => updateSetting('boardTheme', t.id)}
-                                        className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all group ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-lg scale-105' : 'border-transparent bg-[#161512] shadow-inner hover:bg-[#262421]'}`}
+                                        className={`flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}
                                     >
-                                        {/* 🔥 نمایش چهارخونه (Grid) */}
-                                        <div className="w-16 h-16 rounded-lg shadow-md border border-black/10 overflow-hidden grid grid-cols-2 grid-rows-2 relative">
-                                            {t.texture && <img src={t.texture} className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" />}
+                                        <div className="w-16 h-16 rounded-xl shadow-md border border-black/30 overflow-hidden grid grid-cols-2 grid-rows-2 relative">
+                                            {t.texture && <img src={t.texture} className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay" alt={t.name} />}
                                             <div style={{ backgroundColor: t.light }}></div>
                                             <div style={{ backgroundColor: t.dark }}></div>
                                             <div style={{ backgroundColor: t.dark }}></div>
                                             <div style={{ backgroundColor: t.light }}></div>
                                         </div>
-                                        <span className={`text-[10px] font-black ${isSelected ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}>{t.name}</span>
-                                    </button>
+                                        <span className={`text-[11px] font-black truncate w-full text-center ${isSelected ? 'text-white' : 'text-zinc-500'}`}>{t.name}</span>
+                                    </motion.button>
                                 );
                             })}
                         </div>
                     </div>
 
-                    {/* 🔥 جدید: تم مهره‌های شطرنج */}
-                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                        <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                    {/* تم مهره‌های شطرنج */}
+                    <div className="bg-[#1e1c19] pt-6 pb-4 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden">
+                        <div className="flex items-center gap-2 mb-4 px-6 text-farzin-accent">
                             <Crown size={18} />
-                            <h2 className="font-black text-xs uppercase tracking-widest">تم‌های مهره‌ها (Piece Sets)</h2>
+                            <h2 className="font-black text-xs uppercase tracking-widest">تم‌های مهره‌ها</h2>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {[
-                                { id: 'classic', name: 'کلاسیک استانتون', light: '#fff', dark: '#000', icon: '♟' },
-                                { id: 'wood', name: 'چوبی دست‌ساز', light: '#f7d6a1', dark: '#a16c39', icon: '♞' },
-                                { id: 'minimal', name: 'مینیمال (Vector)', light: '#eee', dark: '#222', icon: '♚' },
-                                { id: 'neo', name: 'نئو-کلاسیک', light: '#fff', dark: '#333', icon: '♝' },
-                                { id: '3d', name: 'سه‌بعدی (آزمایشی)', light: '#ddd', dark: '#444', icon: '♜' },
-                                { id: 'modern', name: 'مدرن (Flat)', light: '#fff', dark: '#111', icon: '♛' },
-                            ].map(p => {
+                        {/* لیست افقی اسکرول‌شونده برای مهره‌ها */}
+                        <div className="flex overflow-x-auto gap-4 px-6 pb-4 pt-2 no-scrollbar snap-x snap-mandatory">
+                            {pieceThemes.map(p => {
                                 const isSelected = settings.pieceTheme === p.id;
+                                // استفاده از اسب سفید به عنوان پیش‌نمایش تم
+                                const pieceUrl = `https://images.chesscomfiles.com/chess-themes/pieces/${p.id}/150/wn.png`;
                                 return (
-                                    <button 
+                                    <motion.button 
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
                                         key={p.id}
                                         onClick={() => updateSetting('pieceTheme', p.id)}
-                                        className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all group ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-lg scale-105' : 'border-transparent bg-[#161512] shadow-inner hover:bg-[#262421]'}`}
+                                        className={`flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}
                                     >
-                                        {/* 🔥 پیش‌نمایش مهره */}
-                                        <div className="w-16 h-16 rounded-lg shadow-md border border-[#35332e] bg-[#161512] flex items-center justify-center relative overflow-hidden group-hover:bg-[#262421]">
-                                            <span className="absolute -bottom-2 -left-2 text-[60px] opacity-10" style={{ color: p.light }}>{p.icon}</span>
-                                            <span className="text-[36px] drop-shadow-sm select-none" style={{ color: p.light, WebkitTextStroke: `1px ${p.dark}` }}>{p.icon}</span>
+                                        <div className="w-16 h-16 rounded-xl shadow-inner border border-[#35332e] bg-[#22201d] flex items-center justify-center p-1">
+                                            <img src={pieceUrl} alt={p.name} className="w-full h-full object-contain drop-shadow-md" />
                                         </div>
-                                        <span className={`text-[10px] font-black ${isSelected ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}>{p.name}</span>
-                                    </button>
+                                        <span className={`text-[11px] font-black truncate w-full text-center ${isSelected ? 'text-white' : 'text-zinc-500'}`}>{p.name}</span>
+                                    </motion.button>
                                 );
                             })}
                         </div>
@@ -378,6 +399,7 @@ export default function Settings() {
                   </div>
                 )}
                 
+                {/* تب عمومی */}
                 {activeTab === 'general' && (
                   <div className="flex flex-col gap-4">
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
@@ -544,15 +566,15 @@ export default function Settings() {
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold text-zinc-400 px-1">ایمیل (اختیاری)</label>
-                      <input 
-                        type="email"
-                        dir="ltr"
-                        value={feedbackData.email}
-                        onChange={(e) => setFeedbackData({...feedbackData, email: e.target.value})}
-                        placeholder="your@email.com"
-                        className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors text-right"
-                      />
+                        <label className="text-[11px] font-bold text-zinc-400 px-1">ایمیل (اختیاری)</label>
+                        <input 
+                          type="email"
+                          dir="ltr"
+                          value={feedbackData.email}
+                          onChange={(e) => setFeedbackData({...feedbackData, email: e.target.value})}
+                          placeholder="your@email.com"
+                          className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors text-right"
+                        />
                     </div>
 
                     <button 
