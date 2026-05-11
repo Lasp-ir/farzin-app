@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Volume2, MousePointer2, Palette, Cpu, Globe, 
   Activity, BrainCircuit, Link2, RefreshCw, ShieldCheck,
-  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2
+  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, Crown, Box
 } from 'lucide-react';
 
 const defaultSettings = {
@@ -12,6 +12,7 @@ const defaultSettings = {
   premove: true,
   confirmMove: false,
   boardTheme: 'green',
+  pieceTheme: 'classic', // 🔥 تم مهره جدید
   evalBar: true,
   showMoveQualities: true,
   engineThreads: 2,
@@ -27,7 +28,6 @@ export default function Settings() {
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // استیت‌های مربوط به پاپ‌آپ بازخورد
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [feedbackData, setFeedbackData] = useState({ text: '', name: '', phone: '', email: '' });
@@ -63,18 +63,15 @@ export default function Settings() {
     }, 2000);
   };
 
-  // شبیه‌سازی ارسال بازخورد
   const handleSendFeedback = () => {
-    if (!feedbackData.text.trim()) return; // متن اجباری است
+    if (!feedbackData.text.trim()) return;
     setFeedbackStatus('sending');
-    
-    // شبیه‌سازی ریکوئست به سرور
     setTimeout(() => {
       setFeedbackStatus('success');
       setTimeout(() => {
         setIsFeedbackOpen(false);
         setFeedbackStatus('idle');
-        setFeedbackData({ text: '', name: '', phone: '', email: '' }); // ریست کردن فرم
+        setFeedbackData({ text: '', name: '', phone: '', email: '' });
       }, 2000);
     }, 1500);
   };
@@ -82,7 +79,7 @@ export default function Settings() {
   const tabs = [
     { id: 'accounts', title: 'اتصال اکانت', icon: <Link2 size={16} /> },
     { id: 'gameplay', title: 'گیم‌پلی', icon: <MousePointer2 size={16} /> },
-    { id: 'appearance', title: 'ظاهر تخته', icon: <Palette size={16} /> },
+    { id: 'appearance', title: 'ظاهر و تم', icon: <Palette size={16} /> }, // 🔥 تغییر نام تب
     { id: 'engine', title: 'موتور و تحلیل', icon: <Cpu size={16} /> },
     { id: 'general', title: 'عمومی', icon: <Globe size={16} /> }
   ];
@@ -157,7 +154,6 @@ export default function Settings() {
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
                 
-                {/* تب اکانت‌ها */}
                 {activeTab === 'accounts' && (
                   <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-farzin-accent/30 to-transparent"></div>
@@ -210,7 +206,6 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* تب گیم‌پلی */}
                 {activeTab === 'gameplay' && (
                   <div className="flex flex-col gap-4">
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
@@ -222,7 +217,7 @@ export default function Settings() {
                           <div className="flex items-center justify-between py-3">
                               <div className="flex flex-col">
                                   <span className="text-sm font-bold text-white">پیش‌حرکت (Premove)</span>
-                                  <span className="text-[10px] text-zinc-500 mt-1">حرکت قبل از نوبت حریف</span>
+                                  <span className="text-[10px] text-zinc-500 mt-1">حرکت مهره قبل از نوبت حریف</span>
                               </div>
                               <Switch checked={settings.premove} onChange={(v: boolean) => updateSetting('premove', v)} />
                           </div>
@@ -252,29 +247,79 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* تب ظاهر */}
+                {/* 🔥 تب ظاهر و تم (نسخه جدید با تم مهره و چهارخونه) */}
                 {activeTab === 'appearance' && (
-                  <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
-                      <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                          <Palette size={18} />
-                          <h2 className="font-black text-xs uppercase tracking-widest">تم‌های بصری تخته</h2>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                          {[
-                              { id: 'green', name: 'سبز فرزین', color: '#779556' },
-                              { id: 'wood', name: 'چوبی لوکس', color: '#b58863' },
-                              { id: 'dark', name: 'سایه گرافیت', color: '#3f3f46' },
-                          ].map(t => (
-                              <button 
-                                  key={t.id}
-                                  onClick={() => updateSetting('boardTheme', t.id)}
-                                  className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all ${settings.boardTheme === t.id ? 'border-farzin-accent bg-[#262421] shadow-lg scale-105' : 'border-transparent bg-[#161512] shadow-inner hover:bg-[#262421]'}`}
-                              >
-                                  <div className="w-12 h-12 rounded-lg shadow-md border border-black/10" style={{ backgroundColor: t.color }}></div>
-                                  <span className="text-[10px] font-black">{t.name}</span>
-                              </button>
-                          ))}
-                      </div>
+                  <div className="flex flex-col gap-6">
+                    {/* تم تخته شطرنج */}
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                        <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                            <Palette size={18} />
+                            <h2 className="font-black text-xs uppercase tracking-widest">تم‌های تخته (چهارخونه)</h2>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {[
+                                { id: 'green', name: 'سبز فرزین', light: '#ebecd0', dark: '#779556' },
+                                { id: 'wood', name: 'چوبی کالیفرنیا', light: '#f0d9b5', dark: '#b58863', texture: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=200&auto=format&fit=crop' },
+                                { id: 'dark', name: 'گرافیت تیره', light: '#bababa', dark: '#4a4a4a' },
+                                { id: 'marble', name: 'مرمر ایتالیایی', light: '#f7f7f7', dark: '#bdc3c7', texture: 'https://images.unsplash.com/photo-1518712398506-64c9d9ff0e65?q=80&w=200&auto=format&fit=crop' },
+                                { id: 'glass', name: 'شیشه‌ای مدرن', light: '#dff9fb', dark: '#95afc0' },
+                                { id: 'sky', name: 'آبی آسمان', light: '#e0f7fa', dark: '#4fc3f7' },
+                            ].map(t => {
+                                const isSelected = settings.boardTheme === t.id;
+                                return (
+                                    <button 
+                                        key={t.id}
+                                        onClick={() => updateSetting('boardTheme', t.id)}
+                                        className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all group ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-lg scale-105' : 'border-transparent bg-[#161512] shadow-inner hover:bg-[#262421]'}`}
+                                    >
+                                        {/* 🔥 نمایش چهارخونه (Grid) */}
+                                        <div className="w-16 h-16 rounded-lg shadow-md border border-black/10 overflow-hidden grid grid-cols-2 grid-rows-2 relative">
+                                            {t.texture && <img src={t.texture} className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" />}
+                                            <div style={{ backgroundColor: t.light }}></div>
+                                            <div style={{ backgroundColor: t.dark }}></div>
+                                            <div style={{ backgroundColor: t.dark }}></div>
+                                            <div style={{ backgroundColor: t.light }}></div>
+                                        </div>
+                                        <span className={`text-[10px] font-black ${isSelected ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}>{t.name}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* 🔥 جدید: تم مهره‌های شطرنج */}
+                    <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
+                        <div className="flex items-center gap-2 mb-6 text-farzin-accent">
+                            <Crown size={18} />
+                            <h2 className="font-black text-xs uppercase tracking-widest">تم‌های مهره‌ها (Piece Sets)</h2>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {[
+                                { id: 'classic', name: 'کلاسیک استانتون', light: '#fff', dark: '#000', icon: '♟' },
+                                { id: 'wood', name: 'چوبی دست‌ساز', light: '#f7d6a1', dark: '#a16c39', icon: '♞' },
+                                { id: 'minimal', name: 'مینیمال (Vector)', light: '#eee', dark: '#222', icon: '♚' },
+                                { id: 'neo', name: 'نئو-کلاسیک', light: '#fff', dark: '#333', icon: '♝' },
+                                { id: '3d', name: 'سه‌بعدی (آزمایشی)', light: '#ddd', dark: '#444', icon: '♜' },
+                                { id: 'modern', name: 'مدرن (Flat)', light: '#fff', dark: '#111', icon: '♛' },
+                            ].map(p => {
+                                const isSelected = settings.pieceTheme === p.id;
+                                return (
+                                    <button 
+                                        key={p.id}
+                                        onClick={() => updateSetting('pieceTheme', p.id)}
+                                        className={`flex flex-col items-center gap-3 p-3 rounded-2xl border-2 transition-all group ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-lg scale-105' : 'border-transparent bg-[#161512] shadow-inner hover:bg-[#262421]'}`}
+                                    >
+                                        {/* 🔥 پیش‌نمایش مهره */}
+                                        <div className="w-16 h-16 rounded-lg shadow-md border border-[#35332e] bg-[#161512] flex items-center justify-center relative overflow-hidden group-hover:bg-[#262421]">
+                                            <span className="absolute -bottom-2 -left-2 text-[60px] opacity-10" style={{ color: p.light }}>{p.icon}</span>
+                                            <span className="text-[36px] drop-shadow-sm select-none" style={{ color: p.light, WebkitTextStroke: `1px ${p.dark}` }}>{p.icon}</span>
+                                        </div>
+                                        <span className={`text-[10px] font-black ${isSelected ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}>{p.name}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                   </div>
                 )}
 
@@ -333,10 +378,8 @@ export default function Settings() {
                   </div>
                 )}
                 
-                {/* 🔥 تب عمومی (شامل زبان و ارتباط با ما) */}
                 {activeTab === 'general' && (
                   <div className="flex flex-col gap-4">
-                    {/* تنظیمات زبان */}
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
                         <div className="flex items-center gap-2 mb-6 text-farzin-accent">
                             <Globe size={18} />
@@ -358,7 +401,6 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* ارتباط با ما و شبکه‌های اجتماعی */}
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
                         <div className="flex items-center gap-2 mb-6 text-farzin-accent">
                             <MessageCircle size={18} />
@@ -421,7 +463,7 @@ export default function Settings() {
         </div>
       </motion.div>
 
-      {/* 🔥 پاپ‌آپ (Modal) شیک ارسال بازخورد */}
+      {/* پاپ‌آپ (Modal) ارسال بازخورد */}
       <AnimatePresence>
         {isFeedbackOpen && (
           <motion.div 
@@ -438,7 +480,6 @@ export default function Settings() {
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="w-full max-w-md bg-[#1e1c19] border border-[#35332e] rounded-[28px] shadow-2xl overflow-hidden flex flex-col"
             >
-              {/* هدر پاپ‌آپ */}
               <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#262421]">
                 <h3 className="font-black text-white flex items-center gap-2">
                   <MessageSquare size={18} className="text-farzin-accent" />
@@ -452,7 +493,6 @@ export default function Settings() {
                 </button>
               </div>
 
-              {/* بدنه فرم */}
               <div className="p-5 flex flex-col gap-4">
                 
                 {feedbackStatus === 'success' ? (
