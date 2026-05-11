@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, PlayCircle, Lock, BookOpen, Clock, 
-  Award, Star, TrendingUp, Crown, CheckCircle2, Play
+  Award, Star, TrendingUp, Crown, CheckCircle2, Play, Target
 } from 'lucide-react';
 
 // دیتای تستی دوره‌های آموزشی
@@ -35,18 +35,14 @@ const mockCourses = [
   },
 ];
 
+// لیست دسته‌بندی‌ها
 const categories = [
   { id: 'all', title: 'همه دوره‌ها', icon: <BookOpen size={16} /> },
   { id: 'openings', title: 'شروع بازی', icon: <TrendingUp size={16} /> },
-  { id: 'middlegame', title: 'وسط بازی', icon: <Target size={16} /> },
+  { id: 'middlegame', title: 'وسط بازی', icon: <Target size={16} /> }, // مشکل اینجا بود که حل شد
   { id: 'endgame', title: 'آخر بازی', icon: <Award size={16} /> },
   { id: 'tactics', title: 'تاکتیک‌ها', icon: <Star size={16} /> },
 ];
-
-// یک آیکون ساختگی برای جایگزینی
-const Target = ({ size, className }: any) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-);
 
 export default function Education() {
   const navigate = useNavigate();
@@ -116,7 +112,7 @@ export default function Education() {
                             <span className="text-white">{inProgressCourse.progress}٪ تکمیل شده</span>
                             <span className="text-farzin-accent flex items-center gap-1"><PlayCircle size={12} fill="currentColor" /> ادامه پخش</span>
                         </div>
-                        <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden backdrop-blur-sm">
+                        <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden backdrop-blur-sm shadow-inner">
                             <div className="h-full bg-farzin-accent rounded-full shadow-[0_0_10px_rgba(119,149,86,0.8)]" style={{ width: `${inProgressCourse.progress}%` }}></div>
                         </div>
                     </div>
@@ -192,10 +188,10 @@ export default function Education() {
                                     </div>
                                 )}
 
-                                <h3 className={`font-black text-[15px] leading-tight mb-1.5 ${isLocked ? 'text-zinc-400' : 'text-white'}`}>{course.title}</h3>
-                                <p className="text-[11px] font-bold text-zinc-500 mb-3">{course.instructor}</p>
+                                <h3 className={`font-black text-[14px] leading-tight mb-1.5 pr-1 ${isLocked ? 'text-zinc-400' : 'text-white'}`}>{course.title}</h3>
+                                <p className="text-[11px] font-bold text-zinc-500 mb-3 pr-1">{course.instructor}</p>
 
-                                <div className="flex items-center gap-3 text-[10px] font-bold text-zinc-400 mt-auto">
+                                <div className="flex items-center gap-3 text-[10px] font-bold text-zinc-400 mt-auto pr-1">
                                     <div className="flex items-center gap-1.5 bg-[#161512] px-2 py-1 rounded-lg border border-[#35332e]">
                                         <TrendingUp size={12} className={isLocked ? 'text-zinc-600' : 'text-blue-400'} />
                                         <span>{course.level}</span>
@@ -209,7 +205,7 @@ export default function Education() {
                                 {/* نمایش پیشرفت یا تیک تکمیل */}
                                 {!isLocked && course.progress === 100 && (
                                     <div className="absolute bottom-3 left-4">
-                                        <CheckCircle2 size={20} className="text-emerald-500" />
+                                        <CheckCircle2 size={18} className="text-emerald-500 drop-shadow-md" />
                                     </div>
                                 )}
                             </div>
