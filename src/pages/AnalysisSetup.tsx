@@ -1,15 +1,23 @@
 // src/pages/AnalysisSetup.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowRight, Activity, FileText, Globe, 
+  ArrowRight, Activity, FileText,
   UploadCloud, LayoutGrid, X, AlertTriangle, 
-  CheckCircle2, ChevronLeft, Zap, Info
+  ChevronLeft, Zap, Info, History, Search, Swords
 } from 'lucide-react';
 
-// کامپوننت کارت‌های منبع
+// --- دیتای تستی آرشیو (بعداً از بک‌اند پایتون/دیتابیس خوانده می‌شود) ---
+const MOCK_ARCHIVE = [
+  { id: '1', white: 'Alireza_Karkon', black: 'Stockfish_16', result: 'win', date: 'امروز', pgn: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4' },
+  { id: '2', white: 'Hikaru', black: 'Alireza_Karkon', result: 'loss', date: 'دیروز', pgn: '1. d4 Nf6 2. c4 g6 3. Nc3 Bg7' },
+  { id: '3', white: 'Alireza_Karkon', black: 'Farzin_Engine', result: 'draw', date: '۲ روز پیش', pgn: '1. c4 c5 2. Nc3 Nc6 3. g3 g6' },
+  { id: '4', white: 'MagnusC', black: 'Alireza_Karkon', result: 'win', date: 'هفته پیش', pgn: '1. e4 c5 2. Nf3 d6 3. d4 cxd4' },
+  { id: '5', white: 'Alireza_Karkon', black: 'Garry_K', result: 'win', date: 'هفته پیش', pgn: '1. d4 d5 2. c4 e6 3. Nc3 Nf6' },
+];
+
 const SourceCard = ({ title, desc, icon: Icon, color, onClick, disabled = false }: any) => (
   <div 
     onClick={!disabled ? onClick : undefined}
@@ -36,15 +44,29 @@ export default function AnalysisSetup() {
   
   // استیت‌های پاپ‌آپ‌ها
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   
-  // استیت‌های دیتا
+  // استیت‌های ورودی دستی
   const [inputData, setInputData] = useState('');
   const [isChecking, setIsChecking] = useState(false);
 
-  // تابع اعتبارسنجی
-  const handleValidateAndStart = () => {
-    if (!inputData.trim()) return;
+  // استیت‌های آرشیو
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterResult, setFilterResult] = useState<'all' | 'win' | 'loss' | 'draw'>('all');
+
+  // فیلتر کردن هوشمند آرشیو
+  const filteredArchive = useMemo(() => {
+    return MOCK_ARCHIVE.filter(game => {
+      const matchesSearch = game.white.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            game.black.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter = filterResult === 'all' || game.result === filterResult;
+      return matchesSearch && matchesFilter;
+    });
+  }, [searchQuery, filterResult]);
+
+  // منطق یکپارچه بررسی و هدایت به آزمایشگاه
+  const processAndNavigate = (data: string) => {
     setIsChecking(true);
     
     setTimeout(() => {
@@ -53,10 +75,10 @@ export default function AnalysisSetup() {
       let type = '';
 
       try {
-        if (chess.load(inputData)) {
+        if (chess.load(data)) {
           isValid = true;
           type = 'FEN';
-        } else if (chess.loadPgn(inputData)) {
+        } else if (chess.loadPgn(data)) {
           isValid = true;
           type = 'PGN';
         }
@@ -68,12 +90,12 @@ export default function AnalysisSetup() {
 
       if (isValid) {
         setIsInputModalOpen(false);
-        // هدایت به صفحه بورد آنالیز همراه با دیتا
-        navigate('/analysis/board', { state: { data: inputData, type: type } });
+        setIsArchiveModalOpen(false);
+        navigate('/analysis/board', { state: { data: data, type: type } });
       } else {
         setIsErrorModalOpen(true);
       }
-    }, 600); // یک دیلی کوتاه برای حس پردازش
+    }, 600);
   };
 
   return (
@@ -107,28 +129,21 @@ export default function AnalysisSetup() {
           </p>
         </div>
 
+        {/* گزینه جدید: انتخاب از آرشیو */}
+        <SourceCard 
+          title="انتخاب از آرشیو" 
+          desc="دسترسی سریع به بازی‌های ذخیره شده" 
+          icon={History} 
+          color="text-purple-400" 
+          onClick={() => setIsArchiveModalOpen(true)} 
+        />
+
         <SourceCard 
           title="وارد کردن PGN / FEN" 
           desc="پیست کردن مستقیم کدهای متنی بازی" 
           icon={FileText} 
           color="text-amber-400" 
           onClick={() => setIsInputModalOpen(true)} 
-        />
-        
-        <SourceCard 
-          title="لینک از Lichess" 
-          desc="دریافت مستقیم بازی با آدرس URL" 
-          icon={Globe} 
-          color="text-zinc-200" 
-          disabled={true} 
-        />
-        
-        <SourceCard 
-          title="لینک از Chess.com" 
-          desc="وارد کردن بازی با آدرس URL" 
-          icon={Globe} 
-          color="text-emerald-500" 
-          disabled={true} 
         />
         
         <SourceCard 
@@ -148,7 +163,114 @@ export default function AnalysisSetup() {
         />
       </div>
 
-      {/* پاپ‌آپ دریافت PGN/FEN */}
+      {/* 🔥 پاپ‌آپ مدرن آرشیو بازی‌ها */}
+      <AnimatePresence>
+        {isArchiveModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" 
+            dir="rtl"
+          >
+            <motion.div 
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} 
+              className="w-full sm:max-w-md bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] flex flex-col pb-safe max-h-[85vh]"
+            >
+              <div className="p-5 border-b border-[#35332e] flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+                    <History size={20} />
+                  </div>
+                  <h3 className="font-black text-lg text-white">آرشیو بازی‌ها</h3>
+                </div>
+                <button onClick={() => setIsArchiveModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* نوار جستجو و فیلترها */}
+              <div className="p-4 border-b border-[#35332e] flex flex-col gap-3 shrink-0">
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-3 flex items-center text-zinc-500">
+                    <Search size={16} />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="جستجوی حریف..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-[#161512] border border-[#35332e] focus:border-purple-500 rounded-xl py-2.5 pr-10 pl-4 text-sm text-white placeholder-zinc-500 outline-none transition-colors"
+                  />
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+                  {[
+                    { id: 'all', label: 'همه' },
+                    { id: 'win', label: 'بردها' },
+                    { id: 'loss', label: 'باخت‌ها' },
+                    { id: 'draw', label: 'مساوی' }
+                  ].map(filter => (
+                    <button
+                      key={filter.id}
+                      onClick={() => setFilterResult(filter.id as any)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+                        filterResult === filter.id 
+                          ? 'bg-purple-500 text-white' 
+                          : 'bg-[#262421] text-zinc-400 hover:text-white border border-[#35332e]'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* لیست بازی‌ها */}
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-3">
+                {filteredArchive.length > 0 ? (
+                  filteredArchive.map((game) => (
+                    <div key={game.id} className="bg-[#161512] border border-[#35332e] p-3.5 rounded-2xl flex items-center justify-between group hover:border-[#52525b] transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-1.5 h-10 rounded-full ${
+                          game.result === 'win' ? 'bg-emerald-500' : 
+                          game.result === 'loss' ? 'bg-rose-500' : 'bg-zinc-500'
+                        }`}></div>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5 text-sm font-bold text-white">
+                            <span>{game.white}</span>
+                            <Swords size={12} className="text-zinc-600" />
+                            <span>{game.black}</span>
+                          </div>
+                          <span className="text-[10px] text-zinc-500 mt-0.5">{game.date}</span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => processAndNavigate(game.pgn)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-[#262421] text-purple-400 border border-[#35332e] hover:bg-purple-500 hover:text-white hover:border-purple-500 transition-all active:scale-95 shrink-0"
+                      >
+                        انتخاب
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                    <History size={40} className="text-zinc-600 mb-3" />
+                    <span className="text-sm font-bold text-zinc-400">بازی با این مشخصات یافت نشد</span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Overlay for loading state within Archive Modal */}
+              {isChecking && (
+                <div className="absolute inset-0 bg-[#1e1c19]/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-t-[32px] sm:rounded-[28px]">
+                   <div className="w-8 h-8 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-3"></div>
+                   <span className="text-sm font-bold text-purple-400 animate-pulse">در حال انتقال به لابراتوار...</span>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* پاپ‌آپ دریافت دستی PGN/FEN */}
       <AnimatePresence>
         {isInputModalOpen && (
           <motion.div 
@@ -183,7 +305,7 @@ export default function AnalysisSetup() {
                 />
                 
                 <button 
-                  onClick={handleValidateAndStart}
+                  onClick={() => processAndNavigate(inputData)}
                   disabled={!inputData.trim() || isChecking}
                   className={`w-full py-4 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
                     !inputData.trim() ? 'bg-[#262421] text-zinc-500' : 'bg-amber-500 text-black shadow-[0_5px_20px_rgba(245,158,11,0.3)] active:scale-95'
