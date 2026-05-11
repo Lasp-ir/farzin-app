@@ -7,7 +7,7 @@ import {
   ArrowRight, Activity, FileText, 
   UploadCloud, LayoutGrid, X, AlertTriangle, 
   ChevronLeft, Zap, Info, History, Search, Swords, User, Calendar, ChevronDown,
-  Link as LinkIcon
+  Link as LinkIcon, Sparkles
 } from 'lucide-react';
 
 // --- دیتای تستی آرشیو ---
@@ -63,24 +63,25 @@ const CustomSelect = ({ value, onChange, options }: any) => {
   );
 };
 
-const SourceCard = ({ title, desc, icon: Icon, color, onClick, disabled = false }: any) => (
+// 🔥 SourceCard اصلاح شده تا بتونه کلیک بخوره و پاپ‌آپ رو باز کنه
+const SourceCard = ({ title, desc, icon: Icon, color, onClick, badge }: any) => (
   <div 
-    onClick={!disabled ? onClick : undefined}
-    className={`flex items-center justify-between p-5 rounded-[22px] bg-[#1e1c19] border border-[#35332e] transition-all duration-300 group relative overflow-hidden ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#52525b] hover:bg-[#262421] cursor-pointer active:scale-[0.98]'}`}
+    onClick={onClick}
+    className="flex items-center justify-between p-5 rounded-[22px] bg-[#1e1c19] border border-[#35332e] hover:border-[#52525b] hover:bg-[#262421] cursor-pointer transition-all duration-300 group relative overflow-hidden active:scale-[0.98]"
   >
     <div className="flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-2xl bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner ${!disabled && 'group-hover:scale-105 transition-transform'}`}>
+      <div className="w-12 h-12 rounded-2xl bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner group-hover:scale-105 transition-transform">
         <Icon size={22} className={color} />
       </div>
       <div className="flex flex-col">
         <span className="font-bold text-lg text-white flex items-center gap-2">
           {title}
-          {disabled && <span className="text-[9px] font-black tracking-widest uppercase bg-[#262421] text-zinc-500 px-2 py-0.5 rounded-md border border-[#35332e]">به زودی</span>}
+          {badge === 'SOON' && <span className="text-[9px] font-black tracking-widest uppercase bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-md border border-rose-500/20">به زودی</span>}
         </span>
         <span className="text-xs text-zinc-500 mt-1">{desc}</span>
       </div>
     </div>
-    {!disabled && <ChevronLeft size={20} className="text-zinc-600 group-hover:text-zinc-300 transition-colors" />}
+    <ChevronLeft size={20} className="text-zinc-600 group-hover:text-zinc-300 transition-colors" />
   </div>
 );
 
@@ -93,6 +94,7 @@ export default function AnalysisSetup() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [isSoonModalOpen, setIsSoonModalOpen] = useState(false); // 🔥 پاپ‌آپ به زودی
   
   // استیت‌های ورودی
   const [inputData, setInputData] = useState('');
@@ -136,7 +138,6 @@ export default function AnalysisSetup() {
     reader.readAsText(file);
   };
 
-  // منطق یکپارچه بررسی دیتای ورودی (پشتیبانی از فرمت‌های مختلف)
   const processAndNavigate = (data: string, meta?: any, forcedType?: string) => {
     setIsChecking(true);
     
@@ -146,7 +147,6 @@ export default function AnalysisSetup() {
 
       if (forcedType === 'LINK') {
         const urlLower = data.toLowerCase();
-        // بررسی وجود دامنه‌های معتبر
         if (urlLower.includes('lichess.org/') || urlLower.includes('chess.com/')) {
           isValid = true;
         }
@@ -218,7 +218,6 @@ export default function AnalysisSetup() {
           onClick={() => setIsArchiveModalOpen(true)} 
         />
 
-        {/* گزینه جدید لینک بازی اضافه شد */}
         <SourceCard 
           title="وارد کردن لینک بازی" 
           desc="وارد کردن لینک بازی از چس و لیچس" 
@@ -243,69 +242,90 @@ export default function AnalysisSetup() {
           onClick={() => setIsUploadModalOpen(true)} 
         />
 
-        <SourceCard title="چیدمان دستی مهره‌ها" desc="ساخت پوزیشن دلخواه روی بورد" icon={LayoutGrid} color="text-rose-400" disabled={true} />
+        {/* 🔥 دکمه چیدمان دستی که پاپ‌آپ رو باز میکنه */}
+        <SourceCard 
+          title="چیدمان دستی مهره‌ها" 
+          desc="ساخت پوزیشن دلخواه روی بورد" 
+          icon={LayoutGrid} 
+          color="text-rose-400" 
+          badge="SOON"
+          onClick={() => setIsSoonModalOpen(true)} 
+        />
       </div>
 
-      {/* 🔥 پاپ‌آپ وارد کردن لینک بازی */}
+      {/* 🔥 پاپ‌آپ شیک و مدرنِ «به زودی» (Coming Soon Modal) */}
       <AnimatePresence>
-        {isLinkModalOpen && (
+        {isSoonModalOpen && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" 
-            dir="rtl"
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md px-4" 
+            dir="rtl" 
+            onClick={() => setIsSoonModalOpen(false)}
           >
             <motion.div 
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} 
-              className="w-full sm:max-w-md bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] flex flex-col pb-safe"
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              transition={{ type: "spring", damping: 25, stiffness: 300 }} 
+              onClick={e => e.stopPropagation()} 
+              className="w-full max-w-sm bg-[#1e1c19] border border-[#35332e] rounded-[32px] shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col items-center p-8 text-center relative overflow-hidden"
             >
-              <div className="p-6 border-b border-[#35332e] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                    <LinkIcon size={20} />
-                  </div>
-                  <h3 className="font-black text-lg text-white">وارد کردن لینک بازی</h3>
-                </div>
-                <button onClick={() => setIsLinkModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors">
-                  <X size={18} />
-                </button>
+              
+              {/* افکت‌های پس‌زمینه مودال */}
+              <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-rose-500/10 to-transparent pointer-events-none"></div>
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-rose-500/20 rounded-full blur-[40px] pointer-events-none"></div>
+
+              {/* دکمه بستن */}
+              <button onClick={() => setIsSoonModalOpen(false)} className="absolute top-4 right-4 p-2 bg-[#161512] border border-[#35332e] rounded-full text-zinc-400 hover:text-white transition-colors z-20">
+                <X size={16} />
+              </button>
+
+              {/* آیکون مرکزی */}
+              <div className="w-20 h-20 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(225,29,72,0.2)] relative z-10">
+                  <LayoutGrid size={36} className="text-rose-500" />
+                  <Sparkles size={20} className="absolute -top-2 -right-2 text-amber-400 animate-pulse" />
               </div>
 
+              {/* متن‌ها */}
+              <h3 className="font-black text-2xl text-white mb-2 relative z-10">در حال توسعه...</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-8 relative z-10 px-2">
+                بخش <span className="text-rose-400 font-bold">چیدمان دستی مهره‌ها (Board Editor)</span> در آپدیت بعدی فرزین فعال می‌شود. به زودی می‌توانید هر سناریویی را برای آنالیز در این بخش خلق کنید!
+              </p>
+
+              {/* دکمه */}
+              <button 
+                onClick={() => setIsSoonModalOpen(false)} 
+                className="w-full py-4 rounded-xl font-black text-sm bg-[#262421] text-white border border-[#403e3a] hover:bg-[#35332e] hover:border-zinc-500 transition-all active:scale-95 relative z-10 shadow-lg"
+              >
+                متوجه شدم
+              </button>
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* سایر پاپ‌آپ‌ها: لینک، آپلود، آرشیو، دستی، ارور */}
+      {/* (کد این پاپ‌آپ‌ها همون قبلی‌هاست که دست‌نخورده باقی مونده) */}
+
+      <AnimatePresence>
+        {isLinkModalOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full sm:max-w-md bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] flex flex-col pb-safe">
+              <div className="p-6 border-b border-[#35332e] flex items-center justify-between">
+                <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><LinkIcon size={20} /></div><h3 className="font-black text-lg text-white">وارد کردن لینک بازی</h3></div>
+                <button onClick={() => setIsLinkModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button>
+              </div>
               <div className="p-6 flex flex-col gap-6">
                 <div className="flex flex-col gap-2">
-                  <input
-                    type="url"
-                    className="w-full bg-[#161512] border border-[#35332e] focus:border-emerald-500 rounded-xl p-4 text-sm text-emerald-100 placeholder-zinc-600 outline-none transition-colors shadow-inner"
-                    placeholder="https://lichess.org/..."
-                    value={linkInput}
-                    onChange={(e) => setLinkInput(e.target.value)}
-                    dir="ltr"
-                    spellCheck={false}
-                  />
+                  <input type="url" className="w-full bg-[#161512] border border-[#35332e] focus:border-emerald-500 rounded-xl p-4 text-sm text-emerald-100 placeholder-zinc-600 outline-none transition-colors shadow-inner" placeholder="https://lichess.org/..." value={linkInput} onChange={(e) => setLinkInput(e.target.value)} dir="ltr" spellCheck={false} />
                   <span className="text-[11px] text-zinc-500 mr-2">فقط لینک‌های معتبر از Lichess و Chess.com</span>
                 </div>
-                
-                <button 
-                  onClick={() => processAndNavigate(linkInput, null, 'LINK')}
-                  disabled={!linkInput.trim() || isChecking}
-                  className={`w-full py-4 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${
-                    !linkInput.trim() ? 'bg-[#262421] text-zinc-500' : 'bg-emerald-500 text-black shadow-[0_5px_20px_rgba(16,185,129,0.3)] active:scale-95'
-                  }`}
-                >
-                  {isChecking ? (
-                    <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div>
-                  ) : (
-                    <><Zap size={18} /> بررسی و استخراج PGN</>
-                  )}
-                </button>
+                <button onClick={() => processAndNavigate(linkInput, null, 'LINK')} disabled={!linkInput.trim() || isChecking} className={`w-full py-4 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${!linkInput.trim() ? 'bg-[#262421] text-zinc-500' : 'bg-emerald-500 text-black shadow-[0_5px_20px_rgba(16,185,129,0.3)] active:scale-95'}`}>{isChecking ? <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div> : <><Zap size={18} /> بررسی و استخراج PGN</>}</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* سایر پاپ‌آپ‌ها: آپلود، دستی، آرشیو، ارور */}
-      
-      {/* پاپ‌آپ آپلود فایل */}
       <AnimatePresence>
         {isUploadModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl">
@@ -353,7 +373,6 @@ export default function AnalysisSetup() {
         )}
       </AnimatePresence>
 
-      {/* پاپ‌آپ آرشیو */}
       <AnimatePresence>
         {isArchiveModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl">
@@ -384,7 +403,6 @@ export default function AnalysisSetup() {
         )}
       </AnimatePresence>
 
-      {/* پاپ‌آپ دریافت دستی PGN/FEN */}
       <AnimatePresence>
         {isInputModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl">
@@ -402,7 +420,6 @@ export default function AnalysisSetup() {
         )}
       </AnimatePresence>
 
-      {/* پاپ‌آپ خطای فرمت (ارور) */}
       <AnimatePresence>
         {isErrorModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" dir="rtl">
