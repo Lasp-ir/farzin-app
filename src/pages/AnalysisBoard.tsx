@@ -139,7 +139,7 @@ export default function AnalysisBoard() {
   }, [lines, currentNodeId]);
 
   const engineArrows = useMemo(() => {
-    if (!arrowSettings.showArrows || !lines || lines.length === 0 || engineSettings.coachMode) return [];
+    if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
     
     const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
@@ -188,7 +188,7 @@ export default function AnalysisBoard() {
     });
 
     return Array.from(arrowMap.values());
-  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors, engineSettings.coachMode]);
+  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
   const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
@@ -199,7 +199,6 @@ export default function AnalysisBoard() {
     setIsSettingsModalOpen(false); showToast('تنظیمات با موفقیت اعمال شد');
   };
 
-  // 🔥 توابع گمشده اضافه شدند
   const copyMainlinePgn = () => {
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
     let pgn = `[Event "Farzin Analysis"]\n[Site "Lasp - Farzin App"]\n[Date "${dateStr}"]\n[White "${playerMeta.white.name || 'White'}"]\n[Black "${playerMeta.black.name || 'Black'}"]\n`;
@@ -224,12 +223,10 @@ export default function AnalysisBoard() {
 
   const handleSaveAnalysis = () => {
     if(!saveName.trim()) return;
-    // در آینده کدهای ذخیره در دیتابیس اینجا قرار می‌گیرد
     setIsSaveModalOpen(false);
     showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`);
     setSaveName("");
   };
-
 
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
     try {
@@ -285,7 +282,7 @@ export default function AnalysisBoard() {
   };
 
   const executeVariation = (startNodeId: string, uciMovesString: string) => {
-    const uciMoves = uciMovesString.trim().split(' ').slice(0, 12);
+    const uciMoves = uciMovesString.trim().split(' ').slice(0, 12); // محدود کردن تا ۱۲ حرکت طبق درخواست
     if (uciMoves.length === 0) return;
     
     let tempGame = new Chess(tree[startNodeId].fen);
@@ -348,9 +345,9 @@ export default function AnalysisBoard() {
     }
   };
 
-
   const isBlackTurn = activeGame.turn() === 'b';
   
+  // 🔥 سیستم ارزیابی انسانی (Centipawn Loss + Game Phase) بر اساس توضیحات شما
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -359,17 +356,29 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
-    const epFormula = (cp: number) => 1 / (1 + Math.pow(10, -cp / 400));
-    
+    // پیدا کردن رنگ بازیکنی که حرکت را انجام داده (Parent)
     const parentTurnIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
-    const beforeScore = parentTurnIsBlack ? -parentLines[0].score : parentLines[0].score;
-    const currentScore = isBlackTurn ? -lines[0].score : lines[0].score; 
-    const afterScoreForPlayer = isBlackTurn ? lines[0].score : -lines[0].score;
-
-    let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(beforeScore);
-    let epAfter = lines[0].isMate ? (afterScoreForPlayer > 0 ? 1 : 0) : epFormula(afterScoreForPlayer);
-
-    const epLost = Math.max(0, epBefore - epAfter);
+    
+    // امتیازها همیشه نسبت به کسی است که نوبتش است. برای محاسبه درست، آنها را به دیدگاه سفید تبدیل می‌کنیم.
+    const beforeScoreAbsolute = parentTurnIsBlack ? -parentLines[0].score : parentLines[0].score;
+    const currentScoreAbsolute = isBlackTurn ? -lines[0].score : lines[0].score; 
+    
+    let cpLoss = 0;
+    
+    if (parentLines[0].isMate || lines[0].isMate) {
+        // هندل کردن استثنائات مات به صورت حدودی
+        if (parentLines[0].isMate && !lines[0].isMate) {
+            const mateWasForPlayer = parentTurnIsBlack ? parentLines[0].mateIn! < 0 : parentLines[0].mateIn! > 0;
+            if (mateWasForPlayer) cpLoss = 3.0; // از دست دادن مات قطعی = فاجعه
+        } else if (!parentLines[0].isMate && lines[0].isMate) {
+            const mateIsAgainstPlayer = isBlackTurn ? lines[0].mateIn! > 0 : lines[0].mateIn! < 0;
+            if (mateIsAgainstPlayer) cpLoss = 3.0; // دادن مات قطعی به حریف = فاجعه
+        }
+    } else {
+        // محاسبه میزان افت امتیاز برای بازیکنی که الان حرکت کرده
+        cpLoss = parentTurnIsBlack ? (currentScoreAbsolute - beforeScoreAbsolute) : (beforeScoreAbsolute - currentScoreAbsolute);
+        cpLoss = Math.max(0, cpLoss); // نادیده گرفتن نوسانات مثبت موتور
+    }
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
@@ -378,19 +387,27 @@ export default function AnalysisBoard() {
     const bestUciMove = parentActualPv.trim().split(' ')[0];
     const userUciMove = `${tree[currentNodeId].move.from}${tree[currentNodeId].move.to}${tree[currentNodeId].move.promotion || ''}`;
 
-    if (userUciMove === bestUciMove || epLost <= 0.005) classificationKey = 'best';
-    else if (epLost > 0.20) classificationKey = 'blunder';
-    else if (epLost > 0.10) classificationKey = 'mistake';
-    else if (epLost > 0.05) classificationKey = 'inaccuracy';
-    else if (epLost > 0.02) classificationKey = 'good';
-    else classificationKey = 'excellent';
-
+    // 🔥 تشخیص مرحله بازی با شمردن مهره‌های روی تخته (توضیحات شما)
     const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     const fenAfterCount = tree[currentNodeId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+    
+    const isEndgame = fenBeforeCount <= 16; // اگر مهره‌ها کم باشند، ارزش یک پیاده بالاتر می‌رود
+
+    // تعیین آستانه‌های داینامیک بر اساس مرحله بازی
+    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
+    const mistakeLimit = isEndgame ? 2.0 : 2.5;
+
+    // طبقه‌بندی حرکات
+    if (userUciMove === bestUciMove) classificationKey = 'best';
+    else if (cpLoss <= 0.10) classificationKey = 'excellent'; // تفاوت دهم یا کمتر
+    else if (cpLoss <= 0.50) classificationKey = 'good';      // در حد نیم امتیاز
+    else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
+    else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
+    else classificationKey = 'blunder'; // بیشتر از آستانه مشخص شده (2.5 یا 2.0)
+
+    // تشخیص حرکت درخشان به ساده‌ترین شکل (بهترین حرکت که منجر به کاهش مهره شود - قربانی)
     if (classificationKey === 'best' && fenAfterCount < fenBeforeCount) {
         classificationKey = 'brilliant';
-    } else if (classificationKey === 'excellent' && epBefore < 0.3 && epAfter > 0.4) {
-        classificationKey = 'great';
     }
 
     let bestSanMove = '...';
@@ -478,6 +495,22 @@ export default function AnalysisBoard() {
       </div>
 
       <AnimatePresence>
+        {isSaveModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-[90%] max-w-sm shadow-2xl flex flex-col relative">
+               <div className="flex items-center gap-2 mb-4 text-white"><Save size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">ذخیره آنالیز</h2></div>
+               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">این آنالیز با تمام شاخه‌ها در آرشیو شما ذخیره خواهد شد.</p>
+               <input autoFocus value={saveName} onChange={e => setSaveName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSaveAnalysis()} placeholder="مثلاً: گشایش اسپانیایی..." className="w-full bg-[#1e1c19] border border-[#35332e] rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-farzin-accent transition-colors mb-5 shadow-inner" />
+               <div className="flex gap-2 w-full">
+                  <button onClick={() => setIsSaveModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">لغو</button>
+                  <button onClick={handleSaveAnalysis} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">ذخیره در آرشیو</button>
+               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {isSettingsModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
@@ -500,11 +533,79 @@ export default function AnalysisBoard() {
                    <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Target size={14} className="text-emerald-500"/> حداکثر عمق (Depth)</label><span className="text-emerald-500 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{tempSettings.maxDepth === 99 ? '∞' : tempSettings.maxDepth}</span></div>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[18, 22, 24, 99].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, maxDepth: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxDepth === num ? 'bg-[#262421] text-emerald-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num === 99 ? 'نامحدود' : num}</button>))}</div>
                  </div>
+                 <div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Clock size={14} className="text-rose-500"/> زمان محاسبه هر حرکت</label><span className="text-rose-500 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">{tempSettings.maxTime === 0 ? '∞' : `${tempSettings.maxTime}s`}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 3, 5, 0].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, maxTime: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxTime === num ? 'bg-[#262421] text-rose-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num === 0 ? 'بدون محدودیت' : `${num} ثانیه`}</button>))}</div>
+                 </div>
+                 <div className="flex gap-3">
+                   <div className="flex-1">
+                     <div className="flex justify-between items-center mb-2"><label className="text-[11px] text-zinc-400 flex items-center gap-1"><Cpu size={12}/> پردازنده</label></div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 4].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num}</button>))}</div>
+                   </div>
+                   <div className="flex-1">
+                     <div className="flex justify-between items-center mb-2"><label className="text-[11px] text-zinc-400 flex items-center gap-1"><Database size={12}/> رَم (MB)</label></div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[16, 64, 128].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num}</button>))}</div>
+                   </div>
+                 </div>
                </div>
                <div className="flex gap-2 w-full mt-2">
                   <button onClick={() => setIsSettingsModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">انصراف</button>
                   <button onClick={handleApplySettings} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">اعمال تنظیمات</button>
                </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isArrowModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
+               <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Route size={20} className="text-amber-500" /><h2 className="font-bold text-base">راهنمای بصری تخته</h2></div>
+               <div className="flex flex-col gap-4 mb-6">
+                 <div className="flex items-center justify-between bg-[#1e1c19] p-3 rounded-xl border border-[#35332e]">
+                    <span className="text-sm font-bold text-white">رسم فلش حرکات برتر</span>
+                    <ToggleSwitch checked={arrowSettings.showArrows} onChange={(v) => setArrowSettings(prev => ({...prev, showArrows: v}))} />
+                 </div>
+                 <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div className="flex items-center justify-between mb-3">
+                       <span className="text-sm font-bold text-white">نمایش مانور مهره‌ها</span>
+                       <ToggleSwitch checked={arrowSettings.showManeuvers} onChange={(v) => setArrowSettings(prev => ({...prev, showManeuvers: v}))} />
+                    </div>
+                    <div className="p-3 bg-[#161512] rounded-lg border border-[#35332e]">
+                       <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">مانور نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.</p>
+                       <div className="flex items-center justify-center text-zinc-500 pb-1">
+                          <div className="w-8 h-8 rounded-lg bg-[#262421] flex items-center justify-center border border-[#403e3a] shadow-inner"><span className="text-amber-500 text-lg">♞</span></div>
+                          <div className="h-0.5 w-8 bg-amber-500 relative"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
+                          <div className="w-8 h-8 rounded-lg bg-[#1a1916] flex items-center justify-center border border-[#35332e] border-dashed"></div>
+                          <div className="h-0.5 w-8 bg-amber-500 relative opacity-60"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
+                          <div className="w-8 h-8 rounded-lg bg-[#1a1916] flex items-center justify-center border border-[#35332e] border-dashed"></div>
+                       </div>
+                    </div>
+                 </div>
+                 <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <span className="text-sm font-bold text-white mb-1">رنگ‌بندی اختصاصی لاین‌ها</span>
+                    <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">این رنگ‌ها هم روی فلش‌های تخته و هم در داشبورد موتور اعمال می‌شوند.</p>
+                    <div className="flex flex-col gap-2">
+                       {[0, 1, 2].map(idx => idx < engineSettings.multiPv && (
+                         <div key={idx} className="flex items-center justify-between bg-[#161512] px-3 py-2 rounded-lg border border-[#35332e]">
+                           <span className="text-xs text-zinc-400 font-bold">لاین {idx + 1}</span>
+                           <div className="flex gap-2">
+                             {COLOR_PALETTES.map(c => (
+                               <button 
+                                 key={c.hex}
+                                 onClick={() => { const newColors = [...arrowColors]; newColors[idx] = c; setArrowColors(newColors); }}
+                                 className={`w-5 h-5 rounded-full transition-all ${arrowColors[idx].hex === c.hex ? 'scale-125 ring-2 ring-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'hover:scale-110 opacity-50 hover:opacity-100'}`}
+                                 style={{ backgroundColor: c.hex }}
+                               />
+                             ))}
+                           </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               </div>
+               <button onClick={() => setIsArrowModalOpen(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3 text-sm rounded-xl transition-colors">تایید و بستن</button>
             </motion.div>
           </div>
         )}
@@ -629,6 +730,7 @@ export default function AnalysisBoard() {
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
+                  <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
                 <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                     <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
