@@ -22,19 +22,6 @@ export interface MoveNode {
   depth: number;
 }
 
-const getMaterial = (fen: string) => {
-    const pieceValues: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
-    let white = 0, black = 0;
-    const board = fen.split(' ')[0];
-    for (const char of board) {
-        if (pieceValues[char.toLowerCase()]) {
-            if (char === char.toUpperCase()) white += pieceValues[char.toLowerCase()];
-            else black += pieceValues[char.toLowerCase()];
-        }
-    }
-    return { white, black };
-};
-
 const COACH_COLORS = {
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
   great: { color: '#3b82f6', text: 'عالی', icon: CheckCircle2 },
@@ -181,9 +168,7 @@ export default function AnalysisBoard() {
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
         const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
         
-        if (!arrowMap.has(mainArrowKey)) {
-            arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
-        }
+        if (!arrowMap.has(mainArrowKey)) arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
 
         if (arrowSettings.showManeuvers) {
             let currentTo = firstMove.to;
@@ -335,9 +320,7 @@ export default function AnalysisBoard() {
     }
   };
 
-  const isBlackTurn = activeGame.turn() === 'b';
-  
-  // 🔥 سیستم ارزیابی بهبود یافته بر اساس Expected Points (EP) و تحلیل بافت بازی
+  // 🔥 موتورِ بی‌نقص دو-فازی Coach Engine (بر اساس معماری دقیقِ EP)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -346,25 +329,15 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
+    // فرمول Expected Points
     const epFormula = (cp: number) => 1 / (1 + Math.pow(10, -cp / 400));
-    const getRelativeScore = (engineLines: any[], isBlack: boolean) => {
-        if (!engineLines || !engineLines[0]) return 0;
-        return isBlack ? -engineLines[0].score : engineLines[0].score;
-    };
 
-    const playerWhoMovedIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
-    
-    // ارزیابی پوزیسیون "قبل" از حرکت کاربر
-    const scoreBeforePlayer = getRelativeScore(parentLines, playerWhoMovedIsBlack);
-    
-    // ارزیابی پوزیسیون "بعد" از حرکت کاربر
-    const scoreAfterPlayer = isBlackTurn ? -lines[0].score : lines[0].score; 
+    // ۱. بررسی وضعیت قبل از حرکتِ کاربر (از دیدگاهِ کاربر)
+    let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(parentLines[0].score);
 
-    // تبدیل به Expected Points (EP) - احتمال برد بین 0 تا 1
-    let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforePlayer);
-    let epAfter = lines[0].isMate ? (lines[0].mateIn! < 0 ? 1 : 0) : epFormula(scoreAfterPlayer);
+    // ۲. بررسی وضعیت بعد از حرکت کاربر (چون نوبت عوض شده، لاین فعلی موتور از دیدگاه حریفه، پس منفی می‌کنیم تا به دیدگاه ما برگرده)
+    let epAfter = lines[0].isMate ? (lines[0].mateIn! < 0 ? 1 : 0) : epFormula(-lines[0].score);
 
-    // محاسبه افت EP
     const epLost = Math.max(0, epBefore - epAfter);
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
@@ -374,84 +347,82 @@ export default function AnalysisBoard() {
     const bestUciMove = parentActualPv.trim().split(' ')[0];
     const userUciMove = `${tree[currentNodeId].move.from}${tree[currentNodeId].move.to}${tree[currentNodeId].move.promotion || ''}`;
 
-    // 1️⃣ پایه رده‌بندی بر اساس افت EP (همانطور که Chess.com جدیداً انجام می‌دهد)
-    if (userUciMove === bestUciMove || epLost <= 0.005) {
+    const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+    const isEndgame = fenBeforeCount <= 16;
+
+    // -----------------------------------------------------
+    // فاز اول: طبقه‌بندی پایه (Base Classification) بر اساس EP
+    // -----------------------------------------------------
+    if (userUciMove === bestUciMove || epLost <= 0.01) {
         classificationKey = 'best';
-    } else if (epBefore < 0.1) {
-        // اگر پوزیسیون از قبل مرده بود، افت مهم نیست
-        classificationKey = epLost <= 0.02 ? 'excellent' : 'good';
+    } else if (epBefore < 0.15) {
+        // پوزیسیون از قبل مرده بوده، افت بی‌اهمیت است
+        classificationKey = epLost <= 0.03 ? 'excellent' : 'good';
     } else {
-        if (epLost <= 0.02) classificationKey = 'excellent';
-        else if (epLost <= 0.05) classificationKey = 'good';
-        else if (epLost <= 0.10) classificationKey = 'inaccuracy';
-        else if (epLost <= 0.20) classificationKey = 'mistake';
+        if (epLost <= 0.03) classificationKey = 'excellent';
+        else if (epLost <= 0.06) classificationKey = 'good';
+        else if (epLost <= (isEndgame ? 0.10 : 0.15)) classificationKey = 'inaccuracy';
+        else if (epLost <= (isEndgame ? 0.20 : 0.25)) classificationKey = 'mistake';
         else classificationKey = 'blunder';
     }
 
-    // 2️⃣ تشخیص Miss (از دست رفته)
-    const grandParentId = tree[parentId].parentId;
-    if (grandParentId) {
-        const grandparentLines = engineCache.current[grandParentId];
-        if (grandparentLines && grandparentLines[0]) {
-            // EP دو حرکت قبل (قبل از بازی حریف)
-            const scoreBeforeOpponent = playerWhoMovedIsBlack ? -grandparentLines[0].score : grandparentLines[0].score;
-            let epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforeOpponent);
-            
-            // اگر حریف با حرکت قبلی‌اش شانس برد ما رو بالا برده باشه (ما رو از بدبختی نجات داده باشه یا برتری داده باشه)
-            if (epBefore - epBeforeOpponent > 0.05) {
-                // و حالا ما با حرکتمون اون شانس رو دوباره به فنا بدیم!
-                if ((classificationKey === 'mistake' || classificationKey === 'blunder') && epAfter < epBeforeOpponent + 0.05) {
-                    classificationKey = 'miss';
+    // -----------------------------------------------------
+    // فاز دوم: ترفیع و جایگزینی (Contextual Re-labeling)
+    // -----------------------------------------------------
+
+    // چک کردن Miss (فقط در صورتی که حرکت پایه Mistake یا Blunder یا Inaccuracy باشه)
+    if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
+        const grandParentId = tree[parentId].parentId;
+        if (grandParentId) {
+            const grandparentLines = engineCache.current[grandParentId];
+            if (grandparentLines && grandparentLines[0]) {
+                // دو حرکت قبل، نوبت حریف بوده. امید برد حریف رو حساب می‌کنیم و معکوس می‌کنیم برای امید برد خودمون
+                let epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! < 0 ? 1 : 0) : epFormula(-grandparentLines[0].score);
+                
+                // اگر حریف اشتباه فاحشی کرده و یهو امید برد ما حداقل ۱۵٪ رفته بالا
+                if (epBefore - epBeforeOpponent >= 0.15) {
+                    // و ما با حرکتمون اون امید رو دوباره به حالت قبلش برگردوندیم (هدر دادیم)
+                    if (epAfter <= epBeforeOpponent + 0.05) {
+                        classificationKey = 'miss';
+                    }
                 }
             }
         }
     }
 
-    // 3️⃣ تشخیص Great (عالی) و Brilliant (درخشان)
+    // چک کردن Great و Brilliant (فقط برای حرکاتی که تو بیس Best یا Excellent شدن)
     if (classificationKey === 'best' || classificationKey === 'excellent') {
-        let epSecondBest = epBefore;
+        let epSecondBest = epBefore; 
         if (parentLines.length > 1) {
-            epSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1 : 0) : epFormula(getRelativeScore([parentLines[1]], playerWhoMovedIsBlack));
+            epSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1 : 0) : epFormula(parentLines[1].score);
         }
 
-        // آیا این تنها حرکتِ خوبی بود که وجود داشت؟
-        const isOnlyGoodMove = (epBefore - epSecondBest) >= 0.1;
-        // آیا این حرکتی بود که ما رو از باخت حتمی نجات می‌داد؟
-        const isSavingMove = epBefore > 0.4 && epSecondBest < 0.2;
+        const isOnlyGoodMove = (epBefore - epSecondBest) >= 0.15; // حرکت دوم گند میزنه به بازی
+        const isSavingMove = (epBefore > 0.45 && epSecondBest < 0.3); // اگر این حرکت نبود می‌باختیم
 
         if (isOnlyGoodMove || isSavingMove) {
             classificationKey = 'great';
+        }
 
-            // بررسی فداکاری (Sacrifice) برای تبدیل به Brilliant
-            let isSacrifice = false;
-            try {
-                const tempG = new Chess(tree[parentId].fen);
-                const pvMoves = parentActualPv.trim().split(' ').slice(0, 3); // شبیه‌سازی تا ۳ حرکت بعد
-                
-                const matBefore = getMaterial(tree[parentId].fen);
-                const playerMatBefore = playerWhoMovedIsBlack ? matBefore.black : matBefore.white;
-                const oppMatBefore = playerWhoMovedIsBlack ? matBefore.white : matBefore.black;
-                const balanceBefore = playerMatBefore - oppMatBefore;
-
-                for (const uci of pvMoves) {
-                    if(uci.length >= 4) tempG.move({from: uci.slice(0,2), to: uci.slice(2,4), promotion: uci[4]});
-                }
-                
-                const matAfterPv = getMaterial(tempG.fen());
-                const playerMatAfterPv = playerWhoMovedIsBlack ? matAfterPv.black : matAfterPv.white;
-                const oppMatAfterPv = playerWhoMovedIsBlack ? matAfterPv.white : matAfterPv.black;
-                const balanceAfter = playerMatAfterPv - oppMatAfterPv;
-
-                // اگر بعد از ৩ حرکت، بالانسِ متریال ما کمتر شده باشه اما هنوز ارزیابی موتور خوبه، یعنی قربانی هوشمندانه دادیم
-                if (balanceAfter <= balanceBefore - 2.5) {
+        // بررسی Brilliant: آیا مهره‌ای دادیم که حریف بتونه بزنه، اما موتور میگه بهترین کارو کردیم؟
+        let isSacrifice = false;
+        try {
+            // شبیه‌ساز را در وضعیت *بعد از حرکت کاربر* می‌سازیم تا ببینیم حریف چه قطعاتی از ما را می‌تونه بزنه
+            const tempG = new Chess(tree[currentNodeId].fen);
+            const oppMoves = tempG.moves({ verbose: true });
+            
+            for (const m of oppMoves) {
+                // اگر حریف می‌تونه یکی از قطعات ارزشمند ما (اسب، فیل، رخ، وزیر) رو بزنه
+                if (m.captured && ['n', 'b', 'r', 'q'].includes(m.captured.toLowerCase())) {
                     isSacrifice = true;
+                    break;
                 }
-            } catch(e) {}
-
-            // اگر از قبل ۱۰۰٪ برنده نبودیم و قربانی دادیم
-            if (isSacrifice && epBefore < 0.9) {
-                classificationKey = 'brilliant';
             }
+        } catch(e) {}
+
+        // اگر قربانی دادیم + از قبل ۱۰۰٪ برنده نبودیم (تا واقعاً ارزشش مشخص بشه)
+        if (isSacrifice && epBefore < 0.85) {
+            classificationKey = 'brilliant';
         }
     }
 
@@ -469,7 +440,7 @@ export default function AnalysisBoard() {
         userSan: tree[currentNodeId].san 
     };
 
-  }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
+  }, [currentNodeId, lines, engineSettings.coachMode, tree]);
 
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
@@ -485,6 +456,7 @@ export default function AnalysisBoard() {
     return customSq;
   }, [tree, currentNodeId, coachData, engineSettings.coachMode]);
 
+  const isBlackTurn = activeGame.turn() === 'b';
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       const main = lines[0]; const aScore = isBlackTurn ? -main.score : main.score; const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
@@ -674,7 +646,7 @@ export default function AnalysisBoard() {
               <div className="flex items-center gap-2 bg-[#262421] px-2 py-0.5 rounded-md border border-[#35332e]">
                   {!isReady ? <Loader2 size={10} className="text-amber-500 animate-spin" /> : <Zap size={10} className={displayEngineStatus === 'reading books...' ? "text-sky-400 animate-pulse" : "text-amber-400 animate-pulse"} />}
                   <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{displayEngineStatus}</span>
-                  {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth} <span className="text-zinc-600">/ {engineSettings.maxDepth === 99 ? '∞' : engineSettings.maxDepth}</span></span>}
+                  {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
               </div>
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
