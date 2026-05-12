@@ -129,10 +129,8 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
-  // 🔥 موتور پیشرفته رسم فلش‌ها با فیدینگ بر اساس CP Loss
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
-    
     const customArrows: [string, string, string][] = [];
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
@@ -149,21 +147,17 @@ export default function AnalysisBoard() {
         const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
         const selectedColor = arrowColors[index] || arrowColors[2];
         
-        // 🛠 الگوریتم محاسبه CP Loss و تبدیل آن به میزان شفافیت (Alpha)
-        let alpha = 0.85; // وضوح کامل برای حرکت برتر
+        let alpha = 0.85; 
         if (index > 0) {
             if (bestIsMate && !line.isMate) {
-                alpha = 0.15; // اگر مات از دست بره، فلش تقریباً محو میشه
+                alpha = 0.15; 
             } else if (!bestIsMate && !line.isMate) {
-                // اختلاف کیفیت حرکت بر حسب صدمِ پیاده (Centipawns)
                 const diff = Math.abs(bestScore - line.score);
-                // هر یک پیاده (1.00) اختلاف باعث 35 درصد افت وضوح می‌شود
                 alpha = Math.max(0.15, 0.85 - (diff * 0.35));
             }
         }
         
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
-        
         customArrows.push([firstMove.from, firstMove.to, rgbaColor]);
 
         if (arrowSettings.showManeuvers) {
@@ -180,7 +174,6 @@ export default function AnalysisBoard() {
             }
         }
     });
-
     return customArrows;
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
@@ -377,28 +370,23 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* 🔥 پاپ‌آپ پیشرفته رنگ‌ها و تنظیمات بصری */}
       <AnimatePresence>
         {isArrowModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Route size={20} className="text-amber-500" /><h2 className="font-bold text-base">راهنمای بصری تخته</h2></div>
-               
                <div className="flex flex-col gap-4 mb-6">
                  <div className="flex items-center justify-between bg-[#1e1c19] p-3 rounded-xl border border-[#35332e]">
                     <span className="text-sm font-bold text-white">رسم فلش حرکات برتر</span>
                     <ToggleSwitch checked={arrowSettings.showArrows} onChange={(v) => setArrowSettings(prev => ({...prev, showArrows: v}))} />
                  </div>
-                 
                  <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
                     <div className="flex items-center justify-between mb-3">
                        <span className="text-sm font-bold text-white">نمایش مانور مهره‌ها</span>
                        <ToggleSwitch checked={arrowSettings.showManeuvers} onChange={(v) => setArrowSettings(prev => ({...prev, showManeuvers: v}))} />
                     </div>
                     <div className="p-3 bg-[#161512] rounded-lg border border-[#35332e]">
-                       <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">
-                          مانور نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.
-                       </p>
+                       <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">مانور نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.</p>
                        <div className="flex items-center justify-center text-zinc-500 pb-1">
                           <div className="w-8 h-8 rounded-lg bg-[#262421] flex items-center justify-center border border-[#403e3a] shadow-inner"><span className="text-amber-500 text-lg">♞</span></div>
                           <div className="h-0.5 w-8 bg-amber-500 relative"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
@@ -408,11 +396,9 @@ export default function AnalysisBoard() {
                        </div>
                     </div>
                  </div>
-
-                 {/* 🔥 پالت رنگ اختصاصی لاین‌ها */}
                  <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
                     <span className="text-sm font-bold text-white mb-1">رنگ‌بندی اختصاصی لاین‌ها</span>
-                    <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">وضوح (شفافیت) رنگ‌ها بر اساس افت کیفیتِ حرکت (CP Loss) به طور خودکار تنظیم می‌شود.</p>
+                    <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">این رنگ‌ها هم روی فلش‌های تخته و هم در داشبورد موتور اعمال می‌شوند.</p>
                     <div className="flex flex-col gap-2">
                        {[0, 1, 2].map(idx => idx < engineSettings.multiPv && (
                          <div key={idx} className="flex items-center justify-between bg-[#161512] px-3 py-2 rounded-lg border border-[#35332e]">
@@ -431,9 +417,7 @@ export default function AnalysisBoard() {
                        ))}
                     </div>
                  </div>
-
                </div>
-
                <button onClick={() => setIsArrowModalOpen(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3 text-sm rounded-xl transition-colors">تایید و بستن</button>
             </motion.div>
           </div>
@@ -499,11 +483,18 @@ export default function AnalysisBoard() {
                   else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
 
                   const badgeStyle = getBadgeStyle(aScore, line.isMate, aMate);
+                  
+                  // 🔥 دریافت رنگ هماهنگ با فلش‌ها
+                  const lineColor = arrowColors[idx] ? arrowColors[idx].hex : '#a1a1aa';
 
                   return (
-                      <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-1.5 py-1 rounded transition-all ${idx === 0 ? 'bg-[#1e1c19] border border-[#35332e] shadow-sm' : ''}`}>
+                      <div 
+                        key={idx} 
+                        className={`flex items-center gap-2 text-[10.5px] truncate px-2 py-1.5 rounded-lg transition-all bg-[#1e1c19] shadow-sm`}
+                        style={{ borderLeft: `3px solid ${lineColor}` }}
+                      >
                           <span className={`w-10 text-center font-black tracking-tighter rounded border px-1 py-0.5 shrink-0 ${badgeStyle}`}>{scoreText}</span>
-                          <span className={`font-bold ml-1 shrink-0 ${idx === 0 ? 'text-white' : 'text-zinc-400'}`}>{mainMove}</span>
+                          <span className={`font-bold ml-1 shrink-0`} style={{ color: lineColor }}>{mainMove}</span>
                           <span className="text-zinc-500 truncate opacity-80">{restMoves}</span>
                       </div>
                   );
