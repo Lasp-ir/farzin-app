@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
   Share2, Download, List, TrendingUp, BookOpen, User, Edit2, Check,
-  Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database
+  Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -81,12 +81,12 @@ export default function AnalysisBoard() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
-  // 🔥 سیستم وضعیتِ ذخیره‌شده (Applied) و وضعیتِ موقت (Temporary)
-  const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16 });
+  // 🔥 اضافه شدن تنظیمات عمق (maxDepth) و زمان (maxTime)
+  const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0 });
   const [tempSettings, setTempSettings] = useState(engineSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  const { isReady, engineStatus, lines, analyze, setOption } = useStockfish() as any;
+  const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
   useEffect(() => {
     const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -98,23 +98,32 @@ export default function AnalysisBoard() {
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
 
+  // 🔥 سیستم هوشمند اجرای موتور با پشتیبانی از محدودیت عمق و زمان
   useEffect(() => {
-    if (isReady && currentPosition) analyze(currentPosition, 24);
-  }, [currentPosition, isReady, analyze]);
+    if (isReady && currentPosition) {
+      analyze(currentPosition, engineSettings.maxDepth);
+      
+      if (engineSettings.maxTime > 0 && stop) {
+        const timer = setTimeout(() => {
+          stop(); // توقف موتور پس از زمان تعیین شده
+        }, engineSettings.maxTime * 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // هندلرهای مدال تنظیمات
   const openSettingsModal = () => {
-    setTempSettings(engineSettings); // ریست کردن تغییرات موقت به تنظیمات فعلی
+    setTempSettings(engineSettings); 
     setIsSettingsModalOpen(true);
   };
 
   const handleApplySettings = () => {
-    setEngineSettings(tempSettings); // ثبت نهایی تغییرات
+    setEngineSettings(tempSettings); 
     if (setOption) {
       setOption('MultiPV', tempSettings.multiPv);
       setOption('Threads', tempSettings.threads);
@@ -368,13 +377,12 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* 🔥 مدال کامل و پیشرفته تنظیمات موتور */}
       <AnimatePresence>
         {isSettingsModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} 
-              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative"
+              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar"
             >
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3">
                   <Sliders size={20} className="text-farzin-accent" />
@@ -389,7 +397,6 @@ export default function AnalysisBoard() {
                      <label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label>
                      <span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span>
                    </div>
-                   <p className="text-[10px] text-zinc-500 mb-2 leading-relaxed">تعداد شاخه‌هایی که موتور همزمان ارزیابی می‌کند.</p>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
                       {[1, 2, 3].map(num => (
                         <button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
@@ -399,43 +406,69 @@ export default function AnalysisBoard() {
                    </div>
                  </div>
 
-                 {/* تنظیمات Threads */}
+                 {/* 🔥 تنظیمات عمق (Depth) */}
                  <div>
                    <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Cpu size={14} className="text-amber-500"/> هسته‌های پردازشی (Threads)</label>
-                     <span className="text-amber-500 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded">{tempSettings.threads}</span>
+                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Target size={14} className="text-emerald-500"/> حداکثر عمق (Depth)</label>
+                     <span className="text-emerald-500 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{tempSettings.maxDepth === 99 ? '∞' : tempSettings.maxDepth}</span>
                    </div>
-                   <p className="text-[10px] text-zinc-500 mb-2 leading-relaxed">استفاده از هسته‌های بیشتر (WebAssembly) سرعت محاسبات را چند برابر می‌کند.</p>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[1, 2, 4].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num} هسته
+                      {[18, 22, 24, 99].map(num => (
+                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, maxDepth: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxDepth === num ? 'bg-[#262421] text-emerald-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                          {num === 99 ? 'نامحدود' : num}
                         </button>
                       ))}
                    </div>
                  </div>
 
-                 {/* تنظیمات Hash */}
+                 {/* 🔥 تنظیمات زمان (Time Limit) */}
                  <div>
                    <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Database size={14} className="text-sky-500"/> حافظه کش موقت (Hash)</label>
-                     <span className="text-sky-500 font-mono font-bold bg-sky-500/10 px-2 py-0.5 rounded">{tempSettings.hash} MB</span>
+                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Clock size={14} className="text-rose-500"/> زمان محاسبه هر حرکت</label>
+                     <span className="text-rose-500 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">{tempSettings.maxTime === 0 ? '∞' : `${tempSettings.maxTime}s`}</span>
                    </div>
-                   <p className="text-[10px] text-zinc-500 mb-2 leading-relaxed">مقدار رَم تخصیص یافته به موتور. برای آنالیز عمیق‌تر در زمان طولانی، مقدار بیشتری انتخاب کنید.</p>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[16, 32, 64, 128].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num} MB
+                      {[1, 3, 5, 0].map(num => (
+                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, maxTime: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxTime === num ? 'bg-[#262421] text-rose-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                          {num === 0 ? 'بدون محدودیت' : `${num} ثانیه`}
                         </button>
                       ))}
+                   </div>
+                 </div>
+
+                 {/* تنظیمات Threads و Hash (فشرده‌تر برای جا شدن) */}
+                 <div className="flex gap-3">
+                   <div className="flex-1">
+                     <div className="flex justify-between items-center mb-2">
+                       <label className="text-[11px] text-zinc-400 flex items-center gap-1"><Cpu size={12}/> پردازنده</label>
+                     </div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
+                        {[1, 2, 4].map(num => (
+                          <button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                            {num}
+                          </button>
+                        ))}
+                     </div>
+                   </div>
+                   <div className="flex-1">
+                     <div className="flex justify-between items-center mb-2">
+                       <label className="text-[11px] text-zinc-400 flex items-center gap-1"><Database size={12}/> رَم (MB)</label>
+                     </div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
+                        {[16, 64, 128].map(num => (
+                          <button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                            {num}
+                          </button>
+                        ))}
+                     </div>
                    </div>
                  </div>
 
                </div>
 
-               <div className="flex gap-2 w-full">
+               <div className="flex gap-2 w-full mt-2">
                   <button onClick={() => setIsSettingsModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">انصراف</button>
-                  <button onClick={handleApplySettings} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">اعمال روی موتور</button>
+                  <button onClick={handleApplySettings} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">اعمال تنظیمات</button>
                </div>
             </motion.div>
           </div>
@@ -461,7 +494,7 @@ export default function AnalysisBoard() {
               <div className="flex items-center gap-2 bg-[#262421] px-2 py-0.5 rounded-md border border-[#35332e]">
                   {!isReady ? <Loader2 size={10} className="text-amber-500 animate-spin" /> : <Zap size={10} className={displayEngineStatus === 'reading books...' ? "text-sky-400 animate-pulse" : "text-amber-400 animate-pulse"} />}
                   <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{displayEngineStatus}</span>
-                  {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
+                  {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth} <span className="text-zinc-600">/ {engineSettings.maxDepth === 99 ? '∞' : engineSettings.maxDepth}</span></span>}
               </div>
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">
                 {overallEvalText}
@@ -475,7 +508,8 @@ export default function AnalysisBoard() {
                   if (rawPv.includes(' pv ')) actualPv = rawPv.split(' pv ')[1];
                   else { const match = rawPv.match(/[a-h][1-8][a-h][1-8]/); if (match) actualPv = rawPv.substring(rawPv.indexOf(match[0])); }
                   
-                  const uciMoves = actualPv.trim().split(' ');
+                  // 🔥 شبیه‌سازی تا ۱۵ حرکت برای جلوگیری از فشار پردازشی، اما نمایش تمامی موارد بدون لیمیتِ ۶تایی
+                  const uciMoves = actualPv.trim().split(' ').slice(0, 15);
                   const sanMoves: string[] = [];
                   
                   try {
@@ -491,7 +525,8 @@ export default function AnalysisBoard() {
                   } catch (e) {}
 
                   const mainMove = sanMoves[0] || '...';
-                  const restMoves = sanMoves.slice(1, 6).join(' ');
+                  // 🔥 حذف محدودیت: حالا تا انتهای آرایه رو به هم وصل می‌کنه و truncate بقیش رو هندل می‌کنه
+                  const restMoves = sanMoves.slice(1).join(' ');
                   
                   const aScore = isBlackTurn ? -line.score : line.score;
                   const aMate = isBlackTurn ? -(line.mateIn || 0) : (line.mateIn || 0);
@@ -504,8 +539,8 @@ export default function AnalysisBoard() {
 
                   return (
                       <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-1.5 py-1 rounded transition-all ${idx === 0 ? 'bg-[#1e1c19] border border-[#35332e] shadow-sm' : ''}`}>
-                          <span className={`w-10 text-center font-black tracking-tighter rounded border px-1 py-0.5 ${badgeStyle}`}>{scoreText}</span>
-                          <span className={`font-bold ml-1 ${idx === 0 ? 'text-white' : 'text-zinc-400'}`}>{mainMove}</span>
+                          <span className={`w-10 text-center font-black tracking-tighter rounded border px-1 py-0.5 shrink-0 ${badgeStyle}`}>{scoreText}</span>
+                          <span className={`font-bold ml-1 shrink-0 ${idx === 0 ? 'text-white' : 'text-zinc-400'}`}>{mainMove}</span>
                           <span className="text-zinc-500 truncate opacity-80">{restMoves}</span>
                       </div>
                   );
