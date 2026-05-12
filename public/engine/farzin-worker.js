@@ -2,12 +2,23 @@ import Stockfish from './sf_18_smallnet.js';
 
 let sfEngine;
 
+// 🔥 یک چکِ امنیتی برای اینکه مطمئن بشیم مرورگر اجازه کار چند‌نخی رو بهمون داده
+if (typeof SharedArrayBuffer === 'undefined') {
+  console.error("🚨 قابلیت SharedArrayBuffer غیرفعال است! هدرهای امنیتی Vite اعمال نشده‌اند.");
+  postMessage({ type: 'status', data: 'خطا: محدودیت امنیتی مرورگر' });
+}
+
 Stockfish({
+  // ۱. مسیر فایل‌های جانبی مثل wasm
   locateFile: (path) => {
-    // 🔥 ترفند حیاتی: تمام فایل‌های درخواستی موتور (چه wasm چه js های فرعی برای چندنخی)
-    // باید اجباراً از پوشه ریشه /engine/ لود بشن تا تو مسیردهی‌های React گم نشن!
+    // اگه موتور هر نوع فایلی برای worker خواست، همینی که داریم رو به خوردش بده!
+    if (path.includes('worker.js')) return '/engine/sf_18_smallnet.worker.js';
     return '/engine/' + path;
-  }
+  },
+  
+  // ۲. 🔥 رازِ اصلی: دادن آدرسِ مطلقِ خودِ اسکریپت به موتور برای حل ارور undefined
+  mainScriptUrlOrBlob: '/engine/sf_18_smallnet.js'
+  
 }).then((engine) => {
   sfEngine = engine;
   
@@ -19,15 +30,13 @@ Stockfish({
   
   fetch('/engine/nn-4ca89e4b3abf.nnue')
     .then(response => {
-      if (!response.ok) throw new Error('NNUE not found');
+      if (!response.ok) throw new Error('فایل NNUE پیدا نشد');
       return response.arrayBuffer();
     })
     .then(buffer => {
       const nnueData = new Uint8Array(buffer);
       sfEngine.setNnueBuffer(nnueData);
       postMessage({ type: 'status', data: 'موتور آماده است' });
-      
-      // روشن کردن موتور بعد از تزریق هوش مصنوعی
       sfEngine.uci('uci');
     })
     .catch(err => {
@@ -36,7 +45,8 @@ Stockfish({
       sfEngine.uci('uci');
     });
 }).catch(err => {
-  postMessage({ type: 'error', data: 'خطا در بارگذاری هسته WASM: ' + err.message });
+  console.error("Stockfish init error:", err);
+  postMessage({ type: 'error', data: 'خطا در اجرای هسته موتور: ' + err.message });
 });
 
 self.onmessage = function(e) {
