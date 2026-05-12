@@ -317,20 +317,22 @@ export default function AnalysisBoard() {
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* پاپ‌آپ‌های نوتیفیکیشن (Toast) */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -50, opacity: 0 }}
-            className="fixed top-6 right-1/2 translate-x-1/2 bg-[#1e1c19] border border-farzin-accent/50 text-white px-4 py-2.5 rounded-xl shadow-[0_5px_20px_rgba(119,149,86,0.3)] z-50 flex items-center gap-2.5 whitespace-nowrap min-w-max"
-          >
-             <div className="w-6 h-6 rounded-full bg-farzin-accent/20 flex items-center justify-center">
-                <Check size={14} className="text-farzin-accent"/>
-             </div>
-             <span className="text-xs font-bold">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* پاپ‌آپ‌های نوتیفیکیشن (Toast) با وسط‌چینِ ضدگلوله! */}
+      <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div 
+              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
+              className="bg-[#1e1c19] border border-farzin-accent/50 text-white px-4 py-2.5 rounded-xl shadow-[0_5px_20px_rgba(119,149,86,0.3)] flex items-center gap-2.5 whitespace-nowrap pointer-events-auto"
+            >
+               <div className="w-6 h-6 shrink-0 rounded-full bg-farzin-accent/20 flex items-center justify-center">
+                  <Check size={14} className="text-farzin-accent"/>
+               </div>
+               <span className="text-xs font-bold">{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* مدال شیشه‌ای ذخیره‌سازی */}
       <AnimatePresence>
