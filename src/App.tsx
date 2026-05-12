@@ -11,6 +11,8 @@ import Settings from './pages/Settings';
 import Archive from './pages/Archive';
 import Puzzles from './pages/Puzzles';
 import Education from './pages/Education';
+import AnalysisSetup from './pages/AnalysisSetup';
+import AnalysisBoard from './pages/AnalysisBoard';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -42,6 +44,8 @@ export default function App() {
           <Route path="/archive" element={<Archive />} />
           <Route path="/puzzles" element={<Puzzles />} />
           <Route path="/education" element={<Education />} />
+          <Route path="/analysis" element={<AnalysisSetup />} />
+          <Route path="/analysis/board" element={<AnalysisBoard />} />
         </Routes>
         
         <PaywallModal />

@@ -6,14 +6,48 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, Home as HomeIcon, Puzzle, BarChart2, User, 
   Trophy, History, Settings, Globe, LineChart, 
-  UserPlus, BookOpen, Crown, Bell, LogOut, 
+  BookOpen, Crown, Bell, LogOut, 
   UploadCloud, X, Diamond, Sparkles, CheckCircle2, 
-  Mail, MessageCircle, Cpu, Zap, Fingerprint, ScanLine, AlertTriangle
+  Mail, MessageCircle, Cpu, Zap, Fingerprint, ScanLine
 } from 'lucide-react';
+
+// 🔥 بهینه‌سازی مهم: تعریف کارت بیرون از کامپوننت اصلی برای جلوگیری از رندرهای اضافی
+interface ActionCardProps {
+  title: string;
+  desc: string;
+  icon: React.ElementType;
+  color: string;
+  onClick?: () => void;
+  badge?: 'VIP' | 'DIAMOND';
+}
+
+const ActionCard = ({ title, desc, icon: Icon, color, onClick, badge }: ActionCardProps) => (
+  <div 
+    onClick={onClick}
+    className="flex flex-col gap-3 p-5 rounded-[22px] bg-[#1e1c19] border border-[#35332e] hover:border-[#52525b] hover:bg-[#262421] cursor-pointer shadow-lg transition-all duration-300 group relative overflow-hidden active:scale-[0.98]"
+  >
+    {badge === 'VIP' && (
+      <div className="absolute top-4 left-4 px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-black tracking-widest uppercase rounded-lg border border-amber-500/30 flex items-center gap-1 shadow-sm">
+        <Crown size={10} /> VIP
+      </div>
+    )}
+    {badge === 'DIAMOND' && (
+      <div className="absolute top-4 left-4 px-2 py-0.5 bg-sky-500/10 text-sky-400 text-[9px] font-black tracking-widest uppercase rounded-lg border border-sky-500/30 flex items-center gap-1 shadow-sm">
+        <Diamond size={10} fill="currentColor" /> Pro
+      </div>
+    )}
+    <div className="w-12 h-12 rounded-2xl bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner group-hover:scale-105 transition-transform duration-300">
+      <Icon size={22} className={color} />
+    </div>
+    <div className="flex flex-col mt-1">
+      <span className="font-bold text-lg text-white">{title}</span>
+      <span className="text-xs text-zinc-500 mt-1 pr-1">{desc}</span>
+    </div>
+  </div>
+);
 
 export default function Home() {
   const { t } = useTranslation();
-  // برای تست می‌تونی اینجا رو به 'FREE' تغییر بدی تا حالت‌های پرداخت رو ببینی
   const { logout, userTier = 'DIAMOND' } = useAuthStore(); 
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
@@ -80,34 +114,9 @@ export default function Home() {
         setCloneStatus('idle');
         setLichessId(''); setChesscomId(''); setHasUploadedZip(false);
         setContactEmail(''); setContactSocial(''); setSelectedTimes([]);
-      }, 3500); // زمان بیشتر برای نمایش صفحه موفقیت
-    }, 2500); // انیمیشن پردازش جذاب
+      }, 3500);
+    }, 2500);
   };
-
-  const ActionCard = ({ title, desc, icon: Icon, color, onClick, badge }: any) => (
-    <div 
-      onClick={onClick}
-      className="flex flex-col gap-3 p-5 rounded-[22px] bg-[#1e1c19] border border-[#35332e] hover:border-[#52525b] hover:bg-[#262421] cursor-pointer shadow-lg transition-all duration-300 group relative overflow-hidden active:scale-[0.98]"
-    >
-      {badge === 'VIP' && (
-        <div className="absolute top-4 left-4 px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-black tracking-widest uppercase rounded-lg border border-amber-500/30 flex items-center gap-1 shadow-sm">
-          <Crown size={10} /> VIP
-        </div>
-      )}
-      {badge === 'DIAMOND' && (
-        <div className="absolute top-4 left-4 px-2 py-0.5 bg-sky-500/10 text-sky-400 text-[9px] font-black tracking-widest uppercase rounded-lg border border-sky-500/30 flex items-center gap-1 shadow-sm">
-          <Diamond size={10} fill="currentColor" /> Pro
-        </div>
-      )}
-      <div className="w-12 h-12 rounded-2xl bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner group-hover:scale-105 transition-transform duration-300">
-        <Icon size={22} className={color} />
-      </div>
-      <div className="flex flex-col mt-1">
-        <span className="font-bold text-lg text-white">{title}</span>
-        <span className="text-xs text-zinc-500 mt-1 pr-1">{desc}</span>
-      </div>
-    </div>
-  );
 
   return (
     <>
@@ -152,9 +161,16 @@ export default function Home() {
                 <ActionCard title={t('home.play_online')} desc={t('home.play_online_desc')} icon={Globe} color="text-blue-400" />
                 <ActionCard title={t('home.latest_game')} desc={t('home.latest_game_desc')} icon={History} color="text-purple-400" onClick={() => navigate('/archive')} />
                 <ActionCard title={t('home.puzzles')} desc={t('home.puzzles_desc')} icon={Puzzle} color="text-amber-500" badge="VIP" onClick={() => navigate('/puzzles')} />
-                <ActionCard title={t('home.analysis')} desc={t('home.analysis_desc')} icon={LineChart} color="text-rose-400" badge="VIP" onClick={() => navigate('/analysis')} />
-                
-                {/* 🔥 دکمه کلون پروفایل */}
+                {/* دکمه صفحه آنالیز */}
+                <ActionCard 
+                    title={t('home.analysis')} 
+                    desc={t('home.analysis_desc')} 
+                    icon={LineChart} 
+                    color="text-rose-400" 
+                    badge="VIP" 
+                    onClick={() => navigate('/analysis')} 
+                  />
+                {/* دکمه کلون پروفایل */}
                 <ActionCard title="شبیه‌سازی حریف" desc="کلون پروفایل با AI" icon={Fingerprint} color="text-sky-400" badge="DIAMOND" onClick={() => setIsCloneModalOpen(true)} />
                 
                 <ActionCard title="آکادمی آموزش" desc="ویدیوها و دوره‌ها" icon={BookOpen} color="text-indigo-400" badge="VIP" onClick={() => navigate('/education')} />
@@ -171,13 +187,16 @@ export default function Home() {
                 <button className="flex flex-col items-center gap-1.5 flex-1 group"><div className="relative"><HomeIcon size={24} className="text-farzin-accent group-hover:scale-110" /><div className="absolute -bottom-[8px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-farzin-accent shadow-[0_0_8px_rgba(119,149,86,0.8)]"></div></div><span className="text-[11px] font-bold text-farzin-accent mt-1">خانه</span></button>
                 <button onClick={() => navigate('/select-bot')} className="flex flex-col items-center gap-1.5 flex-1 group opacity-40 hover:opacity-100"><Play size={24} className="text-zinc-300" /><span className="text-[11px] font-bold text-zinc-300 mt-1">بازی</span></button>
                 <button onClick={() => navigate('/puzzles')} className="flex flex-col items-center gap-1.5 flex-1 group opacity-40 hover:opacity-100"><Puzzle size={24} className="text-zinc-300" /><span className="text-[11px] font-bold text-zinc-300 mt-1">پازل</span></button>
-                <button onClick={() => navigate('/analysis')} className="flex flex-col items-center gap-1.5 flex-1 group opacity-40 hover:opacity-100"><BarChart2 size={24} className="text-zinc-300" /><span className="text-[11px] font-bold text-zinc-300 mt-1">تحلیل</span></button>
+                <button onClick={() => navigate('/analysis')} className="flex flex-col items-center gap-1.5 flex-1 group opacity-40 hover:opacity-100">
+                  <BarChart2 size={24} className="text-zinc-300" />
+                  <span className="text-[11px] font-bold text-zinc-300 mt-1">تحلیل</span>
+                </button>
                 <button className="flex flex-col items-center gap-1.5 flex-1 group opacity-40 hover:opacity-100"><User size={24} className="text-zinc-300" /><span className="text-[11px] font-bold text-zinc-300 mt-1">پروفایل</span></button>
             </div>
         </div>
       </div>
 
-      {/* 🔥 پاپ‌آپ (Modal) فوق‌حرفه‌ای و پول‌ساز کلون پروفایل */}
+      {/* پاپ‌آپ (Modal) فوق‌حرفه‌ای و پول‌ساز کلون پروفایل */}
       <AnimatePresence>
         {isCloneModalOpen && (
           <motion.div 
