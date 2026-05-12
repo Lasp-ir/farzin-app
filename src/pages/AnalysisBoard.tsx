@@ -130,11 +130,12 @@ export default function AnalysisBoard() {
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
   // 🔥 موتور رسم فلش‌ها (سازگار با آخرین آپدیت react-chessboard)
+  // 🔥 موتور پیشرفته رسم فلش‌ها (با سیستم فیلتر هوشمند برای جلوگیری از تداخل و ارور React)
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
     
-    // اینجا از any استفاده می‌کنیم تا تایپ‌اسکریپت به ساختار آرایه‌ی جدید گیر نده
-    const customArrows: any[] = [];
+    // استفاده از Map به جای Array برای جلوگیری از ثبت فلش‌های تکراری روی هم
+    const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
 
@@ -150,7 +151,6 @@ export default function AnalysisBoard() {
         const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
         const selectedColor = arrowColors[index] || arrowColors[2];
         
-        // محاسبه CP Loss برای کاهش شفافیت (Opacity)
         let alpha = 0.85; 
         if (index > 0) {
             if (bestIsMate && !line.isMate) {
@@ -162,9 +162,12 @@ export default function AnalysisBoard() {
         }
         
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
+        const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
         
-        // فرمت ۳تایی استاندارد جدید: [مبدا، مقصد، رنگ]
-        customArrows.push([firstMove.from, firstMove.to, rgbaColor]);
+        // 🛠 فقط در صورتی فلش رو بکش که لاینِ بهتری قبلاً این مسیر رو اشغال نکرده باشه
+        if (!arrowMap.has(mainArrowKey)) {
+            arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
+        }
 
         if (arrowSettings.showManeuvers) {
             let currentTo = firstMove.to;
@@ -174,14 +177,19 @@ export default function AnalysisBoard() {
                 const m = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
                 
                 if (m.from === currentTo) {
-                    customArrows.push([m.from, m.to, rgbaColor]);
+                    const maneuverKey = `${m.from}-${m.to}`;
+                    // جلوگیری از تکرار در مانورها
+                    if (!arrowMap.has(maneuverKey)) {
+                        arrowMap.set(maneuverKey, [m.from, m.to, rgbaColor]);
+                    }
                     currentTo = m.to;
                 } else break;
             }
         }
     });
 
-    return customArrows;
+    // در نهایت مپ را به یک آرایه تمیز و بدون تکرار تبدیل می‌کنیم
+    return Array.from(arrowMap.values());
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
