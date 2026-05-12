@@ -153,6 +153,7 @@ export default function AnalysisBoard() {
 
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
+    
     const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
@@ -180,7 +181,9 @@ export default function AnalysisBoard() {
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
         const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
         
-        if (!arrowMap.has(mainArrowKey)) arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
+        if (!arrowMap.has(mainArrowKey)) {
+            arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
+        }
 
         if (arrowSettings.showManeuvers) {
             let currentTo = firstMove.to;
@@ -196,6 +199,7 @@ export default function AnalysisBoard() {
             }
         }
     });
+
     return Array.from(arrowMap.values());
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
@@ -333,7 +337,7 @@ export default function AnalysisBoard() {
 
   const isBlackTurn = activeGame.turn() === 'b';
   
-  // 🔥 قلب هوش مصنوعی مربی (Coach): ارزیابی بر اساس CP-Loss پیشرفته با درک Miss/Great/Brilliant
+  // 🔥 سیستم ارزیابی بهبود یافته بر اساس Expected Points (EP) و تحلیل بافت بازی
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -342,24 +346,26 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
-    // تشخیص بازیکنی که حرکت رو انجام داده
-    const playerWhoMovedIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
-    
-    // تبدیل امتیازات خامِ موتور به دیدگاه بازیکنی که حرکت رو انجام داده
-    const getRelativeScore = (engineLines: any[]) => {
+    const epFormula = (cp: number) => 1 / (1 + Math.pow(10, -cp / 400));
+    const getRelativeScore = (engineLines: any[], isBlack: boolean) => {
         if (!engineLines || !engineLines[0]) return 0;
-        return playerWhoMovedIsBlack ? -engineLines[0].score : engineLines[0].score;
+        return isBlack ? -engineLines[0].score : engineLines[0].score;
     };
 
-    // ارزیابی پوزیسیون "قبل" از حرکت بازیکن
-    const scoreBeforePlayer = getRelativeScore(parentLines);
+    const playerWhoMovedIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
     
-    // ارزیابی پوزیسیون "بعد" از حرکت بازیکن (در خطوط فعلی، نوبت عوض شده، پس امتیاز برعکسه)
-    const rawCurrentScore = lines[0].score;
-    const scoreAfterPlayer = isBlackTurn ? -rawCurrentScore : rawCurrentScore;
+    // ارزیابی پوزیسیون "قبل" از حرکت کاربر
+    const scoreBeforePlayer = getRelativeScore(parentLines, playerWhoMovedIsBlack);
+    
+    // ارزیابی پوزیسیون "بعد" از حرکت کاربر
+    const scoreAfterPlayer = isBlackTurn ? -lines[0].score : lines[0].score; 
 
-    // محاسبه افت کیفیت
-    let cpLoss = Math.max(0, scoreBeforePlayer - scoreAfterPlayer);
+    // تبدیل به Expected Points (EP) - احتمال برد بین 0 تا 1
+    let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforePlayer);
+    let epAfter = lines[0].isMate ? (lines[0].mateIn! < 0 ? 1 : 0) : epFormula(scoreAfterPlayer);
+
+    // محاسبه افت EP
+    const epLost = Math.max(0, epBefore - epAfter);
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
@@ -368,58 +374,59 @@ export default function AnalysisBoard() {
     const bestUciMove = parentActualPv.trim().split(' ')[0];
     const userUciMove = `${tree[currentNodeId].move.from}${tree[currentNodeId].move.to}${tree[currentNodeId].move.promotion || ''}`;
 
-    // تعیین آستانه‌های داینامیک بر اساس شلوغی تخته (Endgame)
-    const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
-    const fenAfterCount = tree[currentNodeId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
-    const isEndgame = fenBeforeCount <= 16;
-    
-    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
-    const mistakeLimit = isEndgame ? 2.0 : 2.5;
+    // 1️⃣ پایه رده‌بندی بر اساس افت EP (همانطور که Chess.com جدیداً انجام می‌دهد)
+    if (userUciMove === bestUciMove || epLost <= 0.005) {
+        classificationKey = 'best';
+    } else if (epBefore < 0.1) {
+        // اگر پوزیسیون از قبل مرده بود، افت مهم نیست
+        classificationKey = epLost <= 0.02 ? 'excellent' : 'good';
+    } else {
+        if (epLost <= 0.02) classificationKey = 'excellent';
+        else if (epLost <= 0.05) classificationKey = 'good';
+        else if (epLost <= 0.10) classificationKey = 'inaccuracy';
+        else if (epLost <= 0.20) classificationKey = 'mistake';
+        else classificationKey = 'blunder';
+    }
 
-    // 1️⃣ پایه‌ریزی کلاس‌ها با CP-Loss
-    if (userUciMove === bestUciMove || cpLoss <= 0.1) classificationKey = 'best';
-    else if (cpLoss <= 0.5) classificationKey = 'excellent';
-    else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
-    else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
-    else classificationKey = 'blunder';
-
-    // 2️⃣ تشخیص از دست رفته (Miss)
+    // 2️⃣ تشخیص Miss (از دست رفته)
     const grandParentId = tree[parentId].parentId;
     if (grandParentId) {
         const grandparentLines = engineCache.current[grandParentId];
         if (grandparentLines && grandparentLines[0]) {
-            // امتیاز دو حرکت قبل (قبل از اینکه حریف بازی کنه)
+            // EP دو حرکت قبل (قبل از بازی حریف)
             const scoreBeforeOpponent = playerWhoMovedIsBlack ? -grandparentLines[0].score : grandparentLines[0].score;
-            const oppCpLoss = scoreBeforePlayer - scoreBeforeOpponent; 
+            let epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforeOpponent);
             
-            // اگر حریف اشتباه فاحشی کرده و برتری چشمگیری (حداقل 1.5) به ما داده
-            if (oppCpLoss >= 1.5) {
-                // اگر ما همون برتری رو پس دادیم اما پوزیسیونمون نسبت به دو حرکت قبل بدتر از 1.0 نشده
-                if ((classificationKey === 'inaccuracy' || classificationKey === 'mistake') && 
-                    Math.abs(scoreAfterPlayer - scoreBeforeOpponent) <= 1.0) {
+            // اگر حریف با حرکت قبلی‌اش شانس برد ما رو بالا برده باشه (ما رو از بدبختی نجات داده باشه یا برتری داده باشه)
+            if (epBefore - epBeforeOpponent > 0.05) {
+                // و حالا ما با حرکتمون اون شانس رو دوباره به فنا بدیم!
+                if ((classificationKey === 'mistake' || classificationKey === 'blunder') && epAfter < epBeforeOpponent + 0.05) {
                     classificationKey = 'miss';
                 }
             }
         }
     }
 
-    // 3️⃣ تشخیص حرکات تک (Great) و فداکاری (Brilliant)
+    // 3️⃣ تشخیص Great (عالی) و Brilliant (درخشان)
     if (classificationKey === 'best' || classificationKey === 'excellent') {
-        const bestScoreRaw = parentLines[0] ? (playerWhoMovedIsBlack ? -parentLines[0].score : parentLines[0].score) : 0;
-        const secondBestScoreRaw = parentLines[1] ? (playerWhoMovedIsBlack ? -parentLines[1].score : parentLines[1].score) : bestScoreRaw - 0.1;
+        let epSecondBest = epBefore;
+        if (parentLines.length > 1) {
+            epSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1 : 0) : epFormula(getRelativeScore([parentLines[1]], playerWhoMovedIsBlack));
+        }
 
-        const difference = bestScoreRaw - secondBestScoreRaw;
-        const isOnlyGoodMove = difference >= 1.5; // فقط یک حرکت خوب وجود دارد
-        const isSavingMove = bestScoreRaw > -1.0 && secondBestScoreRaw <= -2.0; // تنها حرکتی که از باخت نجات می‌دهد
+        // آیا این تنها حرکتِ خوبی بود که وجود داشت؟
+        const isOnlyGoodMove = (epBefore - epSecondBest) >= 0.1;
+        // آیا این حرکتی بود که ما رو از باخت حتمی نجات می‌داد؟
+        const isSavingMove = epBefore > 0.4 && epSecondBest < 0.2;
 
         if (isOnlyGoodMove || isSavingMove) {
             classificationKey = 'great';
 
-            // تست قربانی (Sacrifice) برای تبدیل به Brilliant
+            // بررسی فداکاری (Sacrifice) برای تبدیل به Brilliant
             let isSacrifice = false;
             try {
                 const tempG = new Chess(tree[parentId].fen);
-                const pvMoves = parentActualPv.trim().split(' ').slice(0, 3);
+                const pvMoves = parentActualPv.trim().split(' ').slice(0, 3); // شبیه‌سازی تا ۳ حرکت بعد
                 
                 const matBefore = getMaterial(tree[parentId].fen);
                 const playerMatBefore = playerWhoMovedIsBlack ? matBefore.black : matBefore.white;
@@ -435,10 +442,14 @@ export default function AnalysisBoard() {
                 const oppMatAfterPv = playerWhoMovedIsBlack ? matAfterPv.white : matAfterPv.black;
                 const balanceAfter = playerMatAfterPv - oppMatAfterPv;
 
-                if (balanceAfter <= balanceBefore - 2) isSacrifice = true;
+                // اگر بعد از ৩ حرکت، بالانسِ متریال ما کمتر شده باشه اما هنوز ارزیابی موتور خوبه، یعنی قربانی هوشمندانه دادیم
+                if (balanceAfter <= balanceBefore - 2.5) {
+                    isSacrifice = true;
+                }
             } catch(e) {}
 
-            if (isSacrifice) {
+            // اگر از قبل ۱۰۰٪ برنده نبودیم و قربانی دادیم
+            if (isSacrifice && epBefore < 0.9) {
                 classificationKey = 'brilliant';
             }
         }
@@ -654,7 +665,6 @@ export default function AnalysisBoard() {
         </div>
         <div className="flex gap-1.5">
             <button onClick={openSettingsModal} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="تنظیمات موتور"><Settings size={16}/></button>
-            <button onClick={() => setIsSaveModalOpen(true)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="ذخیره آنالیز"><Save size={16}/></button>
             <button className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors"><Share2 size={16}/></button>
         </div>
       </div>
