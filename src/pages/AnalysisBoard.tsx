@@ -129,9 +129,12 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
+  // 🔥 موتور رسم فلش‌ها (سازگار با آخرین آپدیت react-chessboard)
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
-    const customArrows: [string, string, string][] = [];
+    
+    // اینجا از any استفاده می‌کنیم تا تایپ‌اسکریپت به ساختار آرایه‌ی جدید گیر نده
+    const customArrows: any[] = [];
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
 
@@ -147,6 +150,7 @@ export default function AnalysisBoard() {
         const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
         const selectedColor = arrowColors[index] || arrowColors[2];
         
+        // محاسبه CP Loss برای کاهش شفافیت (Opacity)
         let alpha = 0.85; 
         if (index > 0) {
             if (bestIsMate && !line.isMate) {
@@ -158,6 +162,8 @@ export default function AnalysisBoard() {
         }
         
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
+        
+        // فرمت ۳تایی استاندارد جدید: [مبدا، مقصد، رنگ]
         customArrows.push([firstMove.from, firstMove.to, rgbaColor]);
 
         if (arrowSettings.showManeuvers) {
@@ -174,6 +180,7 @@ export default function AnalysisBoard() {
             }
         }
     });
+
     return customArrows;
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
@@ -483,16 +490,10 @@ export default function AnalysisBoard() {
                   else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
 
                   const badgeStyle = getBadgeStyle(aScore, line.isMate, aMate);
-                  
-                  // 🔥 دریافت رنگ هماهنگ با فلش‌ها
                   const lineColor = arrowColors[idx] ? arrowColors[idx].hex : '#a1a1aa';
 
                   return (
-                      <div 
-                        key={idx} 
-                        className={`flex items-center gap-2 text-[10.5px] truncate px-2 py-1.5 rounded-lg transition-all bg-[#1e1c19] shadow-sm`}
-                        style={{ borderLeft: `3px solid ${lineColor}` }}
-                      >
+                      <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-2 py-1.5 rounded-lg transition-all bg-[#1e1c19] shadow-sm`} style={{ borderLeft: `3px solid ${lineColor}` }}>
                           <span className={`w-10 text-center font-black tracking-tighter rounded border px-1 py-0.5 shrink-0 ${badgeStyle}`}>{scoreText}</span>
                           <span className={`font-bold ml-1 shrink-0`} style={{ color: lineColor }}>{mainMove}</span>
                           <span className="text-zinc-500 truncate opacity-80">{restMoves}</span>
