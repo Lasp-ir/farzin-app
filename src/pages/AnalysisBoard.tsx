@@ -5,8 +5,8 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, Download, List, TrendingUp, BookOpen, User, Edit2, Check,
-  Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target
+  Share2, List, TrendingUp, BookOpen, User, Edit2, Check,
+  Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -20,6 +20,21 @@ export interface MoveNode {
   childrenIds: string[];
   depth: number;
 }
+
+// کامپوننت سوئیچ (Toggle) مدرن و انیمیشنی
+const ToggleSwitch = ({ checked, onChange, disabled = false }: { checked: boolean, onChange: (v: boolean) => void, disabled?: boolean }) => (
+  <div 
+    onClick={() => !disabled && onChange(!checked)} 
+    className={`w-10 h-5 rounded-full relative transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-farzin-accent' : 'bg-[#35332e]'}`}
+  >
+    <motion.div 
+      initial={false}
+      animate={{ x: checked ? 20 : 2 }} 
+      transition={{ type: "spring", stiffness: 500, damping: 30 }} 
+      className="w-4 h-4 bg-white rounded-full absolute top-0.5 shadow-sm" 
+    />
+  </div>
+);
 
 const EditablePlayer = ({ color, data, onUpdate }: any) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -81,11 +96,14 @@ export default function AnalysisBoard() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
-  // 🔥 اضافه شدن تنظیمات عمق (maxDepth) و زمان (maxTime)
   const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0 });
   const [tempSettings, setTempSettings] = useState(engineSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
+  // 🔥 تنظیمات راهنمای بصری (فلش‌ها و مانور)
+  const [arrowSettings, setArrowSettings] = useState({ showArrows: true, showManeuvers: true });
+  const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
+
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
   useEffect(() => {
@@ -98,39 +116,76 @@ export default function AnalysisBoard() {
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
 
-  // 🔥 سیستم هوشمند اجرای موتور با پشتیبانی از محدودیت عمق و زمان
   useEffect(() => {
     if (isReady && currentPosition) {
       analyze(currentPosition, engineSettings.maxDepth);
-      
       if (engineSettings.maxTime > 0 && stop) {
-        const timer = setTimeout(() => {
-          stop(); // توقف موتور پس از زمان تعیین شده
-        }, engineSettings.maxTime * 1000);
+        const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
         return () => clearTimeout(timer);
       }
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
+
+  // 🔥 موتور تولید فلش‌ها و محاسبه مانور
+  const engineArrows = useMemo(() => {
+    if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
+    
+    const customArrows: [string, string, string][] = [];
+    const arrowColors = [
+        'rgba(251, 191, 36, 0.8)', // خط اول: طلایی (Amber)
+        'rgba(14, 165, 233, 0.7)', // خط دوم: آبی آسمانی
+        'rgba(161, 161, 170, 0.6)' // خط سوم: خاکستری
+    ];
+
+    lines.slice(0, engineSettings.multiPv).forEach((line, index) => {
+        const rawPv = line.pv || '';
+        let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
+        const match = actualPv.match(/[a-h][1-8][a-h][1-8]/);
+        if (match && !rawPv.includes(' pv ')) actualPv = actualPv.substring(actualPv.indexOf(match[0]));
+        
+        const moves = actualPv.trim().split(' ');
+        if (!moves[0] || moves[0].length < 4) return;
+
+        const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
+        const color = arrowColors[index] || arrowColors[2];
+        
+        // رسم فلش اصلی
+        customArrows.push([firstMove.from, firstMove.to, color]);
+
+        // محاسبه مسیر مانور (فقط برای حرکات متوالی خود بازیکن)
+        if (arrowSettings.showManeuvers) {
+            let currentTo = firstMove.to;
+            // بررسی تا ۵ حرکت آینده (فقط حرکات زوج که نوبت دوباره به همین بازیکن می‌رسد)
+            for (let i = 2; i < Math.min(moves.length, 10); i += 2) {
+                const uci = moves[i];
+                if (!uci || uci.length < 4) break;
+                const m = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
+                
+                // اگر مهره از مقصد قبلی به حرکت خود ادامه داد، مانور را متصل کن
+                if (m.from === currentTo) {
+                    customArrows.push([m.from, m.to, color]);
+                    currentTo = m.to;
+                } else {
+                    break;
+                }
+            }
+        }
+    });
+
+    return customArrows;
+  }, [lines, arrowSettings, engineSettings.multiPv]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const openSettingsModal = () => {
-    setTempSettings(engineSettings); 
-    setIsSettingsModalOpen(true);
-  };
+  const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
 
   const handleApplySettings = () => {
     setEngineSettings(tempSettings); 
-    if (setOption) {
-      setOption('MultiPV', tempSettings.multiPv);
-      setOption('Threads', tempSettings.threads);
-      setOption('Hash', tempSettings.hash);
-    }
-    setIsSettingsModalOpen(false);
-    showToast('تنظیمات موتور با موفقیت اعمال شد');
+    if (setOption) { setOption('MultiPV', tempSettings.multiPv); setOption('Threads', tempSettings.threads); setOption('Hash', tempSettings.hash); }
+    setIsSettingsModalOpen(false); showToast('تنظیمات موتور با موفقیت اعمال شد');
   };
 
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
@@ -138,18 +193,11 @@ export default function AnalysisBoard() {
       const tempGame = new Chess(currentPosition);
       const move = tempGame.move(moveParams);
       if (!move) return false;
-
       const newFen = tempGame.fen();
       const newNodeId = `${currentNodeId}-${move.san}`; 
-
       setTree(prev => {
         if (prev[currentNodeId].childrenIds.includes(newNodeId)) return prev;
-
-        const newNode: MoveNode = {
-          id: newNodeId, san: move.san, fen: newFen, move: move,
-          parentId: currentNodeId, childrenIds: [], depth: prev[currentNodeId].depth + 1
-        };
-
+        const newNode: MoveNode = { id: newNodeId, san: move.san, fen: newFen, move: move, parentId: currentNodeId, childrenIds: [], depth: prev[currentNodeId].depth + 1 };
         return { ...prev, [newNodeId]: newNode, [currentNodeId]: { ...prev[currentNodeId], childrenIds: [...prev[currentNodeId].childrenIds, newNodeId] } };
       });
       setCurrentNodeId(newNodeId);
@@ -160,11 +208,7 @@ export default function AnalysisBoard() {
   const prevMove = () => { const pid = tree[currentNodeId]?.parentId; if (pid) setCurrentNodeId(pid); };
   const nextMove = () => { const cids = tree[currentNodeId]?.childrenIds; if (cids && cids.length > 0) setCurrentNodeId(cids[0]); };
   const goStart = () => setCurrentNodeId('root');
-  const goEnd = () => {
-    let curr = currentNodeId;
-    while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0];
-    setCurrentNodeId(curr);
-  };
+  const goEnd = () => { let curr = currentNodeId; while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0]; setCurrentNodeId(curr); };
 
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
@@ -175,25 +219,14 @@ export default function AnalysisBoard() {
     const newSquares: any = {};
     moves.forEach((m: any) => {
       const isCapture = activeGame.get(m.to as any) && activeGame.get(m.to as any).color !== activeGame.get(sourceSquare as any)?.color;
-      newSquares[m.to] = {
-        backgroundImage: isCapture
-            ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.4) 67%, rgba(0,0,0,0.4) 100%)' 
-            : 'radial-gradient(circle, rgba(0,0,0,.4) 22%, transparent 23%)',
-      };
+      newSquares[m.to] = { backgroundImage: isCapture ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.4) 67%, rgba(0,0,0,0.4) 100%)' : 'radial-gradient(circle, rgba(0,0,0,.4) 22%, transparent 23%)' };
     });
     newSquares[sourceSquare] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
     setOptionSquares(newSquares);
   };
 
-  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (piece[0] !== activeGame.turn()) return;
-    setClickedSquare(sourceSquare); highlightLegalMoves(sourceSquare);
-  };
-
-  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
-    setOptionSquares({}); setClickedSquare(null);
-    return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' });
-  };
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => { if (piece[0] !== activeGame.turn()) return; setClickedSquare(sourceSquare); highlightLegalMoves(sourceSquare); };
+  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { setOptionSquares({}); setClickedSquare(null); return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' }); };
 
   const handleSquareClick = (square: string) => {
     if (clickedSquare === square) { setClickedSquare(null); setOptionSquares({}); return; }
@@ -204,9 +237,8 @@ export default function AnalysisBoard() {
       }
     }
     const pieceOnSquare = activeGame.get(square as any);
-    if (pieceOnSquare && pieceOnSquare.color === activeGame.turn()) {
-      setClickedSquare(square); highlightLegalMoves(square);
-    } else { setClickedSquare(null); setOptionSquares({}); }
+    if (pieceOnSquare && pieceOnSquare.color === activeGame.turn()) { setClickedSquare(square); highlightLegalMoves(square); } 
+    else { setClickedSquare(null); setOptionSquares({}); }
   };
 
   const copyMainlinePgn = () => {
@@ -246,20 +278,13 @@ export default function AnalysisBoard() {
   const isBlackTurn = activeGame.turn() === 'b';
   
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
-      if (!lines || lines.length === 0 || !lines[0]) {
-          return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
-      }
+      if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       const main = lines[0];
       const aScore = isBlackTurn ? -main.score : main.score;
       const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
-      
       let text = '0.00';
-      if (main.isMate) {
-          text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`;
-      } else {
-          text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
-      }
-      
+      if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`;
+      else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
       return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: main.isMate };
   }, [lines, isBlackTurn]);
 
@@ -283,11 +308,9 @@ export default function AnalysisBoard() {
   const renderTreeNodes = useCallback((nodeId: string, forceShowMoveNumber: boolean = false): React.ReactNode[] => {
     const node = tree[nodeId];
     if (!node || node.childrenIds.length === 0) return [];
-
     const result: React.ReactNode[] = [];
     const mainChildId = node.childrenIds[0];
     const mainChild = tree[mainChildId];
-
     const moveNum = Math.ceil(mainChild.depth / 2);
     const isWhite = mainChild.depth % 2 !== 0;
     
@@ -296,10 +319,7 @@ export default function AnalysisBoard() {
     else if (forceShowMoveNumber) prefix = `${moveNum}... `;
 
     result.push(
-      <span 
-        key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)}
-        className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}
-      >
+      <span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}>
         {prefix}{mainChild.san}
       </span>
     );
@@ -314,15 +334,7 @@ export default function AnalysisBoard() {
 
         result.push(
           <span key={`${varId}-wrap`} className="text-zinc-500 mx-1 inline-flex items-baseline flex-wrap bg-[#1a1916] px-1.5 py-0.5 rounded-lg border border-[#35332e]/50 text-xs">
-            (
-            <span 
-              onClick={() => setCurrentNodeId(varId)}
-              className={`cursor-pointer px-1 py-0.5 rounded transition-colors ${currentNodeId === varId ? 'text-white font-bold' : 'hover:text-zinc-300'}`}
-            >
-              {varPrefix}{varChild.san}
-            </span>
-            <span className="ml-1">{renderTreeNodes(varId, !varIsWhite)}</span>
-            )
+            (<span onClick={() => setCurrentNodeId(varId)} className={`cursor-pointer px-1 py-0.5 rounded transition-colors ${currentNodeId === varId ? 'text-white font-bold' : 'hover:text-zinc-300'}`}>{varPrefix}{varChild.san}</span><span className="ml-1">{renderTreeNodes(varId, !varIsWhite)}</span>)
           </span>
         );
       }
@@ -332,7 +344,6 @@ export default function AnalysisBoard() {
       result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
       result.push(...renderTreeNodes(mainChildId, false));
     }
-
     return result;
   }, [tree, currentNodeId]);
 
@@ -342,13 +353,8 @@ export default function AnalysisBoard() {
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
           {toastMessage && (
-            <motion.div 
-              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
-              className="bg-[#1e1c19] border border-farzin-accent/50 text-white px-4 py-2.5 rounded-xl shadow-[0_5px_20px_rgba(119,149,86,0.3)] flex items-center gap-2.5 whitespace-nowrap pointer-events-auto"
-            >
-               <div className="w-6 h-6 shrink-0 rounded-full bg-farzin-accent/20 flex items-center justify-center">
-                  <Check size={14} className="text-farzin-accent"/>
-               </div>
+            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="bg-[#1e1c19] border border-farzin-accent/50 text-white px-4 py-2.5 rounded-xl shadow-[0_5px_20px_rgba(119,149,86,0.3)] flex items-center gap-2.5 whitespace-nowrap pointer-events-auto">
+               <div className="w-6 h-6 shrink-0 rounded-full bg-farzin-accent/20 flex items-center justify-center"><Check size={14} className="text-farzin-accent"/></div>
                <span className="text-xs font-bold">{toastMessage}</span>
             </motion.div>
           )}
@@ -358,14 +364,8 @@ export default function AnalysisBoard() {
       <AnimatePresence>
         {isSaveModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} 
-              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-[90%] max-w-sm shadow-2xl flex flex-col relative"
-            >
-               <div className="flex items-center gap-2 mb-4 text-white">
-                  <Save size={20} className="text-farzin-accent" />
-                  <h2 className="font-bold text-base">ذخیره آنالیز</h2>
-               </div>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-[90%] max-w-sm shadow-2xl flex flex-col relative">
+               <div className="flex items-center gap-2 mb-4 text-white"><Save size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">ذخیره آنالیز</h2></div>
                <p className="text-xs text-zinc-400 mb-4 leading-relaxed">این آنالیز با تمام شاخه‌ها در آرشیو شما ذخیره خواهد شد.</p>
                <input autoFocus value={saveName} onChange={e => setSaveName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSaveAnalysis()} placeholder="مثلاً: گشایش اسپانیایی..." className="w-full bg-[#1e1c19] border border-[#35332e] rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-farzin-accent transition-colors mb-5 shadow-inner" />
                <div className="flex gap-2 w-full">
@@ -380,96 +380,77 @@ export default function AnalysisBoard() {
       <AnimatePresence>
         {isSettingsModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} 
-              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar"
-            >
-               <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3">
-                  <Sliders size={20} className="text-farzin-accent" />
-                  <h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2>
-               </div>
-               
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
+               <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Sliders size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2></div>
                <div className="flex flex-col gap-5 mb-6">
-                 
-                 {/* تنظیمات Multi-PV */}
                  <div>
-                   <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label>
-                     <span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span>
-                   </div>
-                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[1, 2, 3].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num} لاین
-                        </button>
-                      ))}
-                   </div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label><span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 3].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num} لاین</button>))}</div>
                  </div>
-
-                 {/* 🔥 تنظیمات عمق (Depth) */}
                  <div>
-                   <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Target size={14} className="text-emerald-500"/> حداکثر عمق (Depth)</label>
-                     <span className="text-emerald-500 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{tempSettings.maxDepth === 99 ? '∞' : tempSettings.maxDepth}</span>
-                   </div>
-                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[18, 22, 24, 99].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, maxDepth: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxDepth === num ? 'bg-[#262421] text-emerald-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num === 99 ? 'نامحدود' : num}
-                        </button>
-                      ))}
-                   </div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Target size={14} className="text-emerald-500"/> حداکثر عمق (Depth)</label><span className="text-emerald-500 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{tempSettings.maxDepth === 99 ? '∞' : tempSettings.maxDepth}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[18, 22, 24, 99].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, maxDepth: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxDepth === num ? 'bg-[#262421] text-emerald-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num === 99 ? 'نامحدود' : num}</button>))}</div>
                  </div>
-
-                 {/* 🔥 تنظیمات زمان (Time Limit) */}
                  <div>
-                   <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Clock size={14} className="text-rose-500"/> زمان محاسبه هر حرکت</label>
-                     <span className="text-rose-500 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">{tempSettings.maxTime === 0 ? '∞' : `${tempSettings.maxTime}s`}</span>
-                   </div>
-                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[1, 3, 5, 0].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, maxTime: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxTime === num ? 'bg-[#262421] text-rose-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num === 0 ? 'بدون محدودیت' : `${num} ثانیه`}
-                        </button>
-                      ))}
-                   </div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Clock size={14} className="text-rose-500"/> زمان محاسبه هر حرکت</label><span className="text-rose-500 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">{tempSettings.maxTime === 0 ? '∞' : `${tempSettings.maxTime}s`}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 3, 5, 0].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, maxTime: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxTime === num ? 'bg-[#262421] text-rose-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num === 0 ? 'بدون محدودیت' : `${num} ثانیه`}</button>))}</div>
                  </div>
-
-                 {/* تنظیمات Threads و Hash (فشرده‌تر برای جا شدن) */}
                  <div className="flex gap-3">
                    <div className="flex-1">
-                     <div className="flex justify-between items-center mb-2">
-                       <label className="text-[11px] text-zinc-400 flex items-center gap-1"><Cpu size={12}/> پردازنده</label>
-                     </div>
-                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                        {[1, 2, 4].map(num => (
-                          <button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                            {num}
-                          </button>
-                        ))}
-                     </div>
+                     <div className="flex justify-between items-center mb-2"><label className="text-[11px] text-zinc-400 flex items-center gap-1"><Cpu size={12}/> پردازنده</label></div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 4].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num}</button>))}</div>
                    </div>
                    <div className="flex-1">
-                     <div className="flex justify-between items-center mb-2">
-                       <label className="text-[11px] text-zinc-400 flex items-center gap-1"><Database size={12}/> رَم (MB)</label>
-                     </div>
-                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                        {[16, 64, 128].map(num => (
-                          <button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                            {num}
-                          </button>
-                        ))}
-                     </div>
+                     <div className="flex justify-between items-center mb-2"><label className="text-[11px] text-zinc-400 flex items-center gap-1"><Database size={12}/> رَم (MB)</label></div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[16, 64, 128].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num}</button>))}</div>
                    </div>
                  </div>
-
                </div>
-
                <div className="flex gap-2 w-full mt-2">
                   <button onClick={() => setIsSettingsModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">انصراف</button>
                   <button onClick={handleApplySettings} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">اعمال تنظیمات</button>
                </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🔥 پاپ‌آپ تنظیمات راهنمای بصری (فلش‌ها و مانور) */}
+      <AnimatePresence>
+        {isArrowModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative">
+               <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Route size={20} className="text-amber-500" /><h2 className="font-bold text-base">راهنمای بصری تخته</h2></div>
+               
+               <div className="flex flex-col gap-4 mb-6">
+                 <div className="flex items-center justify-between bg-[#1e1c19] p-3 rounded-xl border border-[#35332e]">
+                    <span className="text-sm font-bold text-white">رسم فلش حرکات برتر</span>
+                    <ToggleSwitch checked={arrowSettings.showArrows} onChange={(v) => setArrowSettings(prev => ({...prev, showArrows: v}))} />
+                 </div>
+                 
+                 <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50' : ''}`}>
+                    <div className="flex items-center justify-between mb-3">
+                       <span className="text-sm font-bold text-white">نمایش مانور مهره‌ها</span>
+                       <ToggleSwitch disabled={!arrowSettings.showArrows} checked={arrowSettings.showManeuvers} onChange={(v) => setArrowSettings(prev => ({...prev, showManeuvers: v}))} />
+                    </div>
+                    
+                    <div className="p-3 bg-[#161512] rounded-lg border border-[#35332e]">
+                       <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">
+                          مانور به شما نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.
+                       </p>
+                       {/* دیاگرام مفهومی مانور */}
+                       <div className="flex items-center justify-center text-zinc-500 pb-1">
+                          <div className="w-8 h-8 rounded-lg bg-[#262421] flex items-center justify-center border border-[#403e3a] shadow-inner"><span className="text-amber-500 text-lg">♞</span></div>
+                          <div className="h-0.5 w-8 bg-amber-500 relative"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
+                          <div className="w-8 h-8 rounded-lg bg-[#1a1916] flex items-center justify-center border border-[#35332e] border-dashed"></div>
+                          <div className="h-0.5 w-8 bg-amber-500 relative opacity-60"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
+                          <div className="w-8 h-8 rounded-lg bg-[#1a1916] flex items-center justify-center border border-[#35332e] border-dashed"></div>
+                       </div>
+                    </div>
+                 </div>
+               </div>
+
+               <button onClick={() => setIsArrowModalOpen(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3 text-sm rounded-xl transition-colors">بستن</button>
             </motion.div>
           </div>
         )}
@@ -504,11 +485,10 @@ export default function AnalysisBoard() {
           <div className="flex flex-col gap-0.5 mt-1" dir="ltr" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace" }}>
               {lines.length > 0 ? lines.slice(0, engineSettings.multiPv).map((line, idx) => {
                   const rawPv = line.pv || '';
-                  let actualPv = rawPv;
-                  if (rawPv.includes(' pv ')) actualPv = rawPv.split(' pv ')[1];
-                  else { const match = rawPv.match(/[a-h][1-8][a-h][1-8]/); if (match) actualPv = rawPv.substring(rawPv.indexOf(match[0])); }
+                  let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
+                  const match = actualPv.match(/[a-h][1-8][a-h][1-8]/);
+                  if (match && !rawPv.includes(' pv ')) actualPv = actualPv.substring(actualPv.indexOf(match[0]));
                   
-                  // 🔥 شبیه‌سازی تا ۱۵ حرکت برای جلوگیری از فشار پردازشی، اما نمایش تمامی موارد بدون لیمیتِ ۶تایی
                   const uciMoves = actualPv.trim().split(' ').slice(0, 15);
                   const sanMoves: string[] = [];
                   
@@ -525,7 +505,6 @@ export default function AnalysisBoard() {
                   } catch (e) {}
 
                   const mainMove = sanMoves[0] || '...';
-                  // 🔥 حذف محدودیت: حالا تا انتهای آرایه رو به هم وصل می‌کنه و truncate بقیش رو هندل می‌کنه
                   const restMoves = sanMoves.slice(1).join(' ');
                   
                   const aScore = isBlackTurn ? -line.score : line.score;
@@ -563,7 +542,10 @@ export default function AnalysisBoard() {
                               arePiecesDraggable={true} onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin}
                               onSquareClick={handleSquareClick} onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
                               onSquareRightClick={() => { setClickedSquare(null); setOptionSquares({}); }}
-                              customSquareStyles={{...moveSquares, ...optionSquares}} animationDuration={200}
+                              customSquareStyles={{...moveSquares, ...optionSquares}} 
+                              // 🔥 تزریق فلش‌های موتور به صفحه شطرنج
+                              customArrows={engineArrows}
+                              animationDuration={200}
                           />
                         </div>
                     </div>
@@ -585,6 +567,8 @@ export default function AnalysisBoard() {
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
+                  {/* 🔥 دکمه دسترسی به تنظیمات بصری فلش‌ها */}
+                  <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
                 <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                     <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
