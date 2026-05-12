@@ -3,12 +3,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, Settings, FastForward, Rewind, 
   SkipBack, SkipForward, Activity, User, ShieldAlert,
-  Zap, Share2, Download, History // 🔥 باگ اینجا بود! History ایمپورت شد
+  Zap, Share2, Download, History, Loader2
 } from 'lucide-react';
+
+// 🔥 ایمپورت کردن هوک قدرتمندمون
+import { useStockfish } from '../hooks/useStockfish';
 
 export default function AnalysisBoard() {
   const location = useLocation();
@@ -21,14 +24,9 @@ export default function AnalysisBoard() {
   const [history, setHistory] = useState<any[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [engineEval, setEngineEval] = useState<number>(0.4); // عدد تستی برای ارزیابی (+ سفید / - سیاه)
 
-  // شبیه‌سازی لاین‌های موتور هوش مصنوعی
-  const engineLines = [
-    { move: 'Nf3', eval: '+0.4', depth: 24, line: 'Nf3 d5 d4 Nf6 c4 e6 Nc3' },
-    { move: 'e4', eval: '+0.3', depth: 24, line: 'e4 c5 Nf3 d6 d4 cxd4 Nxd4' },
-    { move: 'c4', eval: '+0.2', depth: 24, line: 'c4 e5 Nc3 Nf6 Nf3 Nc6' },
-  ];
+  // 🧠 فراخوانی مغز موتور فرزین
+  const { isReady, engineStatus, evaluation, lines, analyze, stop } = useStockfish();
 
   useEffect(() => {
     if (!data && type !== 'EMPTY') {
@@ -46,7 +44,6 @@ export default function AnalysisBoard() {
       
       setGame(newGame);
       setHistory(newGame.history({ verbose: true }));
-      // اگر از اول بازی است (FEN دیفالت)، روی ایندکس -1 می‌مانیم، وگرنه می‌رویم آخر بازی
       setCurrentMoveIndex(newGame.history().length > 0 ? newGame.history().length - 1 : -1);
     } catch (e) {
       console.error("Error loading chess data", e);
@@ -55,18 +52,24 @@ export default function AnalysisBoard() {
     setIsLoaded(true);
   }, [data, type, navigate]);
 
-  // استخراج پوزیشن فعلی بر اساس ایندکس انتخاب شده
+  // استخراج پوزیشن فعلی
   const currentPosition = useMemo(() => {
     const tempGame = new Chess();
     if (type === 'FEN' && data) {
-      try { tempGame.load(data); } catch(e){} // لود کردن FEN اولیه اگر وجود داشت
+      try { tempGame.load(data); } catch(e){} 
     }
-    
     for (let i = 0; i <= currentMoveIndex; i++) {
       if (history[i]) tempGame.move(history[i]);
     }
     return tempGame.fen();
   }, [history, currentMoveIndex, data, type]);
+
+  // ⚡️ راه‌اندازی اتوماتیک موتور با هر تغییر پوزیشن
+  useEffect(() => {
+    if (isReady && currentPosition) {
+      analyze(currentPosition, 24); // هدف: رسیدن به عمق ۲۴
+    }
+  }, [currentPosition, isReady, analyze]);
 
   // کنترلرهای حرکت
   const goToMove = (index: number) => setCurrentMoveIndex(index);
@@ -75,13 +78,14 @@ export default function AnalysisBoard() {
   const goStart = () => setCurrentMoveIndex(-1);
   const goEnd = () => setCurrentMoveIndex(history.length - 1);
 
-  // محاسبه ارتفاع نوار ارزیابی (تبدیل عدد به درصد بین 5 تا 95 برای گرافیک بهتر)
+  // محاسبه ارتفاع نوار ارزیابی به درصد
   const evalPercentage = useMemo(() => {
-    let percent = 50 + (engineEval * 10);
+    // محدود کردن بین 5% تا 95% برای ظاهر بهتر
+    let percent = 50 + (evaluation * 10);
     if (percent > 95) percent = 95;
     if (percent < 5) percent = 5;
     return percent;
-  }, [engineEval]);
+  }, [evaluation]);
 
   return (
     <div className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-10 overflow-x-hidden" dir="rtl">
@@ -105,7 +109,7 @@ export default function AnalysisBoard() {
 
       <div className={`w-full max-w-2xl flex flex-col transition-all duration-700 delay-100 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         
-        {/* اطلاعات حریف سیاه */}
+        {/* اطلاعات حریف سیاه و استاتوس موتور */}
         <div className="px-5 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#262421] border border-[#35332e] flex items-center justify-center shadow-inner">
@@ -121,32 +125,41 @@ export default function AnalysisBoard() {
                     </div>
                 </div>
             </div>
-            <div className="bg-[#1e1c19] border border-[#35332e] px-3 py-1 rounded-lg flex items-center gap-2 shadow-inner">
-                <Cpu size={14} className="text-farzin-accent animate-pulse" />
-                <span className="font-mono text-xs font-bold text-white">Farzin 1.0</span>
+            
+            {/* ⚡️ نمایش زنده وضعیت موتور */}
+            <div className="bg-[#1e1c19] border border-[#35332e] px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-inner">
+                {!isReady ? (
+                  <Loader2 size={14} className="text-amber-500 animate-spin" />
+                ) : (
+                  <Cpu size={14} className="text-farzin-accent animate-pulse" />
+                )}
+                <span className="font-mono text-[10px] font-bold text-white max-w-[120px] truncate" dir="ltr">
+                  {isReady ? 'Farzin 1.0 (NNUE)' : engineStatus}
+                </span>
             </div>
         </div>
 
         {/* ناحیه تخته و نوار ارزیابی */}
         <div className="flex px-4 my-2 gap-3 aspect-square sm:max-h-[600px] w-full">
-            {/* نوار ارزیابی (Eval Bar) */}
+            {/* نوار ارزیابی زنده */}
             <div className="w-6 shrink-0 bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden flex flex-col relative shadow-inner">
                 {/* بخش سیاه */}
-                <div className="w-full bg-[#35332e] transition-all duration-500 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
+                <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                 {/* بخش سفید */}
-                <div className="w-full bg-zinc-200 transition-all duration-500 ease-out flex-1 flex flex-col justify-start items-center pt-1">
-                    <span className="text-[9px] font-mono font-black text-zinc-800 rotate-90 mt-4">{engineEval > 0 ? `+${engineEval}` : engineEval}</span>
+                <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center pt-1">
+                    <span className="text-[9px] font-mono font-black text-zinc-800 rotate-90 mt-4">
+                      {evaluation > 0 ? `+${evaluation.toFixed(1)}` : evaluation.toFixed(1)}
+                    </span>
                 </div>
             </div>
 
-            {/* تخته شطرنج */}
             <div className="flex-1 rounded-lg overflow-hidden shadow-2xl border-4 border-[#262421]">
                 <Chessboard 
                     position={currentPosition} 
                     boardOrientation="white"
                     customDarkSquareStyle={{ backgroundColor: '#779556' }}
                     customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                    arePiecesDraggable={false} // در حالت نمایشِ آنالیز
+                    arePiecesDraggable={false} 
                 />
             </div>
         </div>
@@ -184,29 +197,59 @@ export default function AnalysisBoard() {
             </div>
         </div>
 
-        {/* خروجی موتور (Engine Lines) */}
+        {/* ⚡️ خروجی واقعی موتور (Engine Lines) */}
         <div className="px-5 mb-4">
-            <div className="bg-gradient-to-b from-[#1e1c19] to-[#161512] border border-[#35332e] rounded-[24px] p-4 shadow-xl">
+            <div className="bg-gradient-to-b from-[#1e1c19] to-[#161512] border border-[#35332e] rounded-[24px] p-4 shadow-xl min-h-[160px]">
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#35332e]">
-                    <span className="text-xs font-black text-white flex items-center gap-2"><Zap size={14} className="text-amber-400"/> تحلیل لحظه‌ای (عمق ۲۴)</span>
-                    <span className="text-[10px] font-mono bg-farzin-accent/10 text-farzin-accent px-2 py-0.5 rounded border border-farzin-accent/20">Eval: {engineEval > 0 ? `+${engineEval}` : engineEval}</span>
+                    <span className="text-xs font-black text-white flex items-center gap-2">
+                      <Zap size={14} className={isReady ? "text-amber-400" : "text-zinc-500"}/> 
+                      {isReady ? `تحلیل زنده (عمق ${lines[0]?.depth || 0})` : 'منتظر موتور...'}
+                    </span>
+                    <span className="text-[10px] font-mono bg-farzin-accent/10 text-farzin-accent px-2 py-0.5 rounded border border-farzin-accent/20">
+                      Eval: {evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2)}
+                    </span>
                 </div>
 
-                <div className="flex flex-col gap-3">
-                    {engineLines.map((line, idx) => (
-                        <div key={idx} className={`flex items-start gap-3 p-2.5 rounded-xl transition-colors cursor-pointer ${idx === 0 ? 'bg-[#262421] border border-[#403e3a]' : 'hover:bg-[#1e1c19]'}`}>
-                            <div className={`w-10 text-center font-mono font-black text-xs pt-0.5 ${idx === 0 ? 'text-amber-400' : 'text-zinc-500'}`}>{line.eval}</div>
-                            <div className="flex flex-col gap-1">
-                                <span className={`font-bold text-sm ${idx === 0 ? 'text-white' : 'text-zinc-300'}`}>{line.move}</span>
-                                <span className="font-mono text-[10px] text-zinc-500 leading-relaxed line-clamp-1 text-left" dir="ltr">{line.line}</span>
-                            </div>
-                        </div>
-                    ))}
+                <div className="flex flex-col gap-2">
+                    <AnimatePresence mode="popLayout">
+                      {lines.map((line) => {
+                          if (!line) return null;
+                          const moves = line.pv.split(' ');
+                          const mainMove = moves[0];
+                          const lineContinuation = moves.slice(1, 6).join(' '); // فقط نمایش 5 حرکت اول برای جلوگیری از شلوغی
+                          
+                          let scoreText = '';
+                          if (line.isMate) {
+                              scoreText = line.mateIn! > 0 ? `+M${line.mateIn}` : `-M${Math.abs(line.mateIn!)}`;
+                          } else {
+                              scoreText = line.score > 0 ? `+${line.score.toFixed(2)}` : line.score.toFixed(2);
+                          }
+
+                          return (
+                              <motion.div 
+                                  layout
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0 }}
+                                  key={line.multipv} 
+                                  className={`flex items-center gap-3 p-2.5 rounded-xl transition-colors cursor-pointer ${line.multipv === 1 ? 'bg-[#262421] border border-[#403e3a]' : 'hover:bg-[#1e1c19]'}`}
+                              >
+                                  <div className={`w-12 text-center font-mono font-black text-[13px] ${line.multipv === 1 ? 'text-amber-400' : 'text-zinc-500'}`} dir="ltr">
+                                    {scoreText}
+                                  </div>
+                                  <div className="flex flex-col gap-0.5 overflow-hidden">
+                                      <span className={`font-bold text-sm font-mono ${line.multipv === 1 ? 'text-white' : 'text-zinc-300'}`}>{mainMove}</span>
+                                      <span className="font-mono text-[10px] text-zinc-500 truncate text-left" dir="ltr">{lineContinuation}</span>
+                                  </div>
+                              </motion.div>
+                          );
+                      })}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>
 
-        {/* تاریخچه حرکات (Move List) */}
+        {/* تاریخچه حرکات */}
         <div className="px-5 mb-6">
             <div className="bg-[#1e1c19] border border-[#35332e] rounded-[24px] p-5 shadow-xl min-h-[150px]">
                 <div className="flex items-center gap-2 mb-4 text-zinc-400">
@@ -222,14 +265,12 @@ export default function AnalysisBoard() {
                     }, []).map((pair: any[], movePairIndex: number) => (
                         <div key={movePairIndex} className="flex items-center gap-1.5">
                             <span className="text-zinc-600 w-5 text-right">{movePairIndex + 1}.</span>
-                            
                             <span 
                                 onClick={() => goToMove(movePairIndex * 2)}
                                 className={`cursor-pointer px-1.5 py-0.5 rounded transition-colors ${currentMoveIndex === movePairIndex * 2 ? 'bg-farzin-accent text-white font-bold shadow-sm' : 'text-zinc-300 hover:bg-[#262421]'}`}
                             >
                                 {pair[0].san}
                             </span>
-                            
                             {pair[1] && (
                                 <span 
                                     onClick={() => goToMove(movePairIndex * 2 + 1)}
