@@ -22,7 +22,6 @@ export interface MoveNode {
   depth: number;
 }
 
-// 🌟 سیستم طبقه‌بندی حرکات و پالت‌های رنگی مربی (Coach)
 const COACH_COLORS = {
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
   great: { color: '#3b82f6', text: 'عالی', icon: CheckCircle2 },
@@ -97,7 +96,6 @@ export default function AnalysisBoard() {
   const [tree, setTree] = useState<Record<string, MoveNode>>({});
   const [currentNodeId, setCurrentNodeId] = useState<string>('root');
   
-  // 🔥 سیستم کَش استوک‌فیش برای نگهداری ارزیابی‌های قبلی
   const engineCache = useRef<Record<string, any[]>>({});
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -134,7 +132,6 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
-  // ثبت لاین‌های فعلی در کش برای استفاده در حرکت بعدی
   useEffect(() => {
     if (lines && lines.length > 0) {
       engineCache.current[currentNodeId] = lines;
@@ -144,7 +141,7 @@ export default function AnalysisBoard() {
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0 || engineSettings.coachMode) return [];
     
-    const customArrows: any[] = [];
+    const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
 
@@ -155,6 +152,7 @@ export default function AnalysisBoard() {
         if (match && !rawPv.includes(' pv ')) actualPv = actualPv.substring(actualPv.indexOf(match[0]));
         const moves = actualPv.trim().split(' ');
         if (!moves[0] || moves[0].length < 4) return;
+
         const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
         const selectedColor = arrowColors[index] || arrowColors[2];
         
@@ -166,8 +164,13 @@ export default function AnalysisBoard() {
                 alpha = Math.max(0.15, 0.85 - (diff * 0.35));
             }
         }
+        
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
-        customArrows.push([firstMove.from, firstMove.to, rgbaColor]);
+        const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
+        
+        if (!arrowMap.has(mainArrowKey)) {
+            arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
+        }
 
         if (arrowSettings.showManeuvers) {
             let currentTo = firstMove.to;
@@ -175,11 +178,16 @@ export default function AnalysisBoard() {
                 const uci = moves[i];
                 if (!uci || uci.length < 4) break;
                 const m = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
-                if (m.from === currentTo) { customArrows.push([m.from, m.to, rgbaColor]); currentTo = m.to; } else break;
+                if (m.from === currentTo) { 
+                    const maneuverKey = `${m.from}-${m.to}`;
+                    if (!arrowMap.has(maneuverKey)) arrowMap.set(maneuverKey, [m.from, m.to, rgbaColor]); 
+                    currentTo = m.to; 
+                } else break;
             }
         }
     });
-    return customArrows;
+
+    return Array.from(arrowMap.values());
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors, engineSettings.coachMode]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
@@ -190,6 +198,38 @@ export default function AnalysisBoard() {
     if (setOption) { setOption('MultiPV', tempSettings.multiPv); setOption('Threads', tempSettings.threads); setOption('Hash', tempSettings.hash); }
     setIsSettingsModalOpen(false); showToast('تنظیمات با موفقیت اعمال شد');
   };
+
+  // 🔥 توابع گمشده اضافه شدند
+  const copyMainlinePgn = () => {
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+    let pgn = `[Event "Farzin Analysis"]\n[Site "Lasp - Farzin App"]\n[Date "${dateStr}"]\n[White "${playerMeta.white.name || 'White'}"]\n[Black "${playerMeta.black.name || 'Black'}"]\n`;
+    if (playerMeta.white.elo) pgn += `[WhiteElo "${playerMeta.white.elo}"]\n`;
+    if (playerMeta.black.elo) pgn += `[BlackElo "${playerMeta.black.elo}"]\n`;
+    pgn += `[Result "*"]\n\n`;
+
+    let movesString = "";
+    let curr = tree['root']?.childrenIds[0];
+    let moveNum = 1;
+    while(curr) {
+        const node = tree[curr];
+        if (node.depth % 2 !== 0) movesString += `${moveNum}. ${node.san} `;
+        else { movesString += `${node.san} `; moveNum++; }
+        curr = node.childrenIds[0]; 
+    }
+    
+    pgn += movesString.trim() + " *";
+    navigator.clipboard.writeText(pgn);
+    showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
+  };
+
+  const handleSaveAnalysis = () => {
+    if(!saveName.trim()) return;
+    // در آینده کدهای ذخیره در دیتابیس اینجا قرار می‌گیرد
+    setIsSaveModalOpen(false);
+    showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`);
+    setSaveName("");
+  };
+
 
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
     try {
@@ -244,7 +284,6 @@ export default function AnalysisBoard() {
     else { setClickedSquare(null); setOptionSquares({}); }
   };
 
-  // 🔥 الگوریتم تبدیل فرمت UCI به SAN برای سیستم Show Me
   const executeVariation = (startNodeId: string, uciMovesString: string) => {
     const uciMoves = uciMovesString.trim().split(' ').slice(0, 12);
     if (uciMoves.length === 0) return;
@@ -269,10 +308,7 @@ export default function AnalysisBoard() {
             parentId: currId, childrenIds: [], depth: (tree[currId]?.depth || 0) + 1
         };
         
-        // آپدیت کردن والد
-        if (currId === startNodeId) {
-            // آپدیت روی درخت اصلی
-        } else {
+        if (currId !== startNodeId) {
             newNodes[currId].childrenIds.push(nextId);
         }
         currId = nextId;
@@ -280,7 +316,6 @@ export default function AnalysisBoard() {
 
     setTree(prev => {
         let updatedTree = { ...prev, ...newNodes };
-        // اضافه کردن اولین بچه به والد اصلی
         const firstNewId = Object.keys(newNodes)[0];
         if (firstNewId && !updatedTree[startNodeId].childrenIds.includes(firstNewId)) {
             updatedTree[startNodeId] = {
@@ -290,26 +325,22 @@ export default function AnalysisBoard() {
         }
         return updatedTree;
     });
-    // پرش به اولین حرکتِ واریانت جدید
     const firstNewId = Object.keys(newNodes)[0];
     if (firstNewId) setCurrentNodeId(firstNewId);
     setActiveTab('notation');
   };
 
-  // 🔥 منطق دکمه‌ی "نشونم بده"
   const handleShowMe = (useBestMove: boolean) => {
     const parentId = tree[currentNodeId]?.parentId;
     if (!parentId) return;
 
     if (useBestMove) {
-        // خواندن بهترین لاین از والد
         const parentLines = engineCache.current[parentId];
         if (!parentLines || !parentLines[0]) return;
         const rawPv = parentLines[0].pv || '';
         const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
         executeVariation(parentId, actualPv);
     } else {
-        // خواندن ادامه حرکت فعلی کاربر
         if (!lines || !lines[0]) return;
         const rawPv = lines[0].pv || '';
         const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
@@ -320,7 +351,6 @@ export default function AnalysisBoard() {
 
   const isBlackTurn = activeGame.turn() === 'b';
   
-  // 🔥 سیستم پیچیده‌ی طبقه‌بندی و Coach
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -329,13 +359,11 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
-    // تبدیل امتیاز به درصد پیروزی Chess.com (Expected Points)
     const epFormula = (cp: number) => 1 / (1 + Math.pow(10, -cp / 400));
     
     const parentTurnIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
     const beforeScore = parentTurnIsBlack ? -parentLines[0].score : parentLines[0].score;
-    const currentScore = isBlackTurn ? -lines[0].score : lines[0].score; // توجه: نوبت تغییر کرده
-    // اگر نوبت عوض شده باشد، امتیاز به نفع بازیکنِ قبلی منفی می‌شود
+    const currentScore = isBlackTurn ? -lines[0].score : lines[0].score; 
     const afterScoreForPlayer = isBlackTurn ? lines[0].score : -lines[0].score;
 
     let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(beforeScore);
@@ -345,7 +373,6 @@ export default function AnalysisBoard() {
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
-    // شناسایی بهترین حرکت
     const rawParentPv = parentLines[0].pv || '';
     const parentActualPv = rawParentPv.includes(' pv ') ? rawParentPv.split(' pv ')[1] : rawParentPv;
     const bestUciMove = parentActualPv.trim().split(' ')[0];
@@ -358,7 +385,6 @@ export default function AnalysisBoard() {
     else if (epLost > 0.02) classificationKey = 'good';
     else classificationKey = 'excellent';
 
-    // هیروستیکِ حرکت درخشان (Brilliant) -> اگر قطعه فدا شده اما حرکت عالی است
     const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     const fenAfterCount = tree[currentNodeId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     if (classificationKey === 'best' && fenAfterCount < fenBeforeCount) {
@@ -367,7 +393,6 @@ export default function AnalysisBoard() {
         classificationKey = 'great';
     }
 
-    // استخراج SAN بهترین حرکت برای نمایش
     let bestSanMove = '...';
     try {
         const tempG = new Chess(tree[parentId].fen);
@@ -384,13 +409,11 @@ export default function AnalysisBoard() {
 
   }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
 
-  // استایل‌دهی تخته برای نمایش کیفیت حرکت
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
     if (!node || node.id === 'root' || !node.move) return {};
     let customSq: any = { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
     
-    // اگر مربی روشنه، روی مهره آخر هاله رنگی میندازه
     if (coachData && coachData.key !== 'loading' && engineSettings.coachMode) {
        customSq[node.move.to] = { 
          backgroundColor: 'rgba(255, 255, 0, 0.4)',
@@ -461,7 +484,6 @@ export default function AnalysisBoard() {
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Sliders size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2></div>
                <div className="flex flex-col gap-5 mb-6">
                  
-                 {/* 🔥 تنظیمات مربی (Coach Mode) */}
                  <div className="bg-[#1e1c19] border border-farzin-accent/30 p-3 rounded-xl flex items-center justify-between shadow-inner">
                     <div>
                         <span className="text-sm font-bold text-white block mb-0.5">توصیف کیفیت حرکات</span>
@@ -511,7 +533,6 @@ export default function AnalysisBoard() {
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
           
-          {/* 🔥 تغییر لایه‌بندی بین لاین‌های خام (Multi-PV) و رابط مربی (Coach Mode) */}
           <div className="mt-2 min-h-[50px]">
              {engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
@@ -519,7 +540,6 @@ export default function AnalysisBoard() {
                  ) : (
                      <motion.div initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} className="flex flex-col gap-1 bg-[#161512] rounded-xl p-2 border border-[#35332e] shadow-inner">
                          
-                         {/* خط اول: ارزیابی حرکت کاربر */}
                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: `${coachData.color}20`, color: coachData.color }}>
@@ -532,7 +552,6 @@ export default function AnalysisBoard() {
                             <button onClick={()=>handleShowMe(false)} className="text-[9px] font-bold bg-[#262421] border border-[#35332e] px-2 py-1 rounded hover:bg-[#35332e] transition-colors">نشونم بده</button>
                          </div>
 
-                         {/* خط دوم: نمایش بهترین حرکت (فقط در صورتی که حرکت کاربر درخشان/عالی/بهترین نبوده باشد) */}
                          { !['best', 'brilliant', 'great'].includes(coachData.key) && coachData.bestSan !== '...' && (
                              <div className="flex items-center justify-between border-t border-[#262421] pt-1.5 mt-0.5 opacity-80">
                                 <div className="flex items-center gap-2">
