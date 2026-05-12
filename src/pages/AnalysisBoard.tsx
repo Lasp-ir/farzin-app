@@ -189,7 +189,6 @@ export default function AnalysisBoard() {
     return { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
   }, [tree, currentNodeId]);
 
-  // 🔥 سیستم ارزیابی مطلق (رفع باگ چرخش علامت و رفع باگ ۱۰۰ در حالت مات)
   const isBlackTurn = activeGame.turn() === 'b';
   
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
@@ -197,7 +196,6 @@ export default function AnalysisBoard() {
           return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       }
       const main = lines[0];
-      // تبدیل امتیاز نسبی موتور به امتیاز مطلق (سفید مثبت، سیاه منفی)
       const aScore = isBlackTurn ? -main.score : main.score;
       const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
       
@@ -216,14 +214,12 @@ export default function AnalysisBoard() {
       return Math.max(5, Math.min(95, 50 + (absoluteScore * 10)));
   }, [absoluteScore, isMate, absoluteMate]);
 
-  // 🔥 سیستم استایل‌دهی هوشمند بر اساس برتری رنگ
   const getBadgeStyle = (score: number, mateFlag: boolean, mateVal: number) => {
       const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0;
       const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
-      
       if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200';
       if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]';
-      return 'bg-[#262421] text-zinc-400 border-[#35332e]'; // حالت مساوی
+      return 'bg-[#262421] text-zinc-400 border-[#35332e]'; 
   };
 
   const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
@@ -308,7 +304,6 @@ export default function AnalysisBoard() {
                   <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{displayEngineStatus}</span>
                   {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
               </div>
-              {/* 🔥 بجِ ارزیابی کلی با استایل داینامیک */}
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">
                 {overallEvalText}
               </span>
@@ -320,11 +315,29 @@ export default function AnalysisBoard() {
                   let actualPv = rawPv;
                   if (rawPv.includes(' pv ')) actualPv = rawPv.split(' pv ')[1];
                   else { const match = rawPv.match(/[a-h][1-8][a-h][1-8]/); if (match) actualPv = rawPv.substring(rawPv.indexOf(match[0])); }
-                  const moves = actualPv.trim().split(' ');
-                  const mainMove = moves[0] || '...';
-                  const restMoves = moves.slice(1, 6).join(' ');
                   
-                  // 🔥 محاسبه مطلق امتیاز برای هر لاین و اعمال استایل هوشمند
+                  const uciMoves = actualPv.trim().split(' ');
+                  const sanMoves: string[] = [];
+                  
+                  // 🔥 شبیه‌ساز پس‌زمینه برای تبدیل فرمت خام UCI به فرمت زیبای SAN
+                  try {
+                      const tempGame = new Chess(currentPosition);
+                      for (const uci of uciMoves) {
+                          if (!uci || uci.length < 4) break;
+                          const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) };
+                          if (uci.length > 4) moveParams.promotion = uci[4]; // هندل کردن ترفیع پیاده
+                          
+                          const result = tempGame.move(moveParams);
+                          if (result) sanMoves.push(result.san);
+                          else { sanMoves.push(uci); break; }
+                      }
+                  } catch (e) {
+                      // در صورت هرگونه خطا، از روی ایمنی همون فرمت قبل رو نشون میده
+                  }
+
+                  const mainMove = sanMoves[0] || '...';
+                  const restMoves = sanMoves.slice(1, 6).join(' ');
+                  
                   const aScore = isBlackTurn ? -line.score : line.score;
                   const aMate = isBlackTurn ? -(line.mateIn || 0) : (line.mateIn || 0);
                   
