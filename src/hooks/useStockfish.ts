@@ -23,7 +23,7 @@ export function useStockfish() {
 
   useEffect(() => {
     // وصل شدن به همون فایلی که تو مرحله قبل ساختی
-    const worker = new Worker('/engine/farzin-worker.js');
+    const worker = new Worker('/engine/farzin-worker.js', { type: 'module' });
     workerRef.current = worker;
 
     // شنیدن پیام‌هایی که کارگر (Worker) برامون می‌فرسته
