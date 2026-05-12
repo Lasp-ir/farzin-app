@@ -3,9 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
+
+
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, Download, List, TrendingUp, BookOpen, User, Edit2, Check
+  Share2, Download, List, TrendingUp, BookOpen, User, Edit2, Check,
+  Activity, Settings, Loader2, RefreshCw, Zap
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
