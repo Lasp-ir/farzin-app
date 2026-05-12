@@ -21,18 +21,21 @@ export interface MoveNode {
   depth: number;
 }
 
-// کامپوننت سوئیچ (Toggle) مدرن و انیمیشنی
+const COLOR_PALETTES = [
+  { label: 'طلایی', hex: '#fbbf24', rgb: '251, 191, 36' },
+  { label: 'سبز', hex: '#34d399', rgb: '52, 211, 153' },
+  { label: 'آبی', hex: '#0ea5e9', rgb: '14, 165, 233' },
+  { label: 'بنفش', hex: '#a855f7', rgb: '168, 85, 247' },
+  { label: 'قرمز', hex: '#f43f5e', rgb: '244, 63, 94' },
+  { label: 'خاکستری', hex: '#a1a1aa', rgb: '161, 161, 170' },
+];
+
 const ToggleSwitch = ({ checked, onChange, disabled = false }: { checked: boolean, onChange: (v: boolean) => void, disabled?: boolean }) => (
   <div 
     onClick={() => !disabled && onChange(!checked)} 
     className={`w-10 h-5 rounded-full relative transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-farzin-accent' : 'bg-[#35332e]'}`}
   >
-    <motion.div 
-      initial={false}
-      animate={{ x: checked ? 20 : 2 }} 
-      transition={{ type: "spring", stiffness: 500, damping: 30 }} 
-      className="w-4 h-4 bg-white rounded-full absolute top-0.5 shadow-sm" 
-    />
+    <motion.div initial={false} animate={{ x: checked ? 20 : 2 }} transition={{ type: "spring", stiffness: 500, damping: 30 }} className="w-4 h-4 bg-white rounded-full absolute top-0.5 shadow-sm" />
   </div>
 );
 
@@ -100,8 +103,8 @@ export default function AnalysisBoard() {
   const [tempSettings, setTempSettings] = useState(engineSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  // 🔥 تنظیمات راهنمای بصری (فلش‌ها و مانور)
   const [arrowSettings, setArrowSettings] = useState({ showArrows: true, showManeuvers: true });
+  const [arrowColors, setArrowColors] = useState([COLOR_PALETTES[0], COLOR_PALETTES[2], COLOR_PALETTES[5]]);
   const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
@@ -126,16 +129,13 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
-  // 🔥 موتور تولید فلش‌ها و محاسبه مانور
+  // 🔥 موتور پیشرفته رسم فلش‌ها با فیدینگ بر اساس CP Loss
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
     
     const customArrows: [string, string, string][] = [];
-    const arrowColors = [
-        'rgba(251, 191, 36, 0.8)', // خط اول: طلایی (Amber)
-        'rgba(14, 165, 233, 0.7)', // خط دوم: آبی آسمانی
-        'rgba(161, 161, 170, 0.6)' // خط سوم: خاکستری
-    ];
+    const bestScore = lines[0].score;
+    const bestIsMate = lines[0].isMate;
 
     lines.slice(0, engineSettings.multiPv).forEach((line, index) => {
         const rawPv = line.pv || '';
@@ -147,39 +147,44 @@ export default function AnalysisBoard() {
         if (!moves[0] || moves[0].length < 4) return;
 
         const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
-        const color = arrowColors[index] || arrowColors[2];
+        const selectedColor = arrowColors[index] || arrowColors[2];
         
-        // رسم فلش اصلی
-        customArrows.push([firstMove.from, firstMove.to, color]);
+        // 🛠 الگوریتم محاسبه CP Loss و تبدیل آن به میزان شفافیت (Alpha)
+        let alpha = 0.85; // وضوح کامل برای حرکت برتر
+        if (index > 0) {
+            if (bestIsMate && !line.isMate) {
+                alpha = 0.15; // اگر مات از دست بره، فلش تقریباً محو میشه
+            } else if (!bestIsMate && !line.isMate) {
+                // اختلاف کیفیت حرکت بر حسب صدمِ پیاده (Centipawns)
+                const diff = Math.abs(bestScore - line.score);
+                // هر یک پیاده (1.00) اختلاف باعث 35 درصد افت وضوح می‌شود
+                alpha = Math.max(0.15, 0.85 - (diff * 0.35));
+            }
+        }
+        
+        const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
+        
+        customArrows.push([firstMove.from, firstMove.to, rgbaColor]);
 
-        // محاسبه مسیر مانور (فقط برای حرکات متوالی خود بازیکن)
         if (arrowSettings.showManeuvers) {
             let currentTo = firstMove.to;
-            // بررسی تا ۵ حرکت آینده (فقط حرکات زوج که نوبت دوباره به همین بازیکن می‌رسد)
             for (let i = 2; i < Math.min(moves.length, 10); i += 2) {
                 const uci = moves[i];
                 if (!uci || uci.length < 4) break;
                 const m = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
                 
-                // اگر مهره از مقصد قبلی به حرکت خود ادامه داد، مانور را متصل کن
                 if (m.from === currentTo) {
-                    customArrows.push([m.from, m.to, color]);
+                    customArrows.push([m.from, m.to, rgbaColor]);
                     currentTo = m.to;
-                } else {
-                    break;
-                }
+                } else break;
             }
         }
     });
 
     return customArrows;
-  }, [lines, arrowSettings, engineSettings.multiPv]);
+  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
+  const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
   const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
 
   const handleApplySettings = () => {
@@ -247,27 +252,12 @@ export default function AnalysisBoard() {
     if (playerMeta.white.elo) pgn += `[WhiteElo "${playerMeta.white.elo}"]\n`;
     if (playerMeta.black.elo) pgn += `[BlackElo "${playerMeta.black.elo}"]\n`;
     pgn += `[Result "*"]\n\n`;
-
-    let movesString = "";
-    let curr = tree['root']?.childrenIds[0];
-    let moveNum = 1;
-    while(curr) {
-        const node = tree[curr];
-        if (node.depth % 2 !== 0) movesString += `${moveNum}. ${node.san} `;
-        else { movesString += `${node.san} `; moveNum++; }
-        curr = node.childrenIds[0]; 
-    }
-    pgn += movesString.trim() + " *";
-    navigator.clipboard.writeText(pgn);
-    showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
+    let movesString = ""; let curr = tree['root']?.childrenIds[0]; let moveNum = 1;
+    while(curr) { const node = tree[curr]; if (node.depth % 2 !== 0) movesString += `${moveNum}. ${node.san} `; else { movesString += `${node.san} `; moveNum++; } curr = node.childrenIds[0]; }
+    pgn += movesString.trim() + " *"; navigator.clipboard.writeText(pgn); showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
   };
 
-  const handleSaveAnalysis = () => {
-    if(!saveName.trim()) return;
-    setIsSaveModalOpen(false);
-    showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`);
-    setSaveName("");
-  };
+  const handleSaveAnalysis = () => { if(!saveName.trim()) return; setIsSaveModalOpen(false); showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`); setSaveName(""); };
 
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
@@ -276,29 +266,18 @@ export default function AnalysisBoard() {
   }, [tree, currentNodeId]);
 
   const isBlackTurn = activeGame.turn() === 'b';
-  
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
-      const main = lines[0];
-      const aScore = isBlackTurn ? -main.score : main.score;
-      const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
-      let text = '0.00';
-      if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`;
-      else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+      const main = lines[0]; const aScore = isBlackTurn ? -main.score : main.score; const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
+      let text = '0.00'; if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`; else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
       return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: main.isMate };
   }, [lines, isBlackTurn]);
 
-  const evalPercentage = useMemo(() => {
-      if (isMate) return absoluteMate > 0 ? 95 : 5;
-      return Math.max(5, Math.min(95, 50 + (absoluteScore * 10)));
-  }, [absoluteScore, isMate, absoluteMate]);
+  const evalPercentage = useMemo(() => { if (isMate) return absoluteMate > 0 ? 95 : 5; return Math.max(5, Math.min(95, 50 + (absoluteScore * 10))); }, [absoluteScore, isMate, absoluteMate]);
 
   const getBadgeStyle = (score: number, mateFlag: boolean, mateVal: number) => {
-      const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0;
-      const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
-      if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200';
-      if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]';
-      return 'bg-[#262421] text-zinc-400 border-[#35332e]'; 
+      const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0; const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
+      if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200'; if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]'; return 'bg-[#262421] text-zinc-400 border-[#35332e]'; 
   };
 
   const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
@@ -314,35 +293,18 @@ export default function AnalysisBoard() {
     const moveNum = Math.ceil(mainChild.depth / 2);
     const isWhite = mainChild.depth % 2 !== 0;
     
-    let prefix = '';
-    if (isWhite) prefix = `${moveNum}. `;
-    else if (forceShowMoveNumber) prefix = `${moveNum}... `;
+    let prefix = ''; if (isWhite) prefix = `${moveNum}. `; else if (forceShowMoveNumber) prefix = `${moveNum}... `;
 
-    result.push(
-      <span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}>
-        {prefix}{mainChild.san}
-      </span>
-    );
+    result.push(<span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}>{prefix}{mainChild.san}</span>);
 
     if (node.childrenIds.length > 1) {
       for (let i = 1; i < node.childrenIds.length; i++) {
-        const varId = node.childrenIds[i];
-        const varChild = tree[varId];
-        const varIsWhite = varChild.depth % 2 !== 0;
-        const varMoveNum = Math.ceil(varChild.depth / 2);
-        const varPrefix = varIsWhite ? `${varMoveNum}. ` : `${varMoveNum}... `;
-
-        result.push(
-          <span key={`${varId}-wrap`} className="text-zinc-500 mx-1 inline-flex items-baseline flex-wrap bg-[#1a1916] px-1.5 py-0.5 rounded-lg border border-[#35332e]/50 text-xs">
-            (<span onClick={() => setCurrentNodeId(varId)} className={`cursor-pointer px-1 py-0.5 rounded transition-colors ${currentNodeId === varId ? 'text-white font-bold' : 'hover:text-zinc-300'}`}>{varPrefix}{varChild.san}</span><span className="ml-1">{renderTreeNodes(varId, !varIsWhite)}</span>)
-          </span>
-        );
+        const varId = node.childrenIds[i]; const varChild = tree[varId]; const varIsWhite = varChild.depth % 2 !== 0; const varMoveNum = Math.ceil(varChild.depth / 2); const varPrefix = varIsWhite ? `${varMoveNum}. ` : `${varMoveNum}... `;
+        result.push(<span key={`${varId}-wrap`} className="text-zinc-500 mx-1 inline-flex items-baseline flex-wrap bg-[#1a1916] px-1.5 py-0.5 rounded-lg border border-[#35332e]/50 text-xs">(<span onClick={() => setCurrentNodeId(varId)} className={`cursor-pointer px-1 py-0.5 rounded transition-colors ${currentNodeId === varId ? 'text-white font-bold' : 'hover:text-zinc-300'}`}>{varPrefix}{varChild.san}</span><span className="ml-1">{renderTreeNodes(varId, !varIsWhite)}</span>)</span>);
       }
-      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
-      result.push(...renderTreeNodes(mainChildId, !isWhite)); 
+      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>); result.push(...renderTreeNodes(mainChildId, !isWhite)); 
     } else {
-      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
-      result.push(...renderTreeNodes(mainChildId, false));
+      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>); result.push(...renderTreeNodes(mainChildId, false));
     }
     return result;
   }, [tree, currentNodeId]);
@@ -415,11 +377,11 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* 🔥 پاپ‌آپ تنظیمات راهنمای بصری (فلش‌ها و مانور) */}
+      {/* 🔥 پاپ‌آپ پیشرفته رنگ‌ها و تنظیمات بصری */}
       <AnimatePresence>
         {isArrowModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Route size={20} className="text-amber-500" /><h2 className="font-bold text-base">راهنمای بصری تخته</h2></div>
                
                <div className="flex flex-col gap-4 mb-6">
@@ -428,17 +390,15 @@ export default function AnalysisBoard() {
                     <ToggleSwitch checked={arrowSettings.showArrows} onChange={(v) => setArrowSettings(prev => ({...prev, showArrows: v}))} />
                  </div>
                  
-                 <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50' : ''}`}>
+                 <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
                     <div className="flex items-center justify-between mb-3">
                        <span className="text-sm font-bold text-white">نمایش مانور مهره‌ها</span>
-                       <ToggleSwitch disabled={!arrowSettings.showArrows} checked={arrowSettings.showManeuvers} onChange={(v) => setArrowSettings(prev => ({...prev, showManeuvers: v}))} />
+                       <ToggleSwitch checked={arrowSettings.showManeuvers} onChange={(v) => setArrowSettings(prev => ({...prev, showManeuvers: v}))} />
                     </div>
-                    
                     <div className="p-3 bg-[#161512] rounded-lg border border-[#35332e]">
                        <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">
-                          مانور به شما نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.
+                          مانور نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.
                        </p>
-                       {/* دیاگرام مفهومی مانور */}
                        <div className="flex items-center justify-center text-zinc-500 pb-1">
                           <div className="w-8 h-8 rounded-lg bg-[#262421] flex items-center justify-center border border-[#403e3a] shadow-inner"><span className="text-amber-500 text-lg">♞</span></div>
                           <div className="h-0.5 w-8 bg-amber-500 relative"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
@@ -448,9 +408,33 @@ export default function AnalysisBoard() {
                        </div>
                     </div>
                  </div>
+
+                 {/* 🔥 پالت رنگ اختصاصی لاین‌ها */}
+                 <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <span className="text-sm font-bold text-white mb-1">رنگ‌بندی اختصاصی لاین‌ها</span>
+                    <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">وضوح (شفافیت) رنگ‌ها بر اساس افت کیفیتِ حرکت (CP Loss) به طور خودکار تنظیم می‌شود.</p>
+                    <div className="flex flex-col gap-2">
+                       {[0, 1, 2].map(idx => idx < engineSettings.multiPv && (
+                         <div key={idx} className="flex items-center justify-between bg-[#161512] px-3 py-2 rounded-lg border border-[#35332e]">
+                           <span className="text-xs text-zinc-400 font-bold">لاین {idx + 1}</span>
+                           <div className="flex gap-2">
+                             {COLOR_PALETTES.map(c => (
+                               <button 
+                                 key={c.hex}
+                                 onClick={() => { const newColors = [...arrowColors]; newColors[idx] = c; setArrowColors(newColors); }}
+                                 className={`w-5 h-5 rounded-full transition-all ${arrowColors[idx].hex === c.hex ? 'scale-125 ring-2 ring-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'hover:scale-110 opacity-50 hover:opacity-100'}`}
+                                 style={{ backgroundColor: c.hex }}
+                               />
+                             ))}
+                           </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+
                </div>
 
-               <button onClick={() => setIsArrowModalOpen(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3 text-sm rounded-xl transition-colors">بستن</button>
+               <button onClick={() => setIsArrowModalOpen(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3 text-sm rounded-xl transition-colors">تایید و بستن</button>
             </motion.div>
           </div>
         )}
@@ -543,7 +527,6 @@ export default function AnalysisBoard() {
                               onSquareClick={handleSquareClick} onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
                               onSquareRightClick={() => { setClickedSquare(null); setOptionSquares({}); }}
                               customSquareStyles={{...moveSquares, ...optionSquares}} 
-                              // 🔥 تزریق فلش‌های موتور به صفحه شطرنج
                               customArrows={engineArrows}
                               animationDuration={200}
                           />
@@ -567,7 +550,6 @@ export default function AnalysisBoard() {
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
-                  {/* 🔥 دکمه دسترسی به تنظیمات بصری فلش‌ها */}
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
                 <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
