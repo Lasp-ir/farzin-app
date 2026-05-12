@@ -128,6 +128,12 @@ export function useStockfish() {
       workerRef.current.postMessage({ type: 'uci_cmd', data: 'stop' });
     }
   }, []);
+  // تابع ارسال تنظیمات به موتور
+  const setOption = useCallback((name: string, value: string | number) => {
+    if (workerRef.current) {
+      workerRef.current.postMessage({ type: 'uci_cmd', data: `setoption name ${name} value ${value}` });
+    }
+  }, []);
 
-  return { isReady, engineStatus, evaluation, lines, analyze, stop };
+  return { isReady, engineStatus, evaluation, lines, analyze, stop, setOption };
 }

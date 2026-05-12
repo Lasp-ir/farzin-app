@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
   Share2, Download, List, TrendingUp, BookOpen, User, Edit2, Check,
-  Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Info
+  Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -77,12 +77,16 @@ export default function AnalysisBoard() {
   const [tree, setTree] = useState<Record<string, MoveNode>>({});
   const [currentNodeId, setCurrentNodeId] = useState<string>('root');
   
-  // استیت‌های مربوط به مدال ذخیره و نوتیفیکیشن پاپ‌آپ
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
+
+  // 🔥 استیت‌های مربوط به تنظیمات موتور
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [multiPvCount, setMultiPvCount] = useState(3);
   
-  const { isReady, engineStatus, lines, analyze } = useStockfish();
+  // دقت کن که تابع setOption باید از هوک export شده باشه
+  const { isReady, engineStatus, lines, analyze, setOption } = useStockfish() as any;
 
   useEffect(() => {
     const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -101,6 +105,15 @@ export default function AnalysisBoard() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // 🔥 تابع اعمال تنظیمات روی موتور واقعی
+  const handleApplySettings = () => {
+    if (setOption) {
+      setOption('MultiPV', multiPvCount);
+    }
+    setIsSettingsModalOpen(false);
+    showToast(`تعداد لاین‌های موتور به ${multiPvCount} تغییر یافت`);
   };
 
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
@@ -179,15 +192,9 @@ export default function AnalysisBoard() {
     } else { setClickedSquare(null); setOptionSquares({}); }
   };
 
-  // 🔥 سیستم تولید PGN کاملاً استاندارد با مشخصات متا دیتا
   const copyMainlinePgn = () => {
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
-    
-    let pgn = `[Event "Farzin Analysis"]\n`;
-    pgn += `[Site "Lasp - Farzin App"]\n`;
-    pgn += `[Date "${dateStr}"]\n`;
-    pgn += `[White "${playerMeta.white.name || 'White'}"]\n`;
-    pgn += `[Black "${playerMeta.black.name || 'Black'}"]\n`;
+    let pgn = `[Event "Farzin Analysis"]\n[Site "Lasp - Farzin App"]\n[Date "${dateStr}"]\n[White "${playerMeta.white.name || 'White'}"]\n[Black "${playerMeta.black.name || 'Black'}"]\n`;
     if (playerMeta.white.elo) pgn += `[WhiteElo "${playerMeta.white.elo}"]\n`;
     if (playerMeta.black.elo) pgn += `[BlackElo "${playerMeta.black.elo}"]\n`;
     pgn += `[Result "*"]\n\n`;
@@ -201,7 +208,6 @@ export default function AnalysisBoard() {
         else { movesString += `${node.san} `; moveNum++; }
         curr = node.childrenIds[0]; 
     }
-    
     pgn += movesString.trim() + " *";
     navigator.clipboard.writeText(pgn);
     showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
@@ -209,7 +215,6 @@ export default function AnalysisBoard() {
 
   const handleSaveAnalysis = () => {
     if(!saveName.trim()) return;
-    // در آینده کدهای ذخیره در دیتابیس اینجا قرار می‌گیرد
     setIsSaveModalOpen(false);
     showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`);
     setSaveName("");
@@ -317,7 +322,7 @@ export default function AnalysisBoard() {
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-        {/* پاپ‌آپ‌های نوتیفیکیشن (Toast) با وسط‌چینِ ضدگلوله! */}
+      {/* پاپ‌آپ‌های نوتیفیکیشن (Toast) */}
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
           {toastMessage && (
@@ -334,7 +339,7 @@ export default function AnalysisBoard() {
         </AnimatePresence>
       </div>
 
-      {/* مدال شیشه‌ای ذخیره‌سازی */}
+      {/* مدال ذخیره‌سازی */}
       <AnimatePresence>
         {isSaveModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
@@ -347,7 +352,7 @@ export default function AnalysisBoard() {
                   <h2 className="font-bold text-base">ذخیره آنالیز</h2>
                </div>
                <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                 این آنالیز با تمام شاخه‌ها (واریانت‌ها) و متا دیتای بازیکنان در آرشیو شما ذخیره خواهد شد. یک نام برای آن انتخاب کنید.
+                 این آنالیز با تمام شاخه‌ها و متا دیتا در آرشیو شما ذخیره خواهد شد.
                </p>
                <input 
                  autoFocus 
@@ -366,6 +371,53 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
+      {/* 🔥 مدال تنظیمات موتور */}
+      <AnimatePresence>
+        {isSettingsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} 
+              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-[90%] max-w-sm shadow-2xl flex flex-col relative"
+            >
+               <div className="flex items-center gap-2 mb-6 text-white border-b border-[#35332e] pb-3">
+                  <Sliders size={20} className="text-farzin-accent" />
+                  <h2 className="font-bold text-base">تنظیمات موتور</h2>
+               </div>
+               
+               <div className="mb-6">
+                 <div className="flex justify-between items-center mb-3">
+                   <label className="text-sm text-zinc-300 font-bold">تعداد خطوط تحلیل (Multi-PV)</label>
+                   <span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{multiPvCount}</span>
+                 </div>
+                 
+                 {/* دکمه‌های سگمنتی مدرن برای انتخاب لاین */}
+                 <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
+                    {[1, 2, 3].map(num => (
+                      <button 
+                        key={num}
+                        onClick={() => setMultiPvCount(num)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${multiPvCount === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}
+                      >
+                        {num} لاین
+                      </button>
+                    ))}
+                 </div>
+                 <p className="text-[10px] text-zinc-500 mt-3 text-justify">
+                    محاسبه خطوط بیشتر، قدرت اصلی موتور را بین شاخه‌های مختلف تقسیم می‌کند.
+                 </p>
+               </div>
+
+               <div className="flex gap-2 w-full mt-2">
+                  <button onClick={() => setIsSettingsModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">انصراف</button>
+                  <button onClick={handleApplySettings} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2">
+                     <Cpu size={16}/> اعمال روی موتور
+                  </button>
+               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* هدر بالا */}
       <div className={`flex-none w-full px-4 py-2.5 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] transition-colors text-zinc-400"><ChevronRight size={20} /></button>
@@ -375,7 +427,8 @@ export default function AnalysisBoard() {
             </h1>
         </div>
         <div className="flex gap-1.5">
-            {/* 🔥 دکمه Save اضافه شد */}
+            {/* 🔥 اضافه شدن دکمه تنظیمات موتور */}
+            <button onClick={() => setIsSettingsModalOpen(true)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="تنظیمات موتور"><Settings size={16}/></button>
             <button onClick={() => setIsSaveModalOpen(true)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="ذخیره آنالیز"><Save size={16}/></button>
             <button className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors"><Share2 size={16}/></button>
         </div>
@@ -393,8 +446,9 @@ export default function AnalysisBoard() {
               </span>
           </div>
           
+          {/* 🔥 لاین‌ها بر اساس تنظیمات کاربر فیلتر میشن (multiPvCount) */}
           <div className="flex flex-col gap-0.5 mt-1" dir="ltr" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace" }}>
-              {lines.length > 0 ? lines.slice(0, 3).map((line, idx) => {
+              {lines.length > 0 ? lines.slice(0, multiPvCount).map((line, idx) => {
                   const rawPv = line.pv || '';
                   let actualPv = rawPv;
                   if (rawPv.includes(' pv ')) actualPv = rawPv.split(' pv ')[1];
@@ -478,7 +532,6 @@ export default function AnalysisBoard() {
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
                 </div>
-                {/* 🔥 ترتیب دکمه‌ها اصلاح شد: از چپ به راست (اول، قبلی، بعدی، آخر) */}
                 <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                     <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
                     <button onClick={prevMove} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipBack size={18} /></button>
