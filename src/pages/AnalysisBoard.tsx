@@ -1,4 +1,3 @@
-// src/pages/AnalysisBoard.tsx
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
@@ -22,6 +21,10 @@ export default function AnalysisBoard() {
   const [history, setHistory] = useState<any[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // استیت‌های مخصوص بازی با کلیک (Click to Move)
+  const [moveFrom, setMoveFrom] = useState<string | null>(null);
+  const [optionSquares, setOptionSquares] = useState<any>({});
 
   const { isReady, engineStatus, evaluation, lines, analyze, stop } = useStockfish();
 
@@ -55,38 +58,103 @@ export default function AnalysisBoard() {
     return tempGame.fen();
   }, [history, currentMoveIndex, data, type]);
 
+  // ساخت یک نمونه بازی مجزا برای اعتبارسنجی حرکات کاربر روی تخته
+  const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
+
   useEffect(() => {
     if (isReady && currentPosition) {
       analyze(currentPosition, 24);
     }
   }, [currentPosition, isReady, analyze]);
 
-  const goToMove = (index: number) => setCurrentMoveIndex(index);
-  const nextMove = () => { if (currentMoveIndex < history.length - 1) setCurrentMoveIndex(prev => prev + 1); };
-  const prevMove = () => { if (currentMoveIndex > -1) setCurrentMoveIndex(prev => prev - 1); };
-  const goStart = () => setCurrentMoveIndex(-1);
-  const goEnd = () => setCurrentMoveIndex(history.length - 1);
+  const goToMove = (index: number) => {
+    setCurrentMoveIndex(index);
+    setMoveFrom(null);
+    setOptionSquares({});
+  };
+  
+  const nextMove = () => { if (currentMoveIndex < history.length - 1) goToMove(currentMoveIndex + 1); };
+  const prevMove = () => { if (currentMoveIndex > -1) goToMove(currentMoveIndex - 1); };
+  const goStart = () => goToMove(-1);
+  const goEnd = () => goToMove(history.length - 1);
 
-  // 🔥 تابع پردازش حرکت کاربر روی تخته
-  const onPieceDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
-    const tempGame = new Chess(currentPosition);
+  // --- منطق Click to Move ---
+  function getMoveOptions(square: string) {
+    const moves = activeGame.moves({ square, verbose: true });
+    if (moves.length === 0) {
+      setOptionSquares({});
+      return false;
+    }
+
+    const newSquares: any = {};
+    moves.map((move: any) => {
+      newSquares[move.to] = {
+        background:
+          activeGame.get(move.to as any) && activeGame.get(move.to as any).color !== activeGame.get(square as any).color
+            ? 'radial-gradient(circle, rgba(0,0,0,.4) 85%, transparent 85%)' // مهره حریف
+            : 'radial-gradient(circle, rgba(0,0,0,.4) 25%, transparent 25%)', // خونه خالی
+        borderRadius: '50%'
+      };
+      return move;
+    });
+    newSquares[square] = { background: 'rgba(119, 149, 86, 0.5)' }; // هایلایت مهره مبدا
+    setOptionSquares(newSquares);
+    return true;
+  }
+
+  function onSquareClick(square: string) {
+    if (!moveFrom) {
+      const hasMoveOptions = getMoveOptions(square);
+      if (hasMoveOptions) setMoveFrom(square);
+      return;
+    }
+
     try {
-      const move = tempGame.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: piece[1].toLowerCase() ?? 'q', // تبدیل پیاده به وزیر
+      const move = activeGame.move({
+        from: moveFrom,
+        to: square,
+        promotion: 'q'
       });
 
       if (move) {
-        // اگه وسط تاریخچه حرکت جدیدی زد، آینده رو پاک می‌کنیم و شاخه جدید می‌سازیم
         const newHistory = history.slice(0, currentMoveIndex + 1);
         newHistory.push(move);
         setHistory(newHistory);
         setCurrentMoveIndex(newHistory.length - 1);
+        setMoveFrom(null);
+        setOptionSquares({});
+        return;
+      }
+    } catch (e) {}
+
+    const hasMoveOptions = getMoveOptions(square);
+    if (hasMoveOptions) setMoveFrom(square);
+    else {
+      setMoveFrom(null);
+      setOptionSquares({});
+    }
+  }
+
+  // --- منطق Drag to Move ---
+  const onPieceDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
+    try {
+      const move = activeGame.move({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: piece[1].toLowerCase() ?? 'q',
+      });
+
+      if (move) {
+        const newHistory = history.slice(0, currentMoveIndex + 1);
+        newHistory.push(move);
+        setHistory(newHistory);
+        setCurrentMoveIndex(newHistory.length - 1);
+        setMoveFrom(null);
+        setOptionSquares({});
         return true;
       }
     } catch (e) {
-      return false; // حرکت غیرقانونی
+      return false;
     }
     return false;
   };
@@ -135,7 +203,7 @@ export default function AnalysisBoard() {
                 </div>
             </div>
             
-            <div className="bg-[#1e1c19] border border-[#35332e] px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-inner max-w-[45%]">
+            <div className="bg-[#1e1c19] border border-[#35332e] px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-inner max-w-[50%]">
                 {!isReady ? (
                   <Loader2 size={14} className="text-amber-500 animate-spin shrink-0" />
                 ) : (
@@ -147,21 +215,27 @@ export default function AnalysisBoard() {
             </div>
         </div>
 
-        {/* 🔥 رفع مشکل جهت تخته: کانتینر LTR */}
+        {/* ناحیه تخته با جهت‌گیری LTR برای رفع باگ چینش */}
         <div className="flex px-4 my-2 gap-3 aspect-square sm:max-h-[600px] w-full" dir="ltr">
-            {/* تخته در چپ قرار می‌گیره */}
-            <div className="flex-1 rounded-lg overflow-hidden shadow-2xl border-4 border-[#262421]">
-                <Chessboard 
-                    position={currentPosition} 
-                    boardOrientation="white"
-                    customDarkSquareStyle={{ backgroundColor: '#779556' }}
-                    customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                    arePiecesDraggable={true} // 🔥 قابلیت درگ مهره‌ها فعال شد
-                    onPieceDrop={onPieceDrop} // 🔥 تابع حرکت اضافه شد
-                />
+            
+            {/* 🔥 ترفند Padding به جای Border برای رفع مشکل شیفت مهره‌ها */}
+            <div className="flex-1 bg-[#262421] p-1.5 rounded-xl shadow-2xl relative">
+                <div className="w-full h-full rounded-md overflow-hidden">
+                  <Chessboard 
+                      position={currentPosition} 
+                      boardOrientation="white"
+                      customDarkSquareStyle={{ backgroundColor: '#779556' }}
+                      customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                      arePiecesDraggable={true} 
+                      onPieceDrop={onPieceDrop}
+                      onSquareClick={onSquareClick}
+                      customSquareStyles={optionSquares}
+                      animationDuration={200}
+                  />
+                </div>
             </div>
 
-            {/* نوار ارزیابی در راست قرار می‌گیره */}
+            {/* نوار ارزیابی در راست */}
             <div className="w-6 shrink-0 bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden flex flex-col relative shadow-inner">
                 <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                 <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center pt-1">
