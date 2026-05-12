@@ -10,14 +10,12 @@ import {
   Zap, Share2, Download, History, Loader2
 } from 'lucide-react';
 
-// 🔥 ایمپورت کردن هوک قدرتمندمون
 import { useStockfish } from '../hooks/useStockfish';
 
 export default function AnalysisBoard() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // دریافت دیتای پاس داده شده از صفحه ستاپ
   const { data, type, meta } = location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
 
   const [game, setGame] = useState(new Chess());
@@ -25,7 +23,6 @@ export default function AnalysisBoard() {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 🧠 فراخوانی مغز موتور فرزین
   const { isReady, engineStatus, evaluation, lines, analyze, stop } = useStockfish();
 
   useEffect(() => {
@@ -36,11 +33,8 @@ export default function AnalysisBoard() {
 
     const newGame = new Chess();
     try {
-      if (type === 'PGN') {
-        newGame.loadPgn(data);
-      } else if (type === 'FEN') {
-        newGame.load(data);
-      }
+      if (type === 'PGN') newGame.loadPgn(data);
+      else if (type === 'FEN') newGame.load(data);
       
       setGame(newGame);
       setHistory(newGame.history({ verbose: true }));
@@ -52,35 +46,52 @@ export default function AnalysisBoard() {
     setIsLoaded(true);
   }, [data, type, navigate]);
 
-  // استخراج پوزیشن فعلی
   const currentPosition = useMemo(() => {
     const tempGame = new Chess();
-    if (type === 'FEN' && data) {
-      try { tempGame.load(data); } catch(e){} 
-    }
+    if (type === 'FEN' && data) { try { tempGame.load(data); } catch(e){} }
     for (let i = 0; i <= currentMoveIndex; i++) {
       if (history[i]) tempGame.move(history[i]);
     }
     return tempGame.fen();
   }, [history, currentMoveIndex, data, type]);
 
-  // ⚡️ راه‌اندازی اتوماتیک موتور با هر تغییر پوزیشن
   useEffect(() => {
     if (isReady && currentPosition) {
-      analyze(currentPosition, 24); // هدف: رسیدن به عمق ۲۴
+      analyze(currentPosition, 24);
     }
   }, [currentPosition, isReady, analyze]);
 
-  // کنترلرهای حرکت
   const goToMove = (index: number) => setCurrentMoveIndex(index);
   const nextMove = () => { if (currentMoveIndex < history.length - 1) setCurrentMoveIndex(prev => prev + 1); };
   const prevMove = () => { if (currentMoveIndex > -1) setCurrentMoveIndex(prev => prev - 1); };
   const goStart = () => setCurrentMoveIndex(-1);
   const goEnd = () => setCurrentMoveIndex(history.length - 1);
 
-  // محاسبه ارتفاع نوار ارزیابی به درصد
+  // 🔥 تابع پردازش حرکت کاربر روی تخته
+  const onPieceDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
+    const tempGame = new Chess(currentPosition);
+    try {
+      const move = tempGame.move({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: piece[1].toLowerCase() ?? 'q', // تبدیل پیاده به وزیر
+      });
+
+      if (move) {
+        // اگه وسط تاریخچه حرکت جدیدی زد، آینده رو پاک می‌کنیم و شاخه جدید می‌سازیم
+        const newHistory = history.slice(0, currentMoveIndex + 1);
+        newHistory.push(move);
+        setHistory(newHistory);
+        setCurrentMoveIndex(newHistory.length - 1);
+        return true;
+      }
+    } catch (e) {
+      return false; // حرکت غیرقانونی
+    }
+    return false;
+  };
+
   const evalPercentage = useMemo(() => {
-    // محدود کردن بین 5% تا 95% برای ظاهر بهتر
     let percent = 50 + (evaluation * 10);
     if (percent > 95) percent = 95;
     if (percent < 5) percent = 5;
@@ -90,7 +101,6 @@ export default function AnalysisBoard() {
   return (
     <div className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-10 overflow-x-hidden" dir="rtl">
       
-      {/* هدر */}
       <div className={`w-full max-w-2xl px-5 py-5 flex items-center justify-between z-10 transition-all duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-2.5 bg-[#1e1c19] border border-[#35332e] rounded-xl hover:bg-[#262421] transition-colors active:scale-95 text-zinc-400">
           <ChevronRight size={20} />
@@ -109,7 +119,6 @@ export default function AnalysisBoard() {
 
       <div className={`w-full max-w-2xl flex flex-col transition-all duration-700 delay-100 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         
-        {/* اطلاعات حریف سیاه و استاتوس موتور */}
         <div className="px-5 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#262421] border border-[#35332e] flex items-center justify-center shadow-inner">
@@ -126,45 +135,43 @@ export default function AnalysisBoard() {
                 </div>
             </div>
             
-            {/* ⚡️ نمایش زنده وضعیت موتور */}
-            <div className="bg-[#1e1c19] border border-[#35332e] px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-inner">
+            <div className="bg-[#1e1c19] border border-[#35332e] px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-inner max-w-[45%]">
                 {!isReady ? (
-                  <Loader2 size={14} className="text-amber-500 animate-spin" />
+                  <Loader2 size={14} className="text-amber-500 animate-spin shrink-0" />
                 ) : (
-                  <Cpu size={14} className="text-farzin-accent animate-pulse" />
+                  <Cpu size={14} className="text-farzin-accent animate-pulse shrink-0" />
                 )}
-                <span className="font-mono text-[10px] font-bold text-white max-w-[120px] truncate" dir="ltr">
+                <span className="font-mono text-[10px] font-bold text-white truncate" dir="ltr">
                   {isReady ? 'Farzin 1.0 (NNUE)' : engineStatus}
                 </span>
             </div>
         </div>
 
-        {/* ناحیه تخته و نوار ارزیابی */}
-        <div className="flex px-4 my-2 gap-3 aspect-square sm:max-h-[600px] w-full">
-            {/* نوار ارزیابی زنده */}
-            <div className="w-6 shrink-0 bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden flex flex-col relative shadow-inner">
-                {/* بخش سیاه */}
-                <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
-                {/* بخش سفید */}
-                <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center pt-1">
-                    <span className="text-[9px] font-mono font-black text-zinc-800 rotate-90 mt-4">
-                      {evaluation > 0 ? `+${evaluation.toFixed(1)}` : evaluation.toFixed(1)}
-                    </span>
-                </div>
-            </div>
-
+        {/* 🔥 رفع مشکل جهت تخته: کانتینر LTR */}
+        <div className="flex px-4 my-2 gap-3 aspect-square sm:max-h-[600px] w-full" dir="ltr">
+            {/* تخته در چپ قرار می‌گیره */}
             <div className="flex-1 rounded-lg overflow-hidden shadow-2xl border-4 border-[#262421]">
                 <Chessboard 
                     position={currentPosition} 
                     boardOrientation="white"
                     customDarkSquareStyle={{ backgroundColor: '#779556' }}
                     customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                    arePiecesDraggable={false} 
+                    arePiecesDraggable={true} // 🔥 قابلیت درگ مهره‌ها فعال شد
+                    onPieceDrop={onPieceDrop} // 🔥 تابع حرکت اضافه شد
                 />
+            </div>
+
+            {/* نوار ارزیابی در راست قرار می‌گیره */}
+            <div className="w-6 shrink-0 bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden flex flex-col relative shadow-inner">
+                <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
+                <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center pt-1">
+                    <span className="text-[9px] font-mono font-black text-zinc-800 rotate-90 mt-4">
+                      {evaluation > 0 ? `+${evaluation.toFixed(1)}` : evaluation.toFixed(1)}
+                    </span>
+                </div>
             </div>
         </div>
 
-        {/* اطلاعات حریف سفید */}
         <div className="px-5 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-zinc-200 border border-[#35332e] flex items-center justify-center shadow-inner">
@@ -186,7 +193,6 @@ export default function AnalysisBoard() {
             </div>
         </div>
 
-        {/* کنترلرهای حرکتی */}
         <div className="px-5 my-4">
             <div className="w-full bg-[#1e1c19] border border-[#35332e] rounded-2xl flex items-center justify-between p-2 shadow-lg">
                 <button onClick={goStart} disabled={currentMoveIndex === -1} className="p-3 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors"><Rewind size={20} /></button>
@@ -197,7 +203,6 @@ export default function AnalysisBoard() {
             </div>
         </div>
 
-        {/* ⚡️ خروجی واقعی موتور (Engine Lines) */}
         <div className="px-5 mb-4">
             <div className="bg-gradient-to-b from-[#1e1c19] to-[#161512] border border-[#35332e] rounded-[24px] p-4 shadow-xl min-h-[160px]">
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#35332e]">
@@ -216,7 +221,7 @@ export default function AnalysisBoard() {
                           if (!line) return null;
                           const moves = line.pv.split(' ');
                           const mainMove = moves[0];
-                          const lineContinuation = moves.slice(1, 6).join(' '); // فقط نمایش 5 حرکت اول برای جلوگیری از شلوغی
+                          const lineContinuation = moves.slice(1, 6).join(' ');
                           
                           let scoreText = '';
                           if (line.isMate) {
@@ -249,7 +254,6 @@ export default function AnalysisBoard() {
             </div>
         </div>
 
-        {/* تاریخچه حرکات */}
         <div className="px-5 mb-6">
             <div className="bg-[#1e1c19] border border-[#35332e] rounded-[24px] p-5 shadow-xl min-h-[150px]">
                 <div className="flex items-center gap-2 mb-4 text-zinc-400">
