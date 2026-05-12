@@ -207,7 +207,6 @@ export default function AnalysisBoard() {
       </span>
     );
 
-    // پردازش واریانت‌ها
     if (node.childrenIds.length > 1) {
       for (let i = 1; i < node.childrenIds.length; i++) {
         const varId = node.childrenIds[i];
@@ -231,7 +230,7 @@ export default function AnalysisBoard() {
         );
       }
       result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
-      result.push(...renderTreeNodes(mainChildId, !isWhite)); // اگر حرکت اصلی سفید بوده، برای حرکت بعدی سیاه باید شماره حرکت (مثل 1... e5) گذاشته بشه
+      result.push(...renderTreeNodes(mainChildId, !isWhite)); 
     } else {
       result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
       result.push(...renderTreeNodes(mainChildId, false));
@@ -239,7 +238,6 @@ export default function AnalysisBoard() {
 
     return result;
   }, [tree, currentNodeId]);
-
 
   return (
     <div className="min-h-screen bg-[#100f0d] text-zinc-200 flex flex-col font-sans" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
@@ -256,9 +254,9 @@ export default function AnalysisBoard() {
         </div>
       </div>
 
-      {/* 🚀 انجین داشبورد - منتقل شد به بالای صفحه با استایل گلس‌مورفیسم */}
+      {/* 🚀 انجین داشبورد با نمایش ۳ لاین برتر و پارسر خالص */}
       <div className={`w-full px-4 py-2.5 bg-gradient-to-b from-[#1a1916] to-[#12110f] border-b border-[#35332e] shadow-[0_4px_20px_rgba(0,0,0,0.4)] relative z-20 transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center gap-2 bg-[#262421] px-2 py-1 rounded-md border border-[#35332e]">
                   {!isReady ? <Loader2 size={12} className="text-amber-500 animate-spin" /> : <Zap size={12} className={displayEngineStatus === 'reading books...' ? "text-sky-400 animate-pulse" : "text-amber-400 animate-pulse"} />}
                   <span className="font-mono text-[10px] font-bold text-zinc-300" dir="ltr">{displayEngineStatus}</span>
@@ -268,8 +266,42 @@ export default function AnalysisBoard() {
                 {evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2)}
               </span>
           </div>
-          <div className="text-xs font-mono text-zinc-400 truncate leading-relaxed bg-[#1e1c19] px-3 py-1.5 rounded-lg border border-[#35332e] shadow-inner" dir="ltr">
-              {lines[0] ? <span className="text-white font-bold">{lines[0].pv.split(' ')[0]} <span className="text-zinc-500 font-normal">{lines[0].pv.substring(lines[0].pv.indexOf(' ') + 1)}</span></span> : 'آماده به کار...'}
+          
+          <div className="flex flex-col gap-1" dir="ltr" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace" }}>
+              {lines.length > 0 ? lines.slice(0, 3).map((line, idx) => {
+                  const rawPv = line.pv || '';
+                  let actualPv = rawPv;
+                  if (rawPv.includes(' pv ')) {
+                      actualPv = rawPv.split(' pv ')[1];
+                  } else {
+                      const match = rawPv.match(/[a-h][1-8][a-h][1-8]/);
+                      if (match) actualPv = rawPv.substring(rawPv.indexOf(match[0]));
+                  }
+                  
+                  const moves = actualPv.trim().split(' ');
+                  const mainMove = moves[0] || '...';
+                  const restMoves = moves.slice(1, 7).join(' ');
+
+                  let scoreText = '';
+                  if (line.isMate) scoreText = line.mateIn! > 0 ? `+M${line.mateIn}` : `-M${Math.abs(line.mateIn!)}`;
+                  else scoreText = line.score > 0 ? `+${line.score.toFixed(2)}` : line.score.toFixed(2);
+
+                  return (
+                      <div key={idx} className={`flex items-center gap-2.5 text-[11.5px] truncate px-2 py-1 rounded-md transition-all ${idx === 0 ? 'bg-[#1e1c19] border border-[#35332e] shadow-sm' : ''}`}>
+                          <span className={`w-10 text-right font-black tracking-tighter ${idx === 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                              {scoreText}
+                          </span>
+                          <span className={`font-bold ${idx === 0 ? 'text-white' : 'text-zinc-400'}`}>
+                              {mainMove}
+                          </span>
+                          <span className="text-zinc-500 truncate opacity-80">
+                              {restMoves}
+                          </span>
+                      </div>
+                  );
+              }) : (
+                  <div className="text-[11px] text-zinc-500 pl-2 py-1">آماده به کار...</div>
+              )}
           </div>
       </div>
 
