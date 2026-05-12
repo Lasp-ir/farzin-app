@@ -22,9 +22,9 @@ export default function AnalysisBoard() {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // استیت‌های مخصوص بازی با کلیک (Click to Move)
-  const [moveFrom, setMoveFrom] = useState<string | null>(null);
-  const [optionSquares, setOptionSquares] = useState<any>({});
+  // استیت‌های کلیک و حرکت مهره (گرفته شده از PlayAI)
+  const [clickedSquare, setClickedSquare] = useState<string | null>(null);
+  const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
 
   const { isReady, engineStatus, evaluation, lines, analyze, stop } = useStockfish();
 
@@ -58,7 +58,7 @@ export default function AnalysisBoard() {
     return tempGame.fen();
   }, [history, currentMoveIndex, data, type]);
 
-  // ساخت یک نمونه بازی مجزا برای اعتبارسنجی حرکات کاربر روی تخته
+  // انجین روی وضعیت فعلی تخته کار می‌کند
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function AnalysisBoard() {
 
   const goToMove = (index: number) => {
     setCurrentMoveIndex(index);
-    setMoveFrom(null);
+    setClickedSquare(null);
     setOptionSquares({});
   };
   
@@ -78,70 +78,40 @@ export default function AnalysisBoard() {
   const goStart = () => goToMove(-1);
   const goEnd = () => goToMove(history.length - 1);
 
-  // --- منطق Click to Move ---
-  function getMoveOptions(square: string) {
-    const moves = activeGame.moves({ square, verbose: true });
-    if (moves.length === 0) {
-      setOptionSquares({});
-      return false;
-    }
+  // --- سیستم هوشمند تعامل با مهره‌ها ---
+  const highlightLegalMoves = (sourceSquare: string) => {
+    const moves = activeGame.moves({ square: sourceSquare as any, verbose: true });
+    if (moves.length === 0) return;
 
     const newSquares: any = {};
-    moves.map((move: any) => {
-      newSquares[move.to] = {
-        background:
-          activeGame.get(move.to as any) && activeGame.get(move.to as any).color !== activeGame.get(square as any).color
-            ? 'radial-gradient(circle, rgba(0,0,0,.4) 85%, transparent 85%)' // مهره حریف
-            : 'radial-gradient(circle, rgba(0,0,0,.4) 25%, transparent 25%)', // خونه خالی
-        borderRadius: '50%'
+    moves.forEach((m: any) => {
+      const isCapture = activeGame.get(m.to as any) && activeGame.get(m.to as any).color !== activeGame.get(sourceSquare as any)?.color;
+      newSquares[m.to] = {
+        backgroundImage: isCapture
+            ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.4) 67%, rgba(0,0,0,0.4) 100%)' // استایل زدن مهره
+            : 'radial-gradient(circle, rgba(0,0,0,.4) 22%, transparent 23%)', // استایل حرکت عادی
       };
-      return move;
     });
-    newSquares[square] = { background: 'rgba(119, 149, 86, 0.5)' }; // هایلایت مهره مبدا
+    newSquares[sourceSquare] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' }; // هایلایت مهره انتخاب شده
     setOptionSquares(newSquares);
-    return true;
-  }
+  };
 
-  function onSquareClick(square: string) {
-    if (!moveFrom) {
-      const hasMoveOptions = getMoveOptions(square);
-      if (hasMoveOptions) setMoveFrom(square);
-      return;
-    }
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
+    // در حالت آنالیز کاربر می‌تواند مهره‌های هر دو رنگ را اگر نوبتشان باشد تکان دهد
+    if (piece[0] !== activeGame.turn()) return;
+    setClickedSquare(sourceSquare);
+    highlightLegalMoves(sourceSquare);
+  };
 
-    try {
-      const move = activeGame.move({
-        from: moveFrom,
-        to: square,
-        promotion: 'q'
-      });
+  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
+    setOptionSquares({}); 
+    setClickedSquare(null);
 
-      if (move) {
-        const newHistory = history.slice(0, currentMoveIndex + 1);
-        newHistory.push(move);
-        setHistory(newHistory);
-        setCurrentMoveIndex(newHistory.length - 1);
-        setMoveFrom(null);
-        setOptionSquares({});
-        return;
-      }
-    } catch (e) {}
-
-    const hasMoveOptions = getMoveOptions(square);
-    if (hasMoveOptions) setMoveFrom(square);
-    else {
-      setMoveFrom(null);
-      setOptionSquares({});
-    }
-  }
-
-  // --- منطق Drag to Move ---
-  const onPieceDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
     try {
       const move = activeGame.move({
         from: sourceSquare,
         to: targetSquare,
-        promotion: piece[1].toLowerCase() ?? 'q',
+        promotion: piece[1]?.toLowerCase() ?? 'q',
       });
 
       if (move) {
@@ -149,8 +119,6 @@ export default function AnalysisBoard() {
         newHistory.push(move);
         setHistory(newHistory);
         setCurrentMoveIndex(newHistory.length - 1);
-        setMoveFrom(null);
-        setOptionSquares({});
         return true;
       }
     } catch (e) {
@@ -158,6 +126,55 @@ export default function AnalysisBoard() {
     }
     return false;
   };
+
+  const handleSquareClick = (square: string) => {
+    if (clickedSquare === square) {
+       setClickedSquare(null);
+       setOptionSquares({});
+       return;
+    }
+
+    if (clickedSquare) {
+      const moves = activeGame.moves({ square: clickedSquare as any, verbose: true });
+      const move = moves.find(m => m.to === square);
+
+      if (move) {
+        try {
+          const result = activeGame.move({ from: clickedSquare, to: square, promotion: 'q' });
+          if (result) {
+            const newHistory = history.slice(0, currentMoveIndex + 1);
+            newHistory.push(result);
+            setHistory(newHistory);
+            setCurrentMoveIndex(newHistory.length - 1);
+          }
+        } catch(e) {}
+        
+        setClickedSquare(null);
+        setOptionSquares({});
+        return;
+      }
+    }
+
+    const pieceOnSquare = activeGame.get(square as any);
+    if (pieceOnSquare && pieceOnSquare.color === activeGame.turn()) {
+      setClickedSquare(square);
+      highlightLegalMoves(square);
+    } else {
+      setClickedSquare(null);
+      setOptionSquares({});
+    }
+  };
+
+  // رنگ زرد برای آخرین حرکت انجام شده روی تخته
+  const moveSquares = useMemo(() => {
+    if (history.length === 0 || currentMoveIndex < 0) return {};
+    const lastMove = history[currentMoveIndex];
+    if (!lastMove) return {};
+    return {
+      [lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+      [lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
+    };
+  }, [history, currentMoveIndex]);
 
   const evalPercentage = useMemo(() => {
     let percent = 50 + (evaluation * 10);
@@ -167,9 +184,11 @@ export default function AnalysisBoard() {
   }, [evaluation]);
 
   return (
-    <div className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-10 overflow-x-hidden" dir="rtl">
+    // 🔥 حذف ترنزیشن‌های Transform از کانتینرهای اصلی برای رفع قطعیِ باگِ Drag Offset
+    <div className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-10 overflow-x-hidden" dir="rtl"
+         onContextMenu={(e) => { e.preventDefault(); setClickedSquare(null); setOptionSquares({}); }}>
       
-      <div className={`w-full max-w-2xl px-5 py-5 flex items-center justify-between z-10 transition-all duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`w-full max-w-2xl px-5 py-5 flex items-center justify-between z-10 transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-2.5 bg-[#1e1c19] border border-[#35332e] rounded-xl hover:bg-[#262421] transition-colors active:scale-95 text-zinc-400">
           <ChevronRight size={20} />
         </button>
@@ -185,7 +204,7 @@ export default function AnalysisBoard() {
         </button>
       </div>
 
-      <div className={`w-full max-w-2xl flex flex-col transition-all duration-700 delay-100 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <div className={`w-full max-w-2xl flex flex-col transition-opacity duration-700 delay-100 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         
         <div className="px-5 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -215,28 +234,30 @@ export default function AnalysisBoard() {
             </div>
         </div>
 
-        {/* ناحیه تخته با جهت‌گیری LTR برای رفع باگ چینش */}
-        <div className="flex px-4 my-2 gap-3 aspect-square sm:max-h-[600px] w-full" dir="ltr">
+        {/* ناحیه تخته با جهت‌گیری LTR و استایل‌های دقیقاً مشابه PlayAI */}
+        <div className="flex px-4 my-2 gap-3 w-full" dir="ltr">
             
-            {/* 🔥 ترفند Padding به جای Border برای رفع مشکل شیفت مهره‌ها */}
-            <div className="flex-1 bg-[#262421] p-1.5 rounded-xl shadow-2xl relative">
-                <div className="w-full h-full rounded-md overflow-hidden">
+            <div className="flex-1 relative z-0">
+                <div className="w-full aspect-square max-h-[600px] relative shadow-2xl rounded-sm border-[4px] border-[#2A2926] z-0 overflow-hidden bg-[#ebecd0]">
                   <Chessboard 
                       position={currentPosition} 
                       boardOrientation="white"
                       customDarkSquareStyle={{ backgroundColor: '#779556' }}
                       customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
                       arePiecesDraggable={true} 
-                      onPieceDrop={onPieceDrop}
-                      onSquareClick={onSquareClick}
-                      customSquareStyles={optionSquares}
-                      animationDuration={200}
+                      onPieceDrop={onDrop}
+                      onPieceDragBegin={onPieceDragBegin}
+                      onSquareClick={handleSquareClick}
+                      onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
+                      onSquareRightClick={() => { setClickedSquare(null); setOptionSquares({}); }}
+                      customSquareStyles={{ ...moveSquares, ...optionSquares }}
+                      animationDuration={250}
                   />
                 </div>
             </div>
 
-            {/* نوار ارزیابی در راست */}
-            <div className="w-6 shrink-0 bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden flex flex-col relative shadow-inner">
+            {/* نوار ارزیابی */}
+            <div className="w-6 shrink-0 bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden flex flex-col relative shadow-inner h-auto">
                 <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                 <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center pt-1">
                     <span className="text-[9px] font-mono font-black text-zinc-800 rotate-90 mt-4">
