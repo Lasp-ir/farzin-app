@@ -77,7 +77,7 @@ export default function AnalysisBoard() {
   const [tree, setTree] = useState<Record<string, MoveNode>>({});
   const [currentNodeId, setCurrentNodeId] = useState<string>('root');
   
-  const { isReady, engineStatus, evaluation, lines, analyze, stop } = useStockfish();
+  const { isReady, engineStatus, lines, analyze } = useStockfish();
 
   useEffect(() => {
     const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -189,7 +189,44 @@ export default function AnalysisBoard() {
     return { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
   }, [tree, currentNodeId]);
 
-  const evalPercentage = useMemo(() => Math.max(5, Math.min(95, 50 + (evaluation * 10))), [evaluation]);
+  // 🔥 سیستم ارزیابی مطلق (رفع باگ چرخش علامت و رفع باگ ۱۰۰ در حالت مات)
+  const isBlackTurn = activeGame.turn() === 'b';
+  
+  const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
+      if (!lines || lines.length === 0 || !lines[0]) {
+          return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
+      }
+      const main = lines[0];
+      // تبدیل امتیاز نسبی موتور به امتیاز مطلق (سفید مثبت، سیاه منفی)
+      const aScore = isBlackTurn ? -main.score : main.score;
+      const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
+      
+      let text = '0.00';
+      if (main.isMate) {
+          text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`;
+      } else {
+          text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+      }
+      
+      return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: main.isMate };
+  }, [lines, isBlackTurn]);
+
+  const evalPercentage = useMemo(() => {
+      if (isMate) return absoluteMate > 0 ? 95 : 5;
+      return Math.max(5, Math.min(95, 50 + (absoluteScore * 10)));
+  }, [absoluteScore, isMate, absoluteMate]);
+
+  // 🔥 سیستم استایل‌دهی هوشمند بر اساس برتری رنگ
+  const getBadgeStyle = (score: number, mateFlag: boolean, mateVal: number) => {
+      const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0;
+      const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
+      
+      if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200';
+      if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]';
+      return 'bg-[#262421] text-zinc-400 border-[#35332e]'; // حالت مساوی
+  };
+
+  const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
   const isOpeningPhase = currentNodeId === 'root' || (Object.keys(tree).length < 15);
   const displayEngineStatus = (isOpeningPhase && activeTab === 'explorer') ? 'reading books...' : (isReady ? `Farzin 1.0 (NNUE)` : engineStatus);
 
@@ -250,10 +287,8 @@ export default function AnalysisBoard() {
   }, [tree, currentNodeId]);
 
   return (
-    // 🔥 تغییر کلیدی ۱: قفل کردن ارتفاع به 100dvh و پنهان کردن اسکرول اضافی
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* هدر */}
       <div className={`flex-none w-full px-4 py-2.5 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] transition-colors text-zinc-400"><ChevronRight size={20} /></button>
         <div className="flex flex-col items-center">
@@ -266,7 +301,6 @@ export default function AnalysisBoard() {
         </div>
       </div>
 
-      {/* انجین داشبورد */}
       <div className={`flex-none w-full px-4 py-2 bg-gradient-to-b from-[#1a1916] to-[#12110f] border-b border-[#35332e] shadow-[0_4px_15px_rgba(0,0,0,0.3)] relative z-20 transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
           <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-2 bg-[#262421] px-2 py-0.5 rounded-md border border-[#35332e]">
@@ -274,12 +308,13 @@ export default function AnalysisBoard() {
                   <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{displayEngineStatus}</span>
                   {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
               </div>
-              <span className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded border ${evaluation > 0 ? 'bg-farzin-accent/10 text-farzin-accent border-farzin-accent/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                {evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2)}
+              {/* 🔥 بجِ ارزیابی کلی با استایل داینامیک */}
+              <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">
+                {overallEvalText}
               </span>
           </div>
           
-          <div className="flex flex-col gap-0.5" dir="ltr" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace" }}>
+          <div className="flex flex-col gap-0.5 mt-1" dir="ltr" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace" }}>
               {lines.length > 0 ? lines.slice(0, 3).map((line, idx) => {
                   const rawPv = line.pv || '';
                   let actualPv = rawPv;
@@ -288,14 +323,23 @@ export default function AnalysisBoard() {
                   const moves = actualPv.trim().split(' ');
                   const mainMove = moves[0] || '...';
                   const restMoves = moves.slice(1, 6).join(' ');
+                  
+                  // 🔥 محاسبه مطلق امتیاز برای هر لاین و اعمال استایل هوشمند
+                  const aScore = isBlackTurn ? -line.score : line.score;
+                  const aMate = isBlackTurn ? -(line.mateIn || 0) : (line.mateIn || 0);
+                  
                   let scoreText = '';
-                  if (line.isMate) scoreText = line.mateIn! > 0 ? `+M${line.mateIn}` : `-M${Math.abs(line.mateIn!)}`;
-                  else scoreText = line.score > 0 ? `+${line.score.toFixed(2)}` : line.score.toFixed(2);
+                  if (line.isMate) scoreText = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`;
+                  else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+
+                  const badgeStyle = getBadgeStyle(aScore, line.isMate, aMate);
 
                   return (
-                      <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-1.5 py-0.5 rounded transition-all ${idx === 0 ? 'bg-[#1e1c19] border border-[#35332e] shadow-sm' : ''}`}>
-                          <span className={`w-9 text-right font-black tracking-tighter ${idx === 0 ? 'text-amber-400' : 'text-zinc-500'}`}>{scoreText}</span>
-                          <span className={`font-bold ${idx === 0 ? 'text-white' : 'text-zinc-400'}`}>{mainMove}</span>
+                      <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-1.5 py-1 rounded transition-all ${idx === 0 ? 'bg-[#1e1c19] border border-[#35332e] shadow-sm' : ''}`}>
+                          <span className={`w-10 text-center font-black tracking-tighter rounded border px-1 py-0.5 ${badgeStyle}`}>
+                              {scoreText}
+                          </span>
+                          <span className={`font-bold ml-1 ${idx === 0 ? 'text-white' : 'text-zinc-400'}`}>{mainMove}</span>
                           <span className="text-zinc-500 truncate opacity-80">{restMoves}</span>
                       </div>
                   );
@@ -305,12 +349,10 @@ export default function AnalysisBoard() {
 
       <div className={`w-full flex-1 min-h-0 flex flex-col lg:flex-row transition-opacity duration-700 delay-100 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         
-        {/* 🔥 تغییر کلیدی ۲: ستون تخته با محدودیت ارتفاع هوشمند */}
         <div className="flex-none lg:flex-1 lg:max-w-[45vw] flex flex-col px-3 py-1 justify-center relative z-0 shrink-0">
             <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
             
             <div className="w-full flex justify-center py-0.5">
-                {/* محدودیت به ۴۸ درصد از ارتفاع کل صفحه تا فضا برای پایین باز بماند */}
                 <div className="flex w-full max-w-[min(100vw-1.5rem,48vh)] lg:max-w-[600px] aspect-square gap-1.5" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative">
                         <div className="w-full h-full rounded-md overflow-hidden">
@@ -327,7 +369,7 @@ export default function AnalysisBoard() {
                     <div className="w-3.5 shrink-0 bg-[#262421] rounded-lg overflow-hidden flex flex-col relative border border-[#35332e] shadow-inner">
                         <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                         <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center">
-                            <span className="text-[7px] font-mono font-black text-zinc-800 rotate-90 mt-4 absolute">{evaluation > 0 ? `+${evaluation.toFixed(1)}` : evaluation.toFixed(1)}</span>
+                            <span className="text-[7px] font-mono font-black text-zinc-800 rotate-90 mt-5 absolute">{overallEvalText}</span>
                         </div>
                     </div>
                 </div>
@@ -336,7 +378,6 @@ export default function AnalysisBoard() {
             <EditablePlayer color={boardOrientation === 'white' ? 'w' : 'b'} data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} />
         </div>
 
-        {/* 🔥 تغییر کلیدی ۳: ستون پنل‌ها با flex-1 min-h-0 برای اسکرول مستقل */}
         <div className="flex-1 min-h-0 flex flex-col bg-[#161512] border-t lg:border-t-0 lg:border-r border-[#35332e] relative z-10 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] lg:shadow-none rounded-t-2xl lg:rounded-none mt-2 lg:mt-0">
             
             <div className="flex-none px-3 py-2 border-b border-[#35332e] flex items-center justify-between bg-[#1a1916] rounded-t-2xl lg:rounded-none">
