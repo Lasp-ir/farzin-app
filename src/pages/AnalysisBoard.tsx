@@ -22,7 +22,6 @@ export interface MoveNode {
   depth: number;
 }
 
-// 🌟 سیستم طبقه‌بندی حرکات و پالت‌های رنگی مربی (Coach)
 const COACH_COLORS = {
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
   great: { color: '#3b82f6', text: 'عالی', icon: CheckCircle2 },
@@ -97,7 +96,6 @@ export default function AnalysisBoard() {
   const [tree, setTree] = useState<Record<string, MoveNode>>({});
   const [currentNodeId, setCurrentNodeId] = useState<string>('root');
   
-  // 🔥 سیستم کَش استوک‌فیش برای نگهداری ارزیابی‌های قبلی
   const engineCache = useRef<Record<string, any[]>>({});
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -108,7 +106,6 @@ export default function AnalysisBoard() {
   const [tempSettings, setTempSettings] = useState(engineSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  // تنظیمات راهنمای بصری (فلش‌ها و مانور)
   const [arrowSettings, setArrowSettings] = useState({ showArrows: true, showManeuvers: true });
   const [arrowColors, setArrowColors] = useState([COLOR_PALETTES[0], COLOR_PALETTES[2], COLOR_PALETTES[5]]);
   const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
@@ -135,7 +132,6 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
 
-  // ثبت لاین‌های فعلی در کش برای استفاده در حرکت بعدی
   useEffect(() => {
     if (lines && lines.length > 0) {
       engineCache.current[currentNodeId] = lines;
@@ -143,7 +139,6 @@ export default function AnalysisBoard() {
   }, [lines, currentNodeId]);
 
   const engineArrows = useMemo(() => {
-    // در این نسخه پایدار، فلش‌ها مستقل از Coach Mode رسم می‌شوند
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
     
     const arrowMap = new Map<string, any>();
@@ -155,7 +150,6 @@ export default function AnalysisBoard() {
         let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
         const match = actualPv.match(/[a-h][1-8][a-h][1-8]/);
         if (match && !rawPv.includes(' pv ')) actualPv = actualPv.substring(actualPv.indexOf(match[0]));
-        
         const moves = actualPv.trim().split(' ');
         if (!moves[0] || moves[0].length < 4) return;
 
@@ -164,10 +158,8 @@ export default function AnalysisBoard() {
         
         let alpha = 0.85; 
         if (index > 0) {
-            if (bestIsMate && !line.isMate) {
-                alpha = 0.15; 
-            } else if (!bestIsMate && !line.isMate) {
-                // اختلاف کیفیت حرکت بر حسب صدمِ پیاده (Centipawns)
+            if (bestIsMate && !line.isMate) alpha = 0.15; 
+            else if (!bestIsMate && !line.isMate) {
                 const diff = Math.abs(bestScore - line.score);
                 alpha = Math.max(0.15, 0.85 - (diff * 0.35));
             }
@@ -186,16 +178,11 @@ export default function AnalysisBoard() {
                 const uci = moves[i];
                 if (!uci || uci.length < 4) break;
                 const m = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
-                
-                if (m.from === currentTo) {
+                if (m.from === currentTo) { 
                     const maneuverKey = `${m.from}-${m.to}`;
-                    if (!arrowMap.has(maneuverKey)) {
-                        arrowMap.set(maneuverKey, [m.from, m.to, rgbaColor]);
-                    }
-                    currentTo = m.to;
-                } else {
-                    break;
-                }
+                    if (!arrowMap.has(maneuverKey)) arrowMap.set(maneuverKey, [m.from, m.to, rgbaColor]); 
+                    currentTo = m.to; 
+                } else break;
             }
         }
     });
@@ -203,25 +190,34 @@ export default function AnalysisBoard() {
     return Array.from(arrowMap.values());
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  const openSettingsModal = () => {
-    setTempSettings(engineSettings); 
-    setIsSettingsModalOpen(true);
-  };
+  const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
+  const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
 
   const handleApplySettings = () => {
     setEngineSettings(tempSettings); 
-    if (setOption) {
-      setOption('MultiPV', tempSettings.multiPv);
-      setOption('Threads', tempSettings.threads);
-      setOption('Hash', tempSettings.hash);
+    if (setOption) { setOption('MultiPV', tempSettings.multiPv); setOption('Threads', tempSettings.threads); setOption('Hash', tempSettings.hash); }
+    setIsSettingsModalOpen(false); showToast('تنظیمات با موفقیت اعمال شد');
+  };
+
+  const copyMainlinePgn = () => {
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+    let pgn = `[Event "Farzin Analysis"]\n[Site "Lasp - Farzin App"]\n[Date "${dateStr}"]\n[White "${playerMeta.white.name || 'White'}"]\n[Black "${playerMeta.black.name || 'Black'}"]\n`;
+    if (playerMeta.white.elo) pgn += `[WhiteElo "${playerMeta.white.elo}"]\n`;
+    if (playerMeta.black.elo) pgn += `[BlackElo "${playerMeta.black.elo}"]\n`;
+    pgn += `[Result "*"]\n\n`;
+
+    let movesString = ""; let curr = tree['root']?.childrenIds[0]; let moveNum = 1;
+    while(curr) {
+        const node = tree[curr];
+        if (node.depth % 2 !== 0) movesString += `${moveNum}. ${node.san} `;
+        else { movesString += `${node.san} `; moveNum++; }
+        curr = node.childrenIds[0]; 
     }
-    setIsSettingsModalOpen(false);
-    showToast('تنظیمات موتور با موفقیت اعمال شد');
+    pgn += movesString.trim() + " *"; navigator.clipboard.writeText(pgn); showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
+  };
+
+  const handleSaveAnalysis = () => {
+    if(!saveName.trim()) return; setIsSaveModalOpen(false); showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`); setSaveName("");
   };
 
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
@@ -229,18 +225,11 @@ export default function AnalysisBoard() {
       const tempGame = new Chess(currentPosition);
       const move = tempGame.move(moveParams);
       if (!move) return false;
-
       const newFen = tempGame.fen();
       const newNodeId = `${currentNodeId}-${move.san}`; 
-
       setTree(prev => {
         if (prev[currentNodeId].childrenIds.includes(newNodeId)) return prev;
-
-        const newNode: MoveNode = {
-          id: newNodeId, san: move.san, fen: newFen, move: move,
-          parentId: currentNodeId, childrenIds: [], depth: prev[currentNodeId].depth + 1
-        };
-
+        const newNode: MoveNode = { id: newNodeId, san: move.san, fen: newFen, move: move, parentId: currentNodeId, childrenIds: [], depth: prev[currentNodeId].depth + 1 };
         return { ...prev, [newNodeId]: newNode, [currentNodeId]: { ...prev[currentNodeId], childrenIds: [...prev[currentNodeId].childrenIds, newNodeId] } };
       });
       setCurrentNodeId(newNodeId);
@@ -251,11 +240,7 @@ export default function AnalysisBoard() {
   const prevMove = () => { const pid = tree[currentNodeId]?.parentId; if (pid) setCurrentNodeId(pid); };
   const nextMove = () => { const cids = tree[currentNodeId]?.childrenIds; if (cids && cids.length > 0) setCurrentNodeId(cids[0]); };
   const goStart = () => setCurrentNodeId('root');
-  const goEnd = () => {
-    let curr = currentNodeId;
-    while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0];
-    setCurrentNodeId(curr);
-  };
+  const goEnd = () => { let curr = currentNodeId; while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0]; setCurrentNodeId(curr); };
 
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
@@ -266,25 +251,14 @@ export default function AnalysisBoard() {
     const newSquares: any = {};
     moves.forEach((m: any) => {
       const isCapture = activeGame.get(m.to as any) && activeGame.get(m.to as any).color !== activeGame.get(sourceSquare as any)?.color;
-      newSquares[m.to] = {
-        backgroundImage: isCapture
-            ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.4) 67%, rgba(0,0,0,0.4) 100%)' 
-            : 'radial-gradient(circle, rgba(0,0,0,.4) 22%, transparent 23%)',
-      };
+      newSquares[m.to] = { backgroundImage: isCapture ? 'radial-gradient(circle, transparent 0%, transparent 65%, rgba(0,0,0,0.4) 67%, rgba(0,0,0,0.4) 100%)' : 'radial-gradient(circle, rgba(0,0,0,.4) 22%, transparent 23%)' };
     });
     newSquares[sourceSquare] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
     setOptionSquares(newSquares);
   };
 
-  const onPieceDragBegin = (piece: string, sourceSquare: string) => {
-    if (piece[0] !== activeGame.turn()) return;
-    setClickedSquare(sourceSquare); highlightLegalMoves(sourceSquare);
-  };
-
-  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
-    setOptionSquares({}); setClickedSquare(null);
-    return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' });
-  };
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => { if (piece[0] !== activeGame.turn()) return; setClickedSquare(sourceSquare); highlightLegalMoves(sourceSquare); };
+  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { setOptionSquares({}); setClickedSquare(null); return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' }); };
 
   const handleSquareClick = (square: string) => {
     if (clickedSquare === square) { setClickedSquare(null); setOptionSquares({}); return; }
@@ -295,51 +269,33 @@ export default function AnalysisBoard() {
       }
     }
     const pieceOnSquare = activeGame.get(square as any);
-    if (pieceOnSquare && pieceOnSquare.color === activeGame.turn()) {
-      setClickedSquare(square); highlightLegalMoves(square);
-    } else { setClickedSquare(null); setOptionSquares({}); }
+    if (pieceOnSquare && pieceOnSquare.color === activeGame.turn()) { setClickedSquare(square); highlightLegalMoves(square); } 
+    else { setClickedSquare(null); setOptionSquares({}); }
   };
 
-  // 🔥 الگوریتم تبدیل فرمت UCI به SAN برای سیستم Show Me
   const executeVariation = (startNodeId: string, uciMovesString: string) => {
     const uciMoves = uciMovesString.trim().split(' ').slice(0, 12);
     if (uciMoves.length === 0) return;
-    
     let tempGame = new Chess(tree[startNodeId].fen);
     let currId = startNodeId;
     let newNodes: Record<string, MoveNode> = {};
-    
     for (const uci of uciMoves) {
         if (!uci || uci.length < 4) break;
         const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) };
         if (uci.length > 4) moveParams.promotion = uci[4];
-        
         const move = tempGame.move(moveParams);
         if (!move) break;
-        
         const nextFen = tempGame.fen();
         const nextId = `${currId}-${move.san}`;
-        
-        newNodes[nextId] = {
-            id: nextId, san: move.san, fen: nextFen, move: move,
-            parentId: currId, childrenIds: [], depth: (tree[currId]?.depth || 0) + 1
-        };
-        
-        // آپدیت کردن والد
-        if (currId !== startNodeId) {
-            newNodes[currId].childrenIds.push(nextId);
-        }
+        newNodes[nextId] = { id: nextId, san: move.san, fen: nextFen, move: move, parentId: currId, childrenIds: [], depth: (tree[currId]?.depth || 0) + 1 };
+        if (currId !== startNodeId) newNodes[currId].childrenIds.push(nextId);
         currId = nextId;
     }
-
     setTree(prev => {
         let updatedTree = { ...prev, ...newNodes };
         const firstNewId = Object.keys(newNodes)[0];
         if (firstNewId && !updatedTree[startNodeId].childrenIds.includes(firstNewId)) {
-            updatedTree[startNodeId] = {
-                ...updatedTree[startNodeId],
-                childrenIds: [...updatedTree[startNodeId].childrenIds, firstNewId]
-            };
+            updatedTree[startNodeId] = { ...updatedTree[startNodeId], childrenIds: [...updatedTree[startNodeId].childrenIds, firstNewId] };
         }
         return updatedTree;
     });
@@ -366,38 +322,9 @@ export default function AnalysisBoard() {
     }
   };
 
-  const copyMainlinePgn = () => {
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
-    let pgn = `[Event "Farzin Analysis"]\n[Site "Lasp - Farzin App"]\n[Date "${dateStr}"]\n[White "${playerMeta.white.name || 'White'}"]\n[Black "${playerMeta.black.name || 'Black'}"]\n`;
-    if (playerMeta.white.elo) pgn += `[WhiteElo "${playerMeta.white.elo}"]\n`;
-    if (playerMeta.black.elo) pgn += `[BlackElo "${playerMeta.black.elo}"]\n`;
-    pgn += `[Result "*"]\n\n`;
-
-    let movesString = "";
-    let curr = tree['root']?.childrenIds[0];
-    let moveNum = 1;
-    while(curr) {
-        const node = tree[curr];
-        if (node.depth % 2 !== 0) movesString += `${moveNum}. ${node.san} `;
-        else { movesString += `${node.san} `; moveNum++; }
-        curr = node.childrenIds[0]; 
-    }
-    
-    pgn += movesString.trim() + " *";
-    navigator.clipboard.writeText(pgn);
-    showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
-  };
-
-  const handleSaveAnalysis = () => {
-    if(!saveName.trim()) return;
-    setIsSaveModalOpen(false);
-    showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`);
-    setSaveName("");
-  };
-
   const isBlackTurn = activeGame.turn() === 'b';
   
-  // 🔥 سیستم ارزیابی پایدار (Stable Base Classification)
+  // 🌟 قلب موتور مربی (هوش مصنوعی دو فازی برای تشخیص حرکات عالی، درخشان و از دست رفته)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -406,27 +333,28 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
-    // پیدا کردن رنگ بازیکنی که حرکت را انجام داده (Parent)
-    const parentTurnIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
-    
-    // امتیازها همیشه نسبت به کسی است که نوبتش است. برای محاسبه درست، آنها را به دیدگاه سفید تبدیل می‌کنیم.
-    const beforeScoreAbsolute = parentTurnIsBlack ? -parentLines[0].score : parentLines[0].score;
-    const currentScoreAbsolute = isBlackTurn ? -lines[0].score : lines[0].score; 
+    // تشخیص دقیق بازیکنی که حرکت را انجام داده است
+    const turnBeforeMove = new Chess(tree[parentId].fen).turn();
+    const playerIsWhite = turnBeforeMove === 'w';
+
+    // استخراج امتیازات از دیدگاه بازیکنی که حرکت را انجام داده است
+    const scoreBeforePlayer = parentLines[0].score; // Parent Lines از دیدگاه بازیکن فعلی است
+    // Lines فعلی از دیدگاه حریف است، پس قرینه می‌شود تا دیدگاه بازیکن حفظ شود
+    const scoreAfterPlayer = -lines[0].score; 
     
     let cpLoss = 0;
     
+    // مدیریت استثناهای مربوط به مات شدن
     if (parentLines[0].isMate || lines[0].isMate) {
         if (parentLines[0].isMate && !lines[0].isMate) {
-            const mateWasForPlayer = parentTurnIsBlack ? parentLines[0].mateIn! < 0 : parentLines[0].mateIn! > 0;
-            if (mateWasForPlayer) cpLoss = 3.0; // از دست دادن مات قطعی = فاجعه
+            const mateForPlayer = parentLines[0].mateIn! > 0;
+            if (mateForPlayer) cpLoss = 3.0; // از دست دادن یک مات قطعی!
         } else if (!parentLines[0].isMate && lines[0].isMate) {
-            const mateIsAgainstPlayer = isBlackTurn ? lines[0].mateIn! > 0 : lines[0].mateIn! < 0;
-            if (mateIsAgainstPlayer) cpLoss = 3.0; // دادن مات قطعی به حریف = فاجعه
+            const mateAgainstPlayer = lines[0].mateIn! > 0; // چون lines از دید حریف است، >0 یعنی حریف مات می‌کند
+            if (mateAgainstPlayer) cpLoss = 3.0; // یک مات قطعی به حریف تقدیم شد!
         }
     } else {
-        // محاسبه میزان افت امتیاز برای بازیکنی که الان حرکت کرده
-        cpLoss = parentTurnIsBlack ? (currentScoreAbsolute - beforeScoreAbsolute) : (beforeScoreAbsolute - currentScoreAbsolute);
-        cpLoss = Math.max(0, cpLoss); // نادیده گرفتن نوسانات مثبت موتور
+        cpLoss = Math.max(0, scoreBeforePlayer - scoreAfterPlayer);
     }
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
@@ -436,21 +364,93 @@ export default function AnalysisBoard() {
     const bestUciMove = parentActualPv.trim().split(' ')[0];
     const userUciMove = `${tree[currentNodeId].move.from}${tree[currentNodeId].move.to}${tree[currentNodeId].move.promotion || ''}`;
 
-    // تشخیص مرحله بازی با شمردن مهره‌های روی تخته
     const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     const isEndgame = fenBeforeCount <= 16; 
 
-    // تعیین آستانه‌های داینامیک بر اساس مرحله بازی
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // طبقه‌بندی حرکات (بدون درگیر کردن حرکات ویژه)
+    // ==========================================
+    // فاز اول: طبقه‌بندی پایه (Base CP-Loss Logic)
+    // ==========================================
     if (userUciMove === bestUciMove) classificationKey = 'best';
     else if (cpLoss <= 0.10) classificationKey = 'excellent'; 
     else if (cpLoss <= 0.50) classificationKey = 'good';      
     else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
     else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
     else classificationKey = 'blunder'; 
+
+    // فرمول تبدیل امتیاز (به واحد پیاده) به درصد احتمال برد (Expected Points)
+    const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
+
+    // ==========================================
+    // فاز دوم: اعمال فیلترهای ارتقا دهنده (Contextual Modifiers)
+    // ==========================================
+
+    // 🎯 فیلتر Miss (از دست رفته)
+    if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
+        const grandParentId = tree[parentId].parentId;
+        if (grandParentId) {
+            const grandparentLines = engineCache.current[grandParentId];
+            if (grandparentLines && grandparentLines[0]) {
+                // دو حرکت قبل، نوبت حریف بوده. امتیاز را قرینه می‌کنیم تا دیدگاه "بازیکن فعلی" به دست آید
+                const scoreBeforeOpponent = -grandparentLines[0].score;
+                const epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? 0 : 1) : epFormula(scoreBeforeOpponent);
+                
+                const epBeforePlayer = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforePlayer);
+                const epAfterPlayer = lines[0].isMate ? (lines[0].mateIn! > 0 ? 0 : 1) : epFormula(scoreAfterPlayer);
+                
+                // آیا حریف با حرکت قبلی‌اش یک برتری بزرگ (حداقل ۱۵٪ شانس برد اضافی) به ما داده بود؟
+                if (epBeforePlayer - epBeforeOpponent >= 0.15) {
+                    // و آیا ما با این حرکتمون اون شانس برد رو دوباره از بین بردیم و به وضعیت قبل از اشتباه حریف برگشتیم؟
+                    if (epAfterPlayer <= epBeforeOpponent + 0.05) {
+                        classificationKey = 'miss';
+                    }
+                }
+            }
+        }
+    }
+
+    // 🎯 فیلتر Great (عالی) و Brilliant (درخشان)
+    if (['best', 'excellent'].includes(classificationKey)) {
+        if (parentLines.length > 1) {
+            
+            const ep1 = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforePlayer);
+            const scoreSecondBestPlayer = parentLines[1].score;
+            const ep2 = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1 : 0) : epFormula(scoreSecondBestPlayer);
+
+            // آیا این پیدا کردن این حرکت، تنها راه زنده ماندن در بازی بود؟
+            const isOnlyGoodMove = (ep1 - ep2) >= 0.20; 
+            const isSavingMove = (ep1 >= 0.45 && ep2 <= 0.25);
+            const isWinningMove = (ep1 >= 0.75 && ep2 <= 0.55); 
+            const isNotBlowout = ep1 < 0.95 && ep2 < 0.90; 
+
+            if (isNotBlowout && (isOnlyGoodMove || isSavingMove || isWinningMove)) {
+                classificationKey = 'great';
+                
+                // بررسی Brilliant: تست فداکاری بدون تکیه بر PV آینده
+                let isSacrifice = false;
+                try {
+                    // شبیه‌ساز را دقیقاً در وضعیت بعد از حرکتِ ما قرار می‌دهیم (جایی که نوبت حریف است)
+                    const tempG = new Chess(tree[currentNodeId].fen); 
+                    const oppMoves = tempG.moves({ verbose: true });
+                    
+                    // آیا حریف می‌تونه تو این لحظه یکی از مهره‌های ارزشمندِ ما رو بزنه؟
+                    for (const m of oppMoves) {
+                        if (m.captured && ['n', 'b', 'r', 'q'].includes(m.captured.toLowerCase())) {
+                            isSacrifice = true;
+                            break;
+                        }
+                    }
+                } catch(e) {}
+
+                // اگر مهره‌ای زیر ضرب است، اما استوک‌فیش به حرکتِ ما میگه بهترین، یعنی این یک قربانیِ آگاهانه است!
+                if (isSacrifice && ep1 < 0.85) {
+                    classificationKey = 'brilliant';
+                }
+            }
+        }
+    }
 
     let bestSanMove = '...';
     try {
@@ -466,14 +466,13 @@ export default function AnalysisBoard() {
         userSan: tree[currentNodeId].san 
     };
 
-  }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
+  }, [currentNodeId, lines, engineSettings.coachMode, tree]);
 
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
     if (!node || node.id === 'root' || !node.move) return {};
     let customSq: any = { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
     
-    // اگر مربی روشنه، روی مهره آخر هاله رنگی میندازه
     if (coachData && coachData.key !== 'loading' && engineSettings.coachMode) {
        customSq[node.move.to] = { 
          backgroundColor: 'rgba(255, 255, 0, 0.4)',
@@ -578,7 +577,6 @@ export default function AnalysisBoard() {
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* پاپ‌آپ‌های نوتیفیکیشن (Toast) */}
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
           {toastMessage && (
@@ -595,7 +593,6 @@ export default function AnalysisBoard() {
         </AnimatePresence>
       </div>
 
-      {/* مدال ذخیره‌سازی */}
       <AnimatePresence>
         {isSaveModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
@@ -627,7 +624,6 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* مدال تنظیمات پیشرفته موتور */}
       <AnimatePresence>
         {isSettingsModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
@@ -730,7 +726,6 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* پاپ‌آپ تنظیمات راهنمای بصری */}
       <AnimatePresence>
         {isArrowModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
