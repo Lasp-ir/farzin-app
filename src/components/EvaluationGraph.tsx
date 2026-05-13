@@ -27,7 +27,6 @@ export default function EvaluationGraph({
   const [graphSettings, setGraphSettings] = useState({ showVariations: true });
   const [showGraphSettings, setShowGraphSettings] = useState(false);
 
-  // سیستم Padding ریاضی برای جلوگیری از برش خوردن (Clipping) آیکون‌ها
   const mapX = (pct: number) => 30 + pct * 940; 
   const mapY = (ep: number) => 270 - ep * 240; 
 
@@ -57,7 +56,6 @@ export default function EvaluationGraph({
   
   const handleGraphPointerLeave = () => setHoveredGraphIndex(null);
   
-  // کلیک روی خود گراف برای تغییر وضعیت تخته
   const handleGraphClick = () => {
       if (hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex]) {
           setCurrentNodeId(graphPoints[hoveredGraphIndex].node.id);
@@ -73,7 +71,6 @@ export default function EvaluationGraph({
 
   const renderGraphContent = (isFloating: boolean) => (
     <>
-       {/* هدر */}
        <div className={`flex items-center justify-between border-b border-[#35332e] bg-gradient-to-r from-[#1a1916] to-[#12110f] shrink-0 ${isFloating ? 'p-2 px-3 cursor-grab active:cursor-grabbing' : 'p-4 lg:px-6'}`}>
           <div className="flex items-center gap-3">
              <div className={`rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 ${isFloating ? 'w-6 h-6' : 'w-10 h-10'}`}>
@@ -110,11 +107,10 @@ export default function EvaluationGraph({
           </div>
        </div>
 
-       {/* ظرف گراف */}
        <div className="relative flex-1 w-full bg-[#100f0d]" onPointerMove={handleGraphPointerMove} onPointerLeave={handleGraphPointerLeave} onClick={handleGraphClick}>
           
-          {/* فازهای بازی */}
-          <div className="absolute inset-0 flex pointer-events-none px-[3%]">
+          {/* 🌟 باگ فازها: اضافه شدن dir="ltr" به این کانتینر تا گشایش سمت چپ بماند */}
+          <div className="absolute inset-0 flex pointer-events-none px-[3%]" dir="ltr">
              {graphPoints.length > 0 && ['opening', 'middlegame', 'endgame'].map(phase => {
                 const pointsInPhase = graphPoints.filter(p => p.phase === phase);
                 if (pointsInPhase.length === 0) return null;
@@ -129,7 +125,6 @@ export default function EvaluationGraph({
              })}
           </div>
 
-          {/* SVG گراف */}
           <svg ref={svgRef} viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full cursor-crosshair">
              <defs>
                 <linearGradient id="whiteAdvantage" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.3"/><stop offset="100%" stopColor="#ffffff" stopOpacity="0.0"/></linearGradient>
@@ -137,9 +132,7 @@ export default function EvaluationGraph({
                 <clipPath id="aboveZero"><rect x="0" y="0" width="1000" height="150" /></clipPath>
                 <clipPath id="belowZero"><rect x="0" y="150" width="1000" height="150" /></clipPath>
              </defs>
-             
              <line x1="0" y1="150" x2="1000" y2="150" stroke="#35332e" strokeWidth="1" strokeDasharray="4,4" />
-             
              <path d={safePaths.w} fill="url(#whiteAdvantage)" clipPath="url(#aboveZero)" />
              <path d={safePaths.b} fill="url(#blackAdvantage)" clipPath="url(#belowZero)" />
              
@@ -154,7 +147,6 @@ export default function EvaluationGraph({
              )}
           </svg>
 
-          {/* آیکون‌ها */}
           <div className="absolute inset-0 pointer-events-none">
              {graphPoints.map((pt, i) => {
                  if (!pt.coach || !['brilliant','great','blunder','mistake','miss'].includes(pt.coach.key)) return null;
@@ -162,22 +154,12 @@ export default function EvaluationGraph({
                  const y = mapY(pt.ep);
                  const leftPct = (x / 1000) * 100;
                  const topPct = (y / 300) * 100;
-                 
                  const size = isFloating ? 18 : 26;
                  const iconSize = isFloating ? 10 : 14;
                  
                  return (
-                     <motion.div key={i} 
-                         initial={{ scale: 0, opacity: 0 }} 
-                         animate={{ scale: 1, opacity: 1 }} 
-                         // 🌟 افکت هاور برای القای حس کلیک‌پذیری
-                         whileHover={{ scale: 1.25, transition: { duration: 0.2 } }}
-                         transition={{ delay: 0.5 + (i * 0.02), type: "spring" }} 
-                         // 🌟 کلیک مستقیم روی آیکون برای ناوبری سریع تخته
-                         onClick={(e) => {
-                             e.stopPropagation(); // جلوگیری از کلیک روی گرافِ زیرین
-                             setCurrentNodeId(pt.node.id);
-                         }}
+                     <motion.div key={i} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} whileHover={{ scale: 1.25, transition: { duration: 0.2 } }} transition={{ delay: 0.5 + (i * 0.02), type: "spring" }} 
+                         onClick={(e) => { e.stopPropagation(); setCurrentNodeId(pt.node.id); }}
                          className="absolute flex items-center justify-center rounded-full text-white shadow-lg border-2 border-[#100f0d] z-10 pointer-events-auto cursor-pointer" 
                          style={{ width: size, height: size, backgroundColor: pt.coach.color, left: `calc(${leftPct}% - ${size/2}px)`, top: `calc(${topPct}% - ${size/2}px)` }}>
                          {typeof pt.coach.icon === 'function' ? pt.coach.icon({size: iconSize}) : <pt.coach.icon size={iconSize} strokeWidth={3} />}
@@ -186,7 +168,6 @@ export default function EvaluationGraph({
              })}
           </div>
 
-          {/* تول‌تیپ */}
           {hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex] && (
              <div className="absolute top-2 pointer-events-none bg-[#1e1c19]/90 backdrop-blur border border-[#35332e] text-white px-2 py-1 rounded-lg shadow-2xl flex flex-col gap-0.5 z-50 transform -translate-x-1/2 min-w-[80px]" 
                   style={{ left: `${(mapX(hoveredGraphIndex / Math.max(1, maxX)) / 1000) * 100}%` }}>
@@ -205,38 +186,18 @@ export default function EvaluationGraph({
 
   return (
     <>
-      {/* فول اسکرین */}
       <AnimatePresence>
         {graphMode === 'fullscreen' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-10 bg-black/80 backdrop-blur-sm px-[5%]">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-              // 🌟 حالت کدر در فول اسکرین
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="bg-[#12110f] border border-[#35332e] w-full max-w-4xl h-[55vh] min-h-[350px] max-h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
-            >
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} className="bg-[#12110f] border border-[#35332e] w-full max-w-4xl h-[55vh] min-h-[350px] max-h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
               {renderGraphContent(false)}
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-
-      {/* پاپ‌آپ شناور درگ‌شونده (PiP) */}
       <AnimatePresence>
         {graphMode === 'floating' && (
-          <motion.div 
-            drag dragMomentum={false}
-            initial={{ opacity: 0, y: 50, scale: 0.9 }} 
-            // 🌟 شفافیت ۱۰٪ در حالت شناور
-            animate={{ opacity: 0.9, y: 0, scale: 1 }} 
-            exit={{ opacity: 0, scale: 0.8 }} 
-            whileHover={{ opacity: 1, transition: { duration: 0.2 } }} // زمان هاور کاملا کدر شود
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed bottom-6 left-6 z-[110] w-[320px] h-[220px] bg-[#12110f]/95 backdrop-blur-xl border border-[#35332e] shadow-2xl flex flex-col overflow-hidden rounded-xl"
-            style={{ touchAction: 'none' }} 
-          >
+          <motion.div drag dragMomentum={false} initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 0.9, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} whileHover={{ opacity: 1, transition: { duration: 0.2 } }} transition={{ type: "spring", stiffness: 300, damping: 25 }} className="fixed bottom-6 left-6 z-[110] w-[320px] h-[220px] bg-[#12110f]/95 backdrop-blur-xl border border-[#35332e] shadow-2xl flex flex-col overflow-hidden rounded-xl" style={{ touchAction: 'none' }}>
              {renderGraphContent(true)}
           </motion.div>
         )}

@@ -10,6 +10,7 @@ import {
 
 import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
+import OpeningExplorer from '../components/OpeningExplorer';
 import type { MoveNode } from '../utils/analysisConfig';
 import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
 
@@ -882,7 +883,22 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {activeTab === 'explorer' && (<div className="flex flex-col items-center justify-center h-full text-purple-500/50 gap-3"><BookOpen size={28} /><span className="text-xs font-sans">اتصال به دیتابیس لیچس به زودی...</span></div>)}
+                {/* 🌟 تب دیتابیس (Explorer) متصل شده به کامپوننت مجزا */}
+                {activeTab === 'explorer' && (
+                    <div className="absolute inset-0 p-2">
+                        <OpeningExplorer 
+                            fen={currentPosition} 
+                            onMoveSelect={(uci) => {
+                                // تبدیل فرمت UCI لیچس (e2e4) به فرمتی که انجین ما می‌فهمه
+                                addMoveToTree({ 
+                                    from: uci.slice(0, 2), 
+                                    to: uci.slice(2, 4), 
+                                    promotion: uci[4] 
+                                });
+                            }} 
+                        />
+                    </div>
+                )}
             </div>
 
         </div>
