@@ -22,14 +22,14 @@ export interface MoveNode {
   depth: number;
 }
 
-// 🌟 آیکون‌های متنی برای حرکاتی که نماد شطرنجی دارند
+// 🌟 آیکون‌های متنی
 const TextIcon = ({ text }: { text: string }) => (
-  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '12px' }}>{text}</span>
+  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '11px' }}>{text}</span>
 );
 
-// 🌟 سیستم طبقه‌بندی بومی‌سازی شده با آیکون‌های درخواستی
+// 🌟 پالت مربی
 const COACH_COLORS = {
-  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles }, // تغییر یافته برای تفاوت با Best
+  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
   great: { color: '#3b82f6', text: 'عالی', icon: Award }, 
   best: { color: '#22c55e', text: 'بهترین', icon: Star }, 
   excellent: { color: '#86efac', text: 'دقیق', icon: ThumbsUp }, 
@@ -380,7 +380,6 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // فاز ۱
     if (userUciMove === bestUciMove || cpLoss <= 0.05) {
         classificationKey = 'best';
     } else if (epB < 0.10) {
@@ -393,7 +392,6 @@ export default function AnalysisBoard() {
         else classificationKey = 'blunder'; 
     }
 
-    // فاز ۲
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
         if (grandParentId && grandparentFen) {
             const grandparentLines = engineCache.current[grandParentId];
@@ -481,8 +479,9 @@ export default function AnalysisBoard() {
         userSan: tree[currentNodeId].san 
     };
 
-  }, [currentNodeId, lines, engineSettings.coachMode, tree]);
+  }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
 
+  // محاسبه مختصات برای رندر آیکون روی تخته
   const getSquareCoordinates = (square: string) => {
     const col = square.charCodeAt(0) - 97; // a=0, h=7
     const row = parseInt(square[1]) - 1; // 1=0, 8=7
@@ -694,13 +693,14 @@ export default function AnalysisBoard() {
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
           
-          {/* 🌟 کانتینر با ارتفاع ثابت (Anti-Jitter) برای لاین‌های موتور */}
-          <div className="mt-2 min-h-[55px] flex flex-col justify-start">
+          {/* 🌟 کانتینر با ارتفاع ثابت (Fixed Height) برای جلوگیری از پرش صفحه */}
+          <div className="mt-2 h-[56px] flex flex-col justify-start overflow-hidden">
              {engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
                      <div className="flex flex-col items-center justify-center py-2 opacity-50"><Loader2 size={18} className="animate-spin text-farzin-accent mb-1"/><span className="text-[10px] font-sans">در حال بررسی دقیق حرکت...</span></div>
                  ) : (
-                     <motion.div initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} className="flex flex-col gap-1 bg-[#161512] rounded-xl p-2 border border-[#35332e] shadow-inner">
+                     <motion.div initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} className="flex flex-col gap-1 bg-[#161512] rounded-xl p-2 border border-[#35332e] shadow-inner h-full justify-center">
+                         
                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: `${coachData.color}20`, color: coachData.color }}>
@@ -710,7 +710,11 @@ export default function AnalysisBoard() {
                                    حرکت <span className="font-mono font-black text-white px-1">{coachData.userSan}</span> <span className="font-bold" style={{color: coachData.color}}>{coachData.text}</span> بود.
                                 </span>
                             </div>
-                            <button onClick={()=>handleShowMe(false)} className="text-[9px] font-bold bg-[#262421] border border-[#35332e] px-2 py-1 rounded hover:bg-[#35332e] transition-colors">نشونم بده</button>
+                            
+                            {/* دکمه "نشونم بده" را فقط زمانی نشان می‌دهیم که خط دوم وجود نداشته باشد */}
+                            { (['best', 'brilliant', 'great'].includes(coachData.key) || coachData.bestSan === '...') && (
+                                <button onClick={()=>handleShowMe(false)} className="text-[9px] font-bold bg-[#262421] border border-[#35332e] px-2 py-1 rounded hover:bg-[#35332e] transition-colors shrink-0">نشونم بده</button>
+                            )}
                          </div>
 
                          { !['best', 'brilliant', 'great'].includes(coachData.key) && coachData.bestSan !== '...' && (
@@ -723,9 +727,10 @@ export default function AnalysisBoard() {
                                        اما بهترین حرکت <span className="font-mono font-black text-zinc-200 px-1">{coachData.bestSan}</span> بود.
                                     </span>
                                 </div>
-                                <button onClick={()=>handleShowMe(true)} className="text-[9px] font-bold bg-[#1e1c19] text-farzin-accent border border-farzin-accent/30 px-2 py-1 rounded hover:bg-farzin-accent hover:text-white transition-colors">نشونم بده</button>
+                                <button onClick={()=>handleShowMe(true)} className="text-[9px] font-bold bg-[#1e1c19] text-farzin-accent border border-farzin-accent/30 px-2 py-1 rounded hover:bg-farzin-accent hover:text-white transition-colors shrink-0">نشونم بده</button>
                              </div>
                          )}
+
                      </motion.div>
                  )
              ) : (
@@ -757,9 +762,11 @@ export default function AnalysisBoard() {
             <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
             
             <div className="w-full flex justify-center py-0.5">
-                <div className="flex w-full max-w-[min(100vw-1.5rem,48vh)] lg:max-w-[600px] aspect-square gap-1.5 relative" dir="ltr">
-                    <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative">
-                        <div className="w-full h-full rounded-md overflow-hidden relative">
+                {/* 🌟 استایل‌های آپدیت‌شده‌ی کانتینر برای رفع باگ پرش Aspect Ratio */}
+                <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
+                    <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative flex flex-col justify-center">
+                        {/* اعمال aspect-square مستقیماً روی کادرِ دربرگیرنده‌ی تخته */}
+                        <div className="w-full aspect-square rounded-md relative z-10">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
                               customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
@@ -770,7 +777,7 @@ export default function AnalysisBoard() {
                               customArrows={engineArrows} animationDuration={200}
                           />
 
-                          {/* 🌟 شبکه‌ی هم‌پوشان برای رندر آیکون و انیمیشن روی خانه‌ی مقصد */}
+                          {/* 🌟 شبکه‌ی هم‌پوشان (Grid) کاملاً منطبق بر خانه‌ها */}
                           {engineSettings.coachMode && coachData && tree[currentNodeId] && tree[currentNodeId].id !== 'root' && (
                             <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8">
                                 {Array.from({ length: 64 }).map((_, i) => {
@@ -786,38 +793,41 @@ export default function AnalysisBoard() {
                                         return (
                                             <div key={i} className="relative w-full h-full flex items-center justify-center">
                                                 
-                                                {/* افکت‌های پس‌زمینه درخشان و فاجعه */}
+                                                {/* 🌟 هاله‌های متحرک و محو (Radial Gradients) - بدون لرزش زشت */}
                                                 {coachData.key === 'brilliant' && (
                                                     <motion.div 
-                                                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.9, 0.5] }}
-                                                        transition={{ duration: 1.5, repeat: Infinity }}
-                                                        className="absolute inset-0 bg-[#2dd4bf] mix-blend-screen shadow-[0_0_30px_#2dd4bf]"
+                                                        animate={{ scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] }}
+                                                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                                                        className="absolute inset-0 z-0"
+                                                        style={{ background: 'radial-gradient(circle, rgba(45,212,191,0) 10%, rgba(45,212,191,0.6) 60%, rgba(45,212,191,0) 100%)' }}
                                                     />
                                                 )}
                                                 {coachData.key === 'great' && (
                                                     <motion.div 
-                                                        animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.7, 0.4] }}
-                                                        transition={{ duration: 2, repeat: Infinity }}
-                                                        className="absolute inset-0 bg-[#3b82f6] mix-blend-screen"
+                                                        animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }}
+                                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                                        className="absolute inset-0 z-0"
+                                                        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0) 10%, rgba(59,130,246,0.5) 60%, rgba(59,130,246,0) 100%)' }}
                                                     />
                                                 )}
                                                 {coachData.key === 'blunder' && (
                                                     <motion.div 
-                                                        animate={{ x: [-4, 4, -4, 4, 0] }}
-                                                        transition={{ duration: 0.3 }}
-                                                        className="absolute inset-0 bg-red-600/60 mix-blend-multiply"
+                                                        animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }}
+                                                        transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
+                                                        className="absolute inset-0 z-0"
+                                                        style={{ background: 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }}
                                                     />
                                                 )}
 
-                                                {/* 🌟 آیکون (Badge) متصل به گوشه بالا راست خانه */}
+                                                {/* 🌟 آیکونِ بزرگتر (Badge) - هل داده شده به بیرون (Top-Right) */}
                                                 <motion.div 
                                                     initial={{ scale: 0, opacity: 0 }}
                                                     animate={{ scale: 1, opacity: 1 }}
                                                     transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                                                    className="absolute top-0 right-0 w-[22px] h-[22px] rounded-bl-lg rounded-tr-md flex items-center justify-center text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)] border-l border-b border-black/20"
+                                                    className="absolute -top-[6px] -right-[6px] w-[22px] h-[22px] rounded-full flex items-center justify-center text-white shadow-[0_4px_10px_rgba(0,0,0,0.6)] border border-black/40 z-10"
                                                     style={{ backgroundColor: coachData.color }}
                                                 >
-                                                    {typeof coachData.icon === 'function' ? coachData.icon({size: 14}) : <coachData.icon size={14} strokeWidth={3} />}
+                                                    {typeof coachData.icon === 'function' ? coachData.icon({size: 13}) : <coachData.icon size={13} strokeWidth={3} />}
                                                 </motion.div>
                                                 
                                             </div>
