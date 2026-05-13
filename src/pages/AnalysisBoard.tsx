@@ -5,7 +5,7 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw // 🌟 اضافه شد
+  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw, AlertOctagon // 🌟 اضافه شدن آیکون هشدار
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -35,6 +35,7 @@ export default function AnalysisBoard() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false); // 🌟 استیت برای مودال ریست
   const [saveName, setSaveName] = useState("");
 
   const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0, coachMode: true });
@@ -76,7 +77,6 @@ export default function AnalysisBoard() {
     }
   }, [lines, currentNodeId]);
 
-  // 🌟 ماشین محاسبه مربی: باگِ تشخیص مات برطرف شد
   const calculateNodeCoachData = useCallback((nodeId: string, currentLines: any[], t: Record<string, MoveNode>) => {
     if (!engineSettings.coachMode || nodeId === 'root') return null;
     const node = t[nodeId];
@@ -99,11 +99,9 @@ export default function AnalysisBoard() {
     const parentIsMate = pg.isCheckmate();
     const parentIsDraw = pg.isDraw() || pg.isStalemate() || pg.isThreefoldRepetition() || pg.isInsufficientMaterial();
 
-    // اگر بازی تموم نشده و موتور هم لاین نداره، در حال لودینگه
     if (!parentIsMate && !parentIsDraw && (!parentLines || !parentLines[0])) return COACH_COLORS.loading;
     if (!isMate && !isDraw && (!currentLines || !currentLines[0])) return COACH_COLORS.loading;
 
-    // استخراج امتیاز خالص با دور زدن موتور در حالت پایان بازی
     let absScoreB = 0;
     if (parentIsMate) absScoreB = playerWhoMovedIsBlack ? 100 : -100;
     else if (parentIsDraw) absScoreB = 0;
@@ -123,7 +121,6 @@ export default function AnalysisBoard() {
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
-    // اگر حرکت منجر به ماتِ حریف بشه، مستقیماً به عنوان بهترین در نظر گرفته می‌شه
     let bestUciMove = '';
     if (parentLines && parentLines[0]) {
         const rawParentPv = parentLines[0].pv || '';
@@ -221,7 +218,6 @@ export default function AnalysisBoard() {
       return Math.max(1, maxLen - 1);
   }, [activeMainline, allPaths]);
 
-  // 🌟 امتیازدهیِ بی‌نقص گراف در حالت مات و مساوی (جلوگیری از افتِ ناگهانی)
   const graphPoints = useMemo(() => {
       return activeMainline.map(node => {
           const isCurrent = node.id === currentNodeId;
@@ -376,6 +372,16 @@ export default function AnalysisBoard() {
     if(!saveName.trim()) return; setIsSaveModalOpen(false); showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`); setSaveName("");
   };
 
+  // 🌟 تابع اجرای پاکسازی نهایی (وقتی کاربر تو مودال بله رو زد)
+  const confirmResetAnalysis = () => {
+      const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      setTree({ 'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 } });
+      setCurrentNodeId('root');
+      engineCache.current = {}; 
+      setIsResetModalOpen(false); // بستن مودال
+      showToast('آنالیز با موفقیت پاک شد');
+  };
+
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
     try {
       const tempGame = new Chess(currentPosition);
@@ -489,16 +495,6 @@ export default function AnalysisBoard() {
     return customSq;
   }, [tree, currentNodeId]);
 
-  const resetAnalysis = () => {
-    if (window.confirm('آیا از پاک کردن کل آنالیز و بازگشت به نقطه شروع اطمینان دارید؟')) {
-      const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-      setTree({ 'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 } });
-      setCurrentNodeId('root');
-      engineCache.current = {}; // خالی کردن کش برای آنالیز مجدد
-      showToast('آنالیز با موفقیت ریست شد');
-    }
-  };
-
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       const main = lines[0]; const aScore = isBlackTurn ? -main.score : main.score; const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
@@ -543,7 +539,6 @@ export default function AnalysisBoard() {
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* کامپوننت گراف استخراج‌شده */}
       <EvaluationGraph 
          graphMode={graphMode} setGraphMode={setGraphMode}
          graphPoints={graphPoints} activeMainline={activeMainline} ghostPaths={ghostPaths}
@@ -572,6 +567,46 @@ export default function AnalysisBoard() {
                <div className="flex gap-2 w-full">
                   <button onClick={() => setIsSaveModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">لغو</button>
                   <button onClick={handleSaveAnalysis} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">ذخیره در آرشیو</button>
+               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🌟 پاپ‌آپ جدید و مدرن تایید ریست آنالیز */}
+      <AnimatePresence>
+        {isResetModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className="bg-[#12110f] border border-red-500/20 rounded-2xl p-6 w-full max-w-sm shadow-[0_20px_50px_rgba(239,68,68,0.1)] flex flex-col relative"
+            >
+               <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 shadow-inner">
+                     <AlertOctagon size={24} />
+                  </div>
+                  <div className="flex flex-col">
+                     <h2 className="font-black text-white text-lg tracking-tight">پاک کردن آنالیز</h2>
+                     <span className="text-[10px] text-red-400/80 font-bold">این عمل غیرقابل بازگشت است!</span>
+                  </div>
+               </div>
+               
+               <div className="bg-[#1a1916] border border-[#35332e] p-3 rounded-xl mb-6">
+                  <p className="text-xs text-zinc-400 leading-relaxed text-justify">
+                     آیا از پاک کردن کامل تاریخچه‌ی حرکات و بازگشت به پوزیسیون اولیه اطمینان دارید؟ تمام شاخه‌های فرعی بررسی شده نیز حذف خواهند شد.
+                  </p>
+               </div>
+
+               <div className="flex gap-3 w-full">
+                  <button onClick={() => setIsResetModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-300 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">
+                      انصراف
+                  </button>
+                  <button onClick={confirmResetAnalysis} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 text-sm rounded-xl transition-all shadow-[0_0_15px_rgba(239,68,68,0.4)] active:scale-95 flex items-center justify-center gap-2">
+                      <RotateCcw size={16} /> بله، پاک شود
+                  </button>
                </div>
             </motion.div>
           </div>
@@ -832,9 +867,11 @@ export default function AnalysisBoard() {
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
                   
-                  <button onClick={resetAnalysis} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز">
+                  {/* 🌟 دکمه فراخوانی مودال ریست */}
+                  <button onClick={() => setIsResetModalOpen(true)} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز">
                     <RotateCcw size={16} />
                   </button>
+
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
@@ -897,18 +934,12 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* 🌟 تب دیتابیس (Explorer) متصل شده به کامپوننت مجزا */}
                 {activeTab === 'explorer' && (
                     <div className="absolute inset-0 p-2">
                         <OpeningExplorer 
                             fen={currentPosition} 
                             onMoveSelect={(uci) => {
-                                // تبدیل فرمت UCI لیچس (e2e4) به فرمتی که انجین ما می‌فهمه
-                                addMoveToTree({ 
-                                    from: uci.slice(0, 2), 
-                                    to: uci.slice(2, 4), 
-                                    promotion: uci[4] 
-                                });
+                                addMoveToTree({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
                             }} 
                         />
                     </div>
