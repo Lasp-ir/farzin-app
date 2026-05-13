@@ -5,7 +5,7 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2
+  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw // 🌟 اضافه شد
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -489,6 +489,16 @@ export default function AnalysisBoard() {
     return customSq;
   }, [tree, currentNodeId]);
 
+  const resetAnalysis = () => {
+    if (window.confirm('آیا از پاک کردن کل آنالیز و بازگشت به نقطه شروع اطمینان دارید؟')) {
+      const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      setTree({ 'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 } });
+      setCurrentNodeId('root');
+      engineCache.current = {}; // خالی کردن کش برای آنالیز مجدد
+      showToast('آنالیز با موفقیت ریست شد');
+    }
+  };
+
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       const main = lines[0]; const aScore = isBlackTurn ? -main.score : main.score; const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
@@ -821,6 +831,10 @@ export default function AnalysisBoard() {
             <div className="flex-none px-3 py-2 border-b border-[#35332e] flex items-center justify-between bg-[#1a1916] rounded-t-2xl lg:rounded-none">
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
+                  
+                  <button onClick={resetAnalysis} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز">
+                    <RotateCcw size={16} />
+                  </button>
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
