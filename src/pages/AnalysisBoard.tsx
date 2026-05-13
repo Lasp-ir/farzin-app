@@ -5,12 +5,11 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, X
+  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
-
 import type { MoveNode } from '../utils/analysisConfig';
 import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
 
@@ -45,7 +44,6 @@ export default function AnalysisBoard() {
   const [arrowColors, setArrowColors] = useState([COLOR_PALETTES[0], COLOR_PALETTES[2], COLOR_PALETTES[5]]);
   const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
 
-  // حالت گراف
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
@@ -189,6 +187,13 @@ export default function AnalysisBoard() {
       return paths;
   }, [tree]);
 
+  // 🌟 استخراج بزرگترین شاخه ممکنه برای تنظیم هوشمندانه مقیاس X گراف
+  const maxX = useMemo(() => {
+      let maxLen = activeMainline.length;
+      allPaths.forEach(p => { if (p.length > maxLen) maxLen = p.length; });
+      return Math.max(1, maxLen - 1);
+  }, [activeMainline, allPaths]);
+
   const graphPoints = useMemo(() => {
       return activeMainline.map(node => {
           const isCurrent = node.id === currentNodeId;
@@ -218,7 +223,7 @@ export default function AnalysisBoard() {
 
   const { areaWhite, areaBlack, linePath, ghostPaths } = useMemo(() => {
     if (graphPoints.length === 0) return { areaWhite: '', areaBlack: '', linePath: '', ghostPaths: [] };
-    const maxX = Math.max(1, activeMainline.length - 1);
+    
     let wPath = `M 0,150 `, bPath = `M 0,150 `, lPath = ``;
     
     graphPoints.forEach((pt, i) => {
@@ -249,7 +254,7 @@ export default function AnalysisBoard() {
         }
     });
     return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
-  }, [graphPoints, activeMainline, allPaths]);
+  }, [graphPoints, activeMainline, allPaths, maxX]);
 
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
@@ -481,11 +486,11 @@ export default function AnalysisBoard() {
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* 🌟 کامپوننت گراف استخراج‌شده */}
+      {/* 🌟 کامپوننت گراف با ارسال پارامترِ بسیار مهمِ maxX */}
       <EvaluationGraph 
          graphMode={graphMode} setGraphMode={setGraphMode}
          graphPoints={graphPoints} activeMainline={activeMainline} ghostPaths={ghostPaths}
-         areaWhite={areaWhite} areaBlack={areaBlack} linePath={linePath} stats={null}
+         areaWhite={areaWhite} areaBlack={areaBlack} linePath={linePath} maxX={maxX} stats={null}
          currentNodeId={currentNodeId} setCurrentNodeId={setCurrentNodeId}
       />
 
@@ -706,7 +711,8 @@ export default function AnalysisBoard() {
             <div className="w-full flex justify-center py-0.5">
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative flex flex-col justify-center">
-                        <div className="w-full aspect-square rounded-md relative z-10">
+                        {/* 🌟 اضافه شدن کلاس flex برای رفع باگ Baseline Offset در Grid */}
+                        <div className="w-full aspect-square rounded-md relative z-10 flex">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
                               customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
@@ -804,6 +810,7 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
+                {/* تب گراف مینیاتوری */}
                 {activeTab === 'graph' && (
                     <div className="absolute inset-0 p-3 flex flex-col">
                         <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512]">

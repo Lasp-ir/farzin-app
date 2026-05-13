@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Settings, Maximize2, Minimize2, X, BarChart2, Sparkles, Award, AlertTriangle } from 'lucide-react';
-import { TextIcon, ToggleSwitch } from '../utils/analysisConfig';
+import { TrendingUp, Settings, Maximize2, Minimize2, X, BarChart2 } from 'lucide-react';
+import { ToggleSwitch, TextIcon } from '../utils/analysisConfig';
 
 interface EvaluationGraphProps {
   graphMode: 'hidden' | 'fullscreen' | 'floating';
@@ -12,6 +12,7 @@ interface EvaluationGraphProps {
   areaWhite: string;
   areaBlack: string;
   linePath: string;
+  maxX: number; // 🌟 اضافه شدن طولانی‌ترین مسیر
   stats: any;
   currentNodeId: string;
   setCurrentNodeId: (id: string) => void;
@@ -19,7 +20,7 @@ interface EvaluationGraphProps {
 
 export default function EvaluationGraph({
   graphMode, setGraphMode, graphPoints, activeMainline, ghostPaths,
-  areaWhite, areaBlack, linePath, stats, currentNodeId, setCurrentNodeId
+  areaWhite, areaBlack, linePath, maxX, stats, currentNodeId, setCurrentNodeId
 }: EvaluationGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoveredGraphIndex, setHoveredGraphIndex] = useState<number | null>(null);
@@ -31,11 +32,15 @@ export default function EvaluationGraph({
       const rect = svgRef.current.getBoundingClientRect();
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const pct = x / rect.width;
-      const maxX = Math.max(1, activeMainline.length - 1);
+      // 🌟 محاسبه ایندکس بر اساس طولانی‌ترین مسیر (maxX)
       const idx = Math.round(pct * maxX);
+      // فقط در صورتی تول‌تیپ رو نشون بده که تو محدوده‌ی لاین فعلی باشیم
       if (idx < graphPoints.length) setHoveredGraphIndex(idx);
+      else setHoveredGraphIndex(null);
   };
+  
   const handleGraphPointerLeave = () => setHoveredGraphIndex(null);
+  
   const handleGraphClick = () => {
       if (hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex]) {
           setCurrentNodeId(graphPoints[hoveredGraphIndex].node.id);
@@ -56,18 +61,18 @@ export default function EvaluationGraph({
     <motion.div 
       drag={graphMode === 'floating'} dragMomentum={false}
       initial={graphMode === 'fullscreen' ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: 50 }} 
+      // 🌟 جلوگیری از کش‌آمدگی مودال در حالت فول‌اسکرین با دادن ابعاد متناسب
       animate={graphMode === 'fullscreen' 
-          ? { opacity: 1, scale: 1, x: 0, y: 0, width: '100%', height: '100%', maxWidth: '64rem', maxHeight: 'none', borderRadius: '1.5rem' } 
-          : { opacity: 1, scale: 1, x: 0, y: 0, width: '320px', height: '220px', maxWidth: '100%', maxHeight: '100%', borderRadius: '1rem' }} 
+          ? { opacity: 1, scale: 1, x: 0, y: 0, width: '92%', maxWidth: '900px', height: 'auto', borderRadius: '1.5rem' } 
+          : { opacity: 1, scale: 1, x: 0, y: 0, width: '300px', height: '200px', borderRadius: '1rem' }} 
       exit={{ opacity: 0, scale: 0.9 }} 
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
       className={`fixed z-[100] bg-[#12110f]/95 backdrop-blur-xl border border-[#35332e] shadow-2xl flex flex-col overflow-hidden
-          ${graphMode === 'fullscreen' ? 'inset-0 m-auto md:p-0' : 'bottom-4 left-4 cursor-grab active:cursor-grabbing'}
+          ${graphMode === 'fullscreen' ? 'inset-0 m-auto' : 'bottom-4 left-4 cursor-grab active:cursor-grabbing'}
       `}
-      style={{ ...(graphMode === 'fullscreen' ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' } : {}) }}
       dir="rtl"
     >
-       <div className={`flex items-center justify-between border-b border-[#35332e] bg-gradient-to-r from-[#1a1916]/80 to-[#12110f]/80 ${graphMode === 'fullscreen' ? 'p-5 lg:px-8' : 'p-2 px-3'}`}>
+       <div className={`flex items-center justify-between border-b border-[#35332e] bg-gradient-to-r from-[#1a1916]/80 to-[#12110f]/80 ${graphMode === 'fullscreen' ? 'p-4 lg:px-6' : 'p-2 px-3'}`}>
           <div className="flex items-center gap-3">
              <div className={`rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 ${graphMode === 'fullscreen' ? 'w-10 h-10' : 'w-7 h-7'}`}>
                 <TrendingUp size={graphMode === 'fullscreen' ? 20 : 14} />
@@ -101,12 +106,14 @@ export default function EvaluationGraph({
           </div>
        </div>
 
-       <div className="relative flex-1 w-full bg-[#100f0d] overflow-hidden" onPointerMove={handleGraphPointerMove} onPointerLeave={handleGraphPointerLeave} onClick={handleGraphClick}>
+       {/* 🌟 محدود کردن ارتفاع گراف برای جلوگیری از غول‌پیکر شدن */}
+       <div className={`relative w-full bg-[#100f0d] overflow-hidden ${graphMode === 'fullscreen' ? 'h-[40vh] min-h-[250px] max-h-[400px]' : 'flex-1'}`} onPointerMove={handleGraphPointerMove} onPointerLeave={handleGraphPointerLeave} onClick={handleGraphClick}>
           <div className="absolute inset-0 flex pointer-events-none">
              {graphPoints.length > 0 && ['opening', 'middlegame', 'endgame'].map(phase => {
                 const pointsInPhase = graphPoints.filter(p => p.phase === phase);
                 if (pointsInPhase.length === 0) return null;
-                const w = (pointsInPhase.length / graphPoints.length) * 100;
+                // عرض هر فاز بر اساس تعداد کل نقاط (نه فقط لاین اصلی)
+                const w = (pointsInPhase.length / (maxX + 1)) * 100;
                 return (
                   <div key={phase} className="h-full border-r border-[#35332e]/30 relative flex justify-center transition-colors" style={{ width: `${w}%`, backgroundColor: phase === 'opening' ? 'rgba(255,255,255,0.015)' : phase === 'endgame' ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
                       {graphMode === 'fullscreen' && (
@@ -128,21 +135,21 @@ export default function EvaluationGraph({
              <path d={areaWhite} fill="url(#whiteAdvantage)" clipPath="url(#aboveZero)" />
              <path d={areaBlack} fill="url(#blackAdvantage)" clipPath="url(#belowZero)" />
              
-             {/* خطوط روح شاخه‌های فرعی */}
              {graphSettings.showVariations && ghostPaths.map((gp, i) => (
                  <path key={`ghost-${i}`} d={gp} fill="none" stroke={`hsl(${(i * 137) % 360}, 70%, 50%)`} strokeWidth="1.5" strokeOpacity="0.3" strokeLinejoin="round" />
              ))}
 
              <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: "easeOut" }} d={linePath} fill="none" stroke="#779556" strokeWidth={graphMode === 'fullscreen' ? "3" : "2"} strokeLinejoin="round" strokeLinecap="round" />
+             
              {hoveredGraphIndex !== null && (
-                 <line x1={(hoveredGraphIndex / Math.max(1, activeMainline.length - 1)) * 1000} y1="0" x2={(hoveredGraphIndex / Math.max(1, activeMainline.length - 1)) * 1000} y2="300" stroke="#fff" strokeWidth="2" strokeOpacity="0.3" strokeDasharray="3,3" />
+                 <line x1={(hoveredGraphIndex / maxX) * 1000} y1="0" x2={(hoveredGraphIndex / maxX) * 1000} y2="300" stroke="#fff" strokeWidth="2" strokeOpacity="0.3" strokeDasharray="3,3" />
              )}
           </svg>
 
           <div className="absolute inset-0 pointer-events-none">
              {graphPoints.map((pt, i) => {
                  if (!pt.coach || !['brilliant','great','blunder','mistake','miss'].includes(pt.coach.key)) return null;
-                 const leftPct = (i / Math.max(1, activeMainline.length - 1)) * 100;
+                 const leftPct = (i / maxX) * 100;
                  const topPct = (1 - pt.ep) * 100;
                  const size = graphMode === 'fullscreen' ? 24 : 16;
                  const iconSize = graphMode === 'fullscreen' ? 14 : 10;
@@ -155,7 +162,7 @@ export default function EvaluationGraph({
           </div>
 
           {hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex] && (
-             <div className="absolute top-2 pointer-events-none bg-[#1e1c19]/90 backdrop-blur border border-[#35332e] text-white px-2 py-1 rounded-lg shadow-2xl flex flex-col gap-0.5 z-50 transform -translate-x-1/2 min-w-[80px]" style={{ left: `${(hoveredGraphIndex / Math.max(1, activeMainline.length - 1)) * 100}%` }}>
+             <div className="absolute top-2 pointer-events-none bg-[#1e1c19]/90 backdrop-blur border border-[#35332e] text-white px-2 py-1 rounded-lg shadow-2xl flex flex-col gap-0.5 z-50 transform -translate-x-1/2 min-w-[80px]" style={{ left: `${(hoveredGraphIndex / maxX) * 100}%` }}>
                 <span className="text-[9px] font-mono text-zinc-400 block text-center">ح {Math.ceil(graphPoints[hoveredGraphIndex].node.depth / 2)}</span>
                 <div className="flex items-center justify-center gap-1.5">
                    <span className="font-bold text-xs" dir="ltr">{graphPoints[hoveredGraphIndex].node.san}</span>
