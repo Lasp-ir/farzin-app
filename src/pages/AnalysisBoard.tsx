@@ -75,14 +75,12 @@ export default function AnalysisBoard() {
     }
   }, [lines, currentNodeId]);
 
+  // 🌟 ماشین محاسبه مربی: باگِ تشخیص مات برطرف شد
   const calculateNodeCoachData = useCallback((nodeId: string, currentLines: any[], t: Record<string, MoveNode>) => {
     if (!engineSettings.coachMode || nodeId === 'root') return null;
     const node = t[nodeId];
     if (!node || !node.parentId) return null;
     
-    const parentLines = engineCache.current[node.parentId];
-    if (!parentLines || !parentLines[0] || !currentLines || !currentLines[0]) return COACH_COLORS.loading;
-
     const parentFen = t[node.parentId].fen;
     const grandParentId = t[node.parentId].parentId;
     const grandparentFen = grandParentId ? t[grandParentId].fen : null;
@@ -90,8 +88,30 @@ export default function AnalysisBoard() {
     const playerWhoMovedIsBlack = new Chess(parentFen).turn() === 'b';
     const currentTurnIsBlack = new Chess(node.fen).turn() === 'b';
 
-    const absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
-    const absScoreC = getAbsScore(currentLines[0], currentTurnIsBlack ? 'b' : 'w');
+    const parentLines = engineCache.current[node.parentId];
+    
+    const cg = new Chess(node.fen);
+    const isMate = cg.isCheckmate();
+    const isDraw = cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial();
+
+    const pg = new Chess(parentFen);
+    const parentIsMate = pg.isCheckmate();
+    const parentIsDraw = pg.isDraw() || pg.isStalemate() || pg.isThreefoldRepetition() || pg.isInsufficientMaterial();
+
+    // اگر بازی تموم نشده و موتور هم لاین نداره، در حال لودینگه
+    if (!parentIsMate && !parentIsDraw && (!parentLines || !parentLines[0])) return COACH_COLORS.loading;
+    if (!isMate && !isDraw && (!currentLines || !currentLines[0])) return COACH_COLORS.loading;
+
+    // استخراج امتیاز خالص با دور زدن موتور در حالت پایان بازی
+    let absScoreB = 0;
+    if (parentIsMate) absScoreB = playerWhoMovedIsBlack ? 100 : -100;
+    else if (parentIsDraw) absScoreB = 0;
+    else absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
+
+    let absScoreC = 0;
+    if (isMate) absScoreC = currentTurnIsBlack ? 100 : -100;
+    else if (isDraw) absScoreC = 0;
+    else absScoreC = getAbsScore(currentLines[0], currentTurnIsBlack ? 'b' : 'w');
 
     let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
     cpLoss = Math.max(0, cpLoss);
@@ -101,9 +121,14 @@ export default function AnalysisBoard() {
     const epC = getPlayerEP(absScoreC); 
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
-    const rawParentPv = parentLines[0].pv || '';
-    const parentActualPv = rawParentPv.includes(' pv ') ? rawParentPv.split(' pv ')[1] : rawParentPv;
-    const bestUciMove = parentActualPv.trim().split(' ')[0];
+    
+    // اگر حرکت منجر به ماتِ حریف بشه، مستقیماً به عنوان بهترین در نظر گرفته می‌شه
+    let bestUciMove = '';
+    if (parentLines && parentLines[0]) {
+        const rawParentPv = parentLines[0].pv || '';
+        const parentActualPv = rawParentPv.includes(' pv ') ? rawParentPv.split(' pv ')[1] : rawParentPv;
+        bestUciMove = parentActualPv.trim().split(' ')[0];
+    }
     const userUciMove = `${node.move.from}${node.move.to}${node.move.promotion || ''}`;
 
     const fenBeforeCount = parentFen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
@@ -111,7 +136,7 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    if (userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
+    if (isMate || userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
     else if (epB < 0.10) classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
     else {
         if (cpLoss <= 0.20) classificationKey = 'excellent'; 
@@ -130,7 +155,7 @@ export default function AnalysisBoard() {
         }
     }
 
-    if (['best', 'excellent'].includes(classificationKey) && parentLines.length > 1) {
+    if (['best', 'excellent'].includes(classificationKey) && parentLines && parentLines.length > 1) {
         const epSecondBest = getPlayerEP(getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'b' : 'w'));
         if (epB < 0.95 && epSecondBest < 0.90 && ((epB - epSecondBest >= 0.20) || (epB >= 0.45 && epSecondBest <= 0.25) || (epB >= 0.75 && epSecondBest <= 0.55))) {
             classificationKey = 'great';
@@ -157,8 +182,10 @@ export default function AnalysisBoard() {
 
     let bestSanMove = '...';
     try {
-        const m = new Chess(parentFen).move({from: bestUciMove.slice(0,2), to: bestUciMove.slice(2,4), promotion: bestUciMove[4]});
-        if(m) bestSanMove = m.san;
+        if(bestUciMove) {
+            const m = new Chess(parentFen).move({from: bestUciMove.slice(0,2), to: bestUciMove.slice(2,4), promotion: bestUciMove[4]});
+            if(m) bestSanMove = m.san;
+        }
     } catch(e) {}
 
     return { ...COACH_COLORS[classificationKey], key: classificationKey, bestSan: bestSanMove, userSan: node.san };
@@ -187,13 +214,13 @@ export default function AnalysisBoard() {
       return paths;
   }, [tree]);
 
-  // 🌟 استخراج بزرگترین شاخه ممکنه برای تنظیم هوشمندانه مقیاس X گراف
   const maxX = useMemo(() => {
       let maxLen = activeMainline.length;
       allPaths.forEach(p => { if (p.length > maxLen) maxLen = p.length; });
       return Math.max(1, maxLen - 1);
   }, [activeMainline, allPaths]);
 
+  // 🌟 امتیازدهیِ بی‌نقص گراف در حالت مات و مساوی (جلوگیری از افتِ ناگهانی)
   const graphPoints = useMemo(() => {
       return activeMainline.map(node => {
           const isCurrent = node.id === currentNodeId;
@@ -202,7 +229,13 @@ export default function AnalysisBoard() {
           let ep = 0.5;
           let phase: 'opening' | 'middlegame' | 'endgame' = 'opening';
 
-          if (nodeLines && nodeLines[0]) {
+          const cg = new Chess(node.fen);
+          if (cg.isCheckmate()) {
+              const fenTurn = node.fen.split(' ')[1] as 'w' | 'b';
+              ep = epFormula(fenTurn === 'b' ? 100 : -100);
+          } else if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
+              ep = 0.5;
+          } else if (nodeLines && nodeLines[0]) {
               const fenTurn = node.fen.split(' ')[1] as 'w' | 'b'; 
               ep = epFormula(getAbsScore(nodeLines[0], fenTurn)); 
           }
@@ -242,11 +275,24 @@ export default function AnalysisBoard() {
             path.forEach((node, i) => {
                 const nodeLines = engineCache.current[node.id];
                 let ep = 0.5;
-                if (nodeLines && nodeLines[0]) {
+                const cg = new Chess(node.fen);
+                
+                if (cg.isCheckmate()) {
+                    ep = epFormula(node.fen.split(' ')[1] === 'b' ? 100 : -100);
+                } else if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
+                    ep = 0.5;
+                } else if (nodeLines && nodeLines[0]) {
                     ep = epFormula(getAbsScore(nodeLines[0], node.fen.split(' ')[1] as 'w' | 'b'));
                 } else if (i > 0 && path[i-1]) {
                     const prevLines = engineCache.current[path[i-1].id];
-                    if (prevLines && prevLines[0]) ep = epFormula(getAbsScore(prevLines[0], path[i-1].fen.split(' ')[1] as 'w' | 'b'));
+                    const pg = new Chess(path[i-1].fen);
+                    if (pg.isCheckmate()) {
+                        ep = epFormula(path[i-1].fen.split(' ')[1] === 'b' ? 100 : -100);
+                    } else if (pg.isDraw() || pg.isStalemate() || pg.isThreefoldRepetition() || pg.isInsufficientMaterial()) {
+                        ep = 0.5;
+                    } else if (prevLines && prevLines[0]) {
+                        ep = epFormula(getAbsScore(prevLines[0], path[i-1].fen.split(' ')[1] as 'w' | 'b'));
+                    }
                 }
                 gp += `${i === 0 ? 'M' : 'L'} ${(i / maxX) * 1000},${300 - (ep * 300)} `;
             });
@@ -486,7 +532,7 @@ export default function AnalysisBoard() {
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* 🌟 کامپوننت گراف با ارسال پارامترِ بسیار مهمِ maxX */}
+      {/* کامپوننت گراف استخراج‌شده */}
       <EvaluationGraph 
          graphMode={graphMode} setGraphMode={setGraphMode}
          graphPoints={graphPoints} activeMainline={activeMainline} ghostPaths={ghostPaths}
@@ -711,7 +757,6 @@ export default function AnalysisBoard() {
             <div className="w-full flex justify-center py-0.5">
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative flex flex-col justify-center">
-                        {/* 🌟 اضافه شدن کلاس flex برای رفع باگ Baseline Offset در Grid */}
                         <div className="w-full aspect-square rounded-md relative z-10 flex">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
@@ -810,7 +855,6 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* تب گراف مینیاتوری */}
                 {activeTab === 'graph' && (
                     <div className="absolute inset-0 p-3 flex flex-col">
                         <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512]">
