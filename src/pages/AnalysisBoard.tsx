@@ -24,20 +24,20 @@ export interface MoveNode {
 
 // 🌟 آیکون‌های متنی برای حرکاتی که نماد شطرنجی دارند
 const TextIcon = ({ text }: { text: string }) => (
-  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '11px' }}>{text}</span>
+  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '12px' }}>{text}</span>
 );
 
 // 🌟 سیستم طبقه‌بندی بومی‌سازی شده با آیکون‌های درخواستی
 const COACH_COLORS = {
-  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Star }, // ستاره
-  great: { color: '#3b82f6', text: 'عالی', icon: Award }, // مدال
-  best: { color: '#22c55e', text: 'بهترین', icon: Star }, // تک ستاره ساده
-  excellent: { color: '#86efac', text: 'دقیق', icon: ThumbsUp }, // شصت لایک
-  good: { color: '#bef264', text: 'خوب', icon: Check }, // تیک
-  inaccuracy: { color: '#eab308', text: 'بی‌دقتی', icon: () => <TextIcon text="?!" /> }, // علامت سوال و تعجب
-  mistake: { color: '#f97316', text: 'اشتباه', icon: () => <TextIcon text="?" /> }, // یک علامت سوال
-  blunder: { color: '#ef4444', text: 'اشتباه فاحش', icon: () => <TextIcon text="??" /> }, // دو علامت سوال استاندارد
-  miss: { color: '#ec4899', text: 'فرصت از دست رفته', icon: AlertTriangle }, // علامت خطر
+  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles }, // تغییر یافته برای تفاوت با Best
+  great: { color: '#3b82f6', text: 'عالی', icon: Award }, 
+  best: { color: '#22c55e', text: 'بهترین', icon: Star }, 
+  excellent: { color: '#86efac', text: 'دقیق', icon: ThumbsUp }, 
+  good: { color: '#bef264', text: 'خوب', icon: Check }, 
+  inaccuracy: { color: '#eab308', text: 'بی‌دقتی', icon: () => <TextIcon text="?!" /> }, 
+  mistake: { color: '#f97316', text: 'اشتباه', icon: () => <TextIcon text="?" /> }, 
+  blunder: { color: '#ef4444', text: 'اشتباه فاحش', icon: () => <TextIcon text="??" /> }, 
+  miss: { color: '#ec4899', text: 'فرصت از دست رفته', icon: AlertTriangle }, 
   loading: { color: '#a1a1aa', text: 'در حال تحلیل...', icon: Loader2 }
 };
 
@@ -380,7 +380,7 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // فاز ۱: پایه
+    // فاز ۱
     if (userUciMove === bestUciMove || cpLoss <= 0.05) {
         classificationKey = 'best';
     } else if (epB < 0.10) {
@@ -393,7 +393,7 @@ export default function AnalysisBoard() {
         else classificationKey = 'blunder'; 
     }
 
-    // فاز ۲: ارتقا دهنده
+    // فاز ۲
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
         if (grandParentId && grandparentFen) {
             const grandparentLines = engineCache.current[grandParentId];
@@ -483,7 +483,6 @@ export default function AnalysisBoard() {
 
   }, [currentNodeId, lines, engineSettings.coachMode, tree]);
 
-  // 🌟 تابع محاسبه مختصات برای رندر آیکون روی تخته
   const getSquareCoordinates = (square: string) => {
     const col = square.charCodeAt(0) - 97; // a=0, h=7
     const row = parseInt(square[1]) - 1; // 1=0, 8=7
@@ -695,17 +694,17 @@ export default function AnalysisBoard() {
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
           
-          <div className="mt-2 min-h-[50px]">
+          {/* 🌟 کانتینر با ارتفاع ثابت (Anti-Jitter) برای لاین‌های موتور */}
+          <div className="mt-2 min-h-[55px] flex flex-col justify-start">
              {engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
                      <div className="flex flex-col items-center justify-center py-2 opacity-50"><Loader2 size={18} className="animate-spin text-farzin-accent mb-1"/><span className="text-[10px] font-sans">در حال بررسی دقیق حرکت...</span></div>
                  ) : (
                      <motion.div initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} className="flex flex-col gap-1 bg-[#161512] rounded-xl p-2 border border-[#35332e] shadow-inner">
-                         
                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: `${coachData.color}20`, color: coachData.color }}>
-                                   <coachData.icon size={14} />
+                                   {typeof coachData.icon === 'function' ? coachData.icon({size: 14}) : <coachData.icon size={14} />}
                                 </div>
                                 <span className="text-[11px] font-sans text-zinc-300">
                                    حرکت <span className="font-mono font-black text-white px-1">{coachData.userSan}</span> <span className="font-bold" style={{color: coachData.color}}>{coachData.text}</span> بود.
@@ -727,7 +726,6 @@ export default function AnalysisBoard() {
                                 <button onClick={()=>handleShowMe(true)} className="text-[9px] font-bold bg-[#1e1c19] text-farzin-accent border border-farzin-accent/30 px-2 py-1 rounded hover:bg-farzin-accent hover:text-white transition-colors">نشونم بده</button>
                              </div>
                          )}
-
                      </motion.div>
                  )
              ) : (
@@ -805,21 +803,21 @@ export default function AnalysisBoard() {
                                                 )}
                                                 {coachData.key === 'blunder' && (
                                                     <motion.div 
-                                                        animate={{ x: [-3, 3, -3, 3, 0] }}
-                                                        transition={{ duration: 0.4 }}
-                                                        className="absolute inset-0 bg-red-600/50 mix-blend-multiply"
+                                                        animate={{ x: [-4, 4, -4, 4, 0] }}
+                                                        transition={{ duration: 0.3 }}
+                                                        className="absolute inset-0 bg-red-600/60 mix-blend-multiply"
                                                     />
                                                 )}
 
-                                                {/* آیکون (بج) در گوشه بالا راست خانه */}
+                                                {/* 🌟 آیکون (Badge) متصل به گوشه بالا راست خانه */}
                                                 <motion.div 
                                                     initial={{ scale: 0, opacity: 0 }}
                                                     animate={{ scale: 1, opacity: 1 }}
                                                     transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                                                    className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full flex items-center justify-center text-white shadow-lg border border-black/20"
+                                                    className="absolute top-0 right-0 w-[22px] h-[22px] rounded-bl-lg rounded-tr-md flex items-center justify-center text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)] border-l border-b border-black/20"
                                                     style={{ backgroundColor: coachData.color }}
                                                 >
-                                                    <coachData.icon size={12} strokeWidth={3} />
+                                                    {typeof coachData.icon === 'function' ? coachData.icon({size: 14}) : <coachData.icon size={14} strokeWidth={3} />}
                                                 </motion.div>
                                                 
                                             </div>
