@@ -10,7 +10,9 @@ import {
 
 import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
-import { MoveNode, COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
+
+import type { MoveNode } from '../utils/analysisConfig';
+import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
 
 export default function AnalysisBoard() {
   const location = useLocation();
