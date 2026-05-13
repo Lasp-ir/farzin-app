@@ -22,6 +22,7 @@ export interface MoveNode {
   depth: number;
 }
 
+// 🌟 سیستم طبقه‌بندی حرکات و پالت‌های رنگی مربی (Coach)
 const COACH_COLORS = {
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
   great: { color: '#3b82f6', text: 'عالی', icon: CheckCircle2 },
@@ -168,9 +169,7 @@ export default function AnalysisBoard() {
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
         const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
         
-        if (!arrowMap.has(mainArrowKey)) {
-            arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
-        }
+        if (!arrowMap.has(mainArrowKey)) arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
 
         if (arrowSettings.showManeuvers) {
             let currentTo = firstMove.to;
@@ -324,7 +323,7 @@ export default function AnalysisBoard() {
 
   const isBlackTurn = activeGame.turn() === 'b';
   
-  // 🌟 قلب موتور مربی (هوش مصنوعی دو فازی برای تشخیص حرکات عالی، درخشان و از دست رفته)
+  // 🌟 هوش مصنوعی مربی: ایزوله‌سازی فاز ۱ (پایه) و فاز ۲ (ارتقا و فیلتر)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -333,29 +332,20 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
-    // تشخیص دقیق بازیکنی که حرکت را انجام داده است
-    const turnBeforeMove = new Chess(tree[parentId].fen).turn();
-    const playerIsWhite = turnBeforeMove === 'w';
+    // تشخیص زاویه دید
+    const playerWhoMovedIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
+    
+    // یکسان‌سازی فرمول (درصد پیروزی بین 0 تا 1) 
+    // تبدیل امتیاز استوک‌فیش به ارزش پیاده با تقسیم بر 4 (طبق استاندارد Expected Points)
+    const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
 
-    // استخراج امتیازات از دیدگاه بازیکنی که حرکت را انجام داده است
-    const scoreBeforePlayer = parentLines[0].score; // Parent Lines از دیدگاه بازیکن فعلی است
-    // Lines فعلی از دیدگاه حریف است، پس قرینه می‌شود تا دیدگاه بازیکن حفظ شود
-    const scoreAfterPlayer = -lines[0].score; 
+    const scoreBeforePlayer = playerWhoMovedIsBlack ? -parentLines[0].score : parentLines[0].score;
+    const scoreAfterPlayer = isBlackTurn ? -lines[0].score : lines[0].score; 
     
-    let cpLoss = 0;
-    
-    // مدیریت استثناهای مربوط به مات شدن
-    if (parentLines[0].isMate || lines[0].isMate) {
-        if (parentLines[0].isMate && !lines[0].isMate) {
-            const mateForPlayer = parentLines[0].mateIn! > 0;
-            if (mateForPlayer) cpLoss = 3.0; // از دست دادن یک مات قطعی!
-        } else if (!parentLines[0].isMate && lines[0].isMate) {
-            const mateAgainstPlayer = lines[0].mateIn! > 0; // چون lines از دید حریف است، >0 یعنی حریف مات می‌کند
-            if (mateAgainstPlayer) cpLoss = 3.0; // یک مات قطعی به حریف تقدیم شد!
-        }
-    } else {
-        cpLoss = Math.max(0, scoreBeforePlayer - scoreAfterPlayer);
-    }
+    let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? (playerWhoMovedIsBlack ? 0 : 1) : (playerWhoMovedIsBlack ? 1 : 0)) : epFormula(scoreBeforePlayer);
+    let epAfter = lines[0].isMate ? (lines[0].mateIn! > 0 ? (isBlackTurn ? 0 : 1) : (isBlackTurn ? 1 : 0)) : epFormula(scoreAfterPlayer);
+
+    const epLost = Math.max(0, epBefore - epAfter);
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
@@ -367,43 +357,35 @@ export default function AnalysisBoard() {
     const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     const isEndgame = fenBeforeCount <= 16; 
 
-    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
-    const mistakeLimit = isEndgame ? 2.0 : 2.5;
+    // === فاز ۱: طبقه‌بندی پایه ===
+    if (userUciMove === bestUciMove || epLost <= 0.01) {
+        classificationKey = 'best';
+    } else if (epBefore < 0.1) {
+        // پوزیسیون مرده: افت‌های کوچیک اهمیت ندارن
+        classificationKey = epLost <= 0.05 ? 'excellent' : 'good';
+    } else {
+        if (epLost <= 0.02) classificationKey = 'excellent'; 
+        else if (epLost <= 0.05) classificationKey = 'good';      
+        else if (epLost <= (isEndgame ? 0.08 : 0.10)) classificationKey = 'inaccuracy';
+        else if (epLost <= (isEndgame ? 0.15 : 0.20)) classificationKey = 'mistake';
+        else classificationKey = 'blunder'; 
+    }
 
-    // ==========================================
-    // فاز اول: طبقه‌بندی پایه (Base CP-Loss Logic)
-    // ==========================================
-    if (userUciMove === bestUciMove) classificationKey = 'best';
-    else if (cpLoss <= 0.10) classificationKey = 'excellent'; 
-    else if (cpLoss <= 0.50) classificationKey = 'good';      
-    else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
-    else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
-    else classificationKey = 'blunder'; 
+    // === فاز ۲: اعمال فیلترهای ارتقا ===
 
-    // فرمول تبدیل امتیاز (به واحد پیاده) به درصد احتمال برد (Expected Points)
-    const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
-
-    // ==========================================
-    // فاز دوم: اعمال فیلترهای ارتقا دهنده (Contextual Modifiers)
-    // ==========================================
-
-    // 🎯 فیلتر Miss (از دست رفته)
+    // 1️⃣ فیلتر Miss
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
         const grandParentId = tree[parentId].parentId;
         if (grandParentId) {
             const grandparentLines = engineCache.current[grandParentId];
             if (grandparentLines && grandparentLines[0]) {
-                // دو حرکت قبل، نوبت حریف بوده. امتیاز را قرینه می‌کنیم تا دیدگاه "بازیکن فعلی" به دست آید
-                const scoreBeforeOpponent = -grandparentLines[0].score;
-                const epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? 0 : 1) : epFormula(scoreBeforeOpponent);
+                const scoreBeforeOpponent = playerWhoMovedIsBlack ? -grandparentLines[0].score : grandparentLines[0].score;
+                const epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? (playerWhoMovedIsBlack ? 0 : 1) : (playerWhoMovedIsBlack ? 1 : 0)) : epFormula(scoreBeforeOpponent);
                 
-                const epBeforePlayer = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforePlayer);
-                const epAfterPlayer = lines[0].isMate ? (lines[0].mateIn! > 0 ? 0 : 1) : epFormula(scoreAfterPlayer);
-                
-                // آیا حریف با حرکت قبلی‌اش یک برتری بزرگ (حداقل ۱۵٪ شانس برد اضافی) به ما داده بود؟
-                if (epBeforePlayer - epBeforeOpponent >= 0.15) {
-                    // و آیا ما با این حرکتمون اون شانس برد رو دوباره از بین بردیم و به وضعیت قبل از اشتباه حریف برگشتیم؟
-                    if (epAfterPlayer <= epBeforeOpponent + 0.05) {
+                // حریف شانس برد را به ما داده است
+                if (epBefore - epBeforeOpponent >= 0.15) {
+                    // اما ما با این حرکت، آن شانس را دور ریختیم
+                    if (epAfter <= epBeforeOpponent + 0.05) {
                         classificationKey = 'miss';
                     }
                 }
@@ -411,43 +393,62 @@ export default function AnalysisBoard() {
         }
     }
 
-    // 🎯 فیلتر Great (عالی) و Brilliant (درخشان)
+    // 2️⃣ فیلتر Great و Brilliant
     if (['best', 'excellent'].includes(classificationKey)) {
         if (parentLines.length > 1) {
-            
-            const ep1 = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1 : 0) : epFormula(scoreBeforePlayer);
-            const scoreSecondBestPlayer = parentLines[1].score;
-            const ep2 = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1 : 0) : epFormula(scoreSecondBestPlayer);
+            const scoreSecondBestPlayer = playerWhoMovedIsBlack ? -parentLines[1].score : parentLines[1].score;
+            const epSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? (playerWhoMovedIsBlack ? 0 : 1) : (playerWhoMovedIsBlack ? 1 : 0)) : epFormula(scoreSecondBestPlayer);
 
-            // آیا این پیدا کردن این حرکت، تنها راه زنده ماندن در بازی بود؟
-            const isOnlyGoodMove = (ep1 - ep2) >= 0.20; 
-            const isSavingMove = (ep1 >= 0.45 && ep2 <= 0.25);
-            const isWinningMove = (ep1 >= 0.75 && ep2 <= 0.55); 
-            const isNotBlowout = ep1 < 0.95 && ep2 < 0.90; 
+            const isOnlyGoodMove = (epBefore - epSecondBest) >= 0.20; 
+            const isSavingMove = (epBefore >= 0.45 && epSecondBest <= 0.25);
+            const isWinningMove = (epBefore >= 0.75 && epSecondBest <= 0.55);
+            const isNotBlowout = epBefore < 0.95 && epSecondBest < 0.90; 
 
             if (isNotBlowout && (isOnlyGoodMove || isSavingMove || isWinningMove)) {
                 classificationKey = 'great';
+            }
+
+            // تشخیص Brilliant: شبیه‌ساز تبادل استاتیک (Static Exchange Evaluation)
+            let isSacrifice = false;
+            try {
+                const getPieceValue = (p: string) => {
+                    const vals: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+                    return vals[p.toLowerCase()] || 0;
+                };
+
+                const tempG = new Chess(tree[currentNodeId].fen);
+                const oppMoves = tempG.moves({ verbose: true });
                 
-                // بررسی Brilliant: تست فداکاری بدون تکیه بر PV آینده
-                let isSacrifice = false;
-                try {
-                    // شبیه‌ساز را دقیقاً در وضعیت بعد از حرکتِ ما قرار می‌دهیم (جایی که نوبت حریف است)
-                    const tempG = new Chess(tree[currentNodeId].fen); 
-                    const oppMoves = tempG.moves({ verbose: true });
-                    
-                    // آیا حریف می‌تونه تو این لحظه یکی از مهره‌های ارزشمندِ ما رو بزنه؟
-                    for (const m of oppMoves) {
-                        if (m.captured && ['n', 'b', 'r', 'q'].includes(m.captured.toLowerCase())) {
+                for (const oppMove of oppMoves) {
+                    if (oppMove.captured) {
+                        const capturedVal = getPieceValue(oppMove.captured); 
+                        
+                        // حریف مهره رو میزنه، ببینیم ما چی پس می‌گیریم
+                        tempG.move(oppMove.san);
+                        const ourRecaptures = tempG.moves({ verbose: true });
+                        let maxRecaptureVal = 0;
+                        for (const ourMove of ourRecaptures) {
+                            if (ourMove.to === oppMove.to && ourMove.captured) {
+                                const val = getPieceValue(ourMove.captured);
+                                if (val > maxRecaptureVal) maxRecaptureVal = val;
+                            }
+                        }
+                        tempG.undo();
+                        
+                        // اگه حتی بعد از پس‌گرفتن، بازم حداقل ۲ امتیاز (مثلا تفاوت رخ و اسب) ضرر کنیم
+                        const netLoss = capturedVal - maxRecaptureVal;
+                        
+                        if (netLoss >= 2) {
                             isSacrifice = true;
                             break;
                         }
                     }
-                } catch(e) {}
-
-                // اگر مهره‌ای زیر ضرب است، اما استوک‌فیش به حرکتِ ما میگه بهترین، یعنی این یک قربانیِ آگاهانه است!
-                if (isSacrifice && ep1 < 0.85) {
-                    classificationKey = 'brilliant';
                 }
+            } catch(e) {}
+
+            // اگر قربانی دادیم و بازی از قبل تموم شده نبود -> درخشان
+            if (isSacrifice && epBefore < 0.85) {
+                classificationKey = 'brilliant';
             }
         }
     }
@@ -483,37 +484,17 @@ export default function AnalysisBoard() {
   }, [tree, currentNodeId, coachData, engineSettings.coachMode]);
 
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
-      if (!lines || lines.length === 0 || !lines[0]) {
-          return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
-      }
-      const main = lines[0];
-      const aScore = isBlackTurn ? -main.score : main.score;
-      const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
-      
-      let text = '0.00';
-      if (main.isMate) {
-          text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`;
-      } else {
-          text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
-      }
-      
+      if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
+      const main = lines[0]; const aScore = isBlackTurn ? -main.score : main.score; const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
+      let text = '0.00'; if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`; else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
       return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: main.isMate };
   }, [lines, isBlackTurn]);
 
-  const evalPercentage = useMemo(() => {
-      if (isMate) return absoluteMate > 0 ? 95 : 5;
-      return Math.max(5, Math.min(95, 50 + (absoluteScore * 10)));
-  }, [absoluteScore, isMate, absoluteMate]);
-
+  const evalPercentage = useMemo(() => { if (isMate) return absoluteMate > 0 ? 95 : 5; return Math.max(5, Math.min(95, 50 + (absoluteScore * 10))); }, [absoluteScore, isMate, absoluteMate]);
   const getBadgeStyle = (score: number, mateFlag: boolean, mateVal: number) => {
-      const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0;
-      const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
-      
-      if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200';
-      if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]';
-      return 'bg-[#262421] text-zinc-400 border-[#35332e]'; 
+      const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0; const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
+      if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200'; if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]'; return 'bg-[#262421] text-zinc-400 border-[#35332e]'; 
   };
-
   const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
   const isOpeningPhase = currentNodeId === 'root' || (Object.keys(tree).length < 15);
   const displayEngineStatus = (isOpeningPhase && activeTab === 'explorer') ? 'reading books...' : (isReady ? `Farzin 1.0 (NNUE)` : engineStatus);
@@ -521,56 +502,24 @@ export default function AnalysisBoard() {
   const renderTreeNodes = useCallback((nodeId: string, forceShowMoveNumber: boolean = false): React.ReactNode[] => {
     const node = tree[nodeId];
     if (!node || node.childrenIds.length === 0) return [];
-
     const result: React.ReactNode[] = [];
     const mainChildId = node.childrenIds[0];
     const mainChild = tree[mainChildId];
-
     const moveNum = Math.ceil(mainChild.depth / 2);
     const isWhite = mainChild.depth % 2 !== 0;
     
-    let prefix = '';
-    if (isWhite) prefix = `${moveNum}. `;
-    else if (forceShowMoveNumber) prefix = `${moveNum}... `;
-
-    result.push(
-      <span 
-        key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)}
-        className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}
-      >
-        {prefix}{mainChild.san}
-      </span>
-    );
+    let prefix = ''; if (isWhite) prefix = `${moveNum}. `; else if (forceShowMoveNumber) prefix = `${moveNum}... `;
+    result.push(<span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}>{prefix}{mainChild.san}</span>);
 
     if (node.childrenIds.length > 1) {
       for (let i = 1; i < node.childrenIds.length; i++) {
-        const varId = node.childrenIds[i];
-        const varChild = tree[varId];
-        const varIsWhite = varChild.depth % 2 !== 0;
-        const varMoveNum = Math.ceil(varChild.depth / 2);
-        const varPrefix = varIsWhite ? `${varMoveNum}. ` : `${varMoveNum}... `;
-
-        result.push(
-          <span key={`${varId}-wrap`} className="text-zinc-500 mx-1 inline-flex items-baseline flex-wrap bg-[#1a1916] px-1.5 py-0.5 rounded-lg border border-[#35332e]/50 text-xs">
-            (
-            <span 
-              onClick={() => setCurrentNodeId(varId)}
-              className={`cursor-pointer px-1 py-0.5 rounded transition-colors ${currentNodeId === varId ? 'text-white font-bold' : 'hover:text-zinc-300'}`}
-            >
-              {varPrefix}{varChild.san}
-            </span>
-            <span className="ml-1">{renderTreeNodes(varId, !varIsWhite)}</span>
-            )
-          </span>
-        );
+        const varId = node.childrenIds[i]; const varChild = tree[varId]; const varIsWhite = varChild.depth % 2 !== 0; const varMoveNum = Math.ceil(varChild.depth / 2); const varPrefix = varIsWhite ? `${varMoveNum}. ` : `${varMoveNum}... `;
+        result.push(<span key={`${varId}-wrap`} className="text-zinc-500 mx-1 inline-flex items-baseline flex-wrap bg-[#1a1916] px-1.5 py-0.5 rounded-lg border border-[#35332e]/50 text-xs">(<span onClick={() => setCurrentNodeId(varId)} className={`cursor-pointer px-1 py-0.5 rounded transition-colors ${currentNodeId === varId ? 'text-white font-bold' : 'hover:text-zinc-300'}`}>{varPrefix}{varChild.san}</span><span className="ml-1">{renderTreeNodes(varId, !varIsWhite)}</span>)</span>);
       }
-      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
-      result.push(...renderTreeNodes(mainChildId, !isWhite)); 
+      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>); result.push(...renderTreeNodes(mainChildId, !isWhite)); 
     } else {
-      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>);
-      result.push(...renderTreeNodes(mainChildId, false));
+      result.push(<span key={`space-${mainChildId}`} className="ml-0.5"></span>); result.push(...renderTreeNodes(mainChildId, false));
     }
-
     return result;
   }, [tree, currentNodeId]);
 
@@ -580,13 +529,8 @@ export default function AnalysisBoard() {
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
           {toastMessage && (
-            <motion.div 
-              initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
-              className="bg-[#1e1c19] border border-farzin-accent/50 text-white px-4 py-2.5 rounded-xl shadow-[0_5px_20px_rgba(119,149,86,0.3)] flex items-center gap-2.5 whitespace-nowrap pointer-events-auto"
-            >
-               <div className="w-6 h-6 shrink-0 rounded-full bg-farzin-accent/20 flex items-center justify-center">
-                  <Check size={14} className="text-farzin-accent"/>
-               </div>
+            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="bg-[#1e1c19] border border-farzin-accent/50 text-white px-4 py-2.5 rounded-xl shadow-[0_5px_20px_rgba(119,149,86,0.3)] flex items-center gap-2.5 whitespace-nowrap pointer-events-auto">
+               <div className="w-6 h-6 shrink-0 rounded-full bg-farzin-accent/20 flex items-center justify-center"><Check size={14} className="text-farzin-accent"/></div>
                <span className="text-xs font-bold">{toastMessage}</span>
             </motion.div>
           )}
@@ -596,25 +540,10 @@ export default function AnalysisBoard() {
       <AnimatePresence>
         {isSaveModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} 
-              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-[90%] max-w-sm shadow-2xl flex flex-col relative"
-            >
-               <div className="flex items-center gap-2 mb-4 text-white">
-                  <Save size={20} className="text-farzin-accent" />
-                  <h2 className="font-bold text-base">ذخیره آنالیز</h2>
-               </div>
-               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                 این آنالیز با تمام شاخه‌ها در آرشیو شما ذخیره خواهد شد.
-               </p>
-               <input 
-                 autoFocus 
-                 value={saveName} 
-                 onChange={e => setSaveName(e.target.value)} 
-                 onKeyDown={e => e.key === 'Enter' && handleSaveAnalysis()}
-                 placeholder="مثلاً: گشایش اسپانیایی..." 
-                 className="w-full bg-[#1e1c19] border border-[#35332e] rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-farzin-accent transition-colors mb-5 shadow-inner" 
-               />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-[90%] max-w-sm shadow-2xl flex flex-col relative">
+               <div className="flex items-center gap-2 mb-4 text-white"><Save size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">ذخیره آنالیز</h2></div>
+               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">این آنالیز با تمام شاخه‌ها در آرشیو شما ذخیره خواهد شد.</p>
+               <input autoFocus value={saveName} onChange={e => setSaveName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSaveAnalysis()} placeholder="مثلاً: گشایش اسپانیایی..." className="w-full bg-[#1e1c19] border border-[#35332e] rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-farzin-accent transition-colors mb-5 shadow-inner" />
                <div className="flex gap-2 w-full">
                   <button onClick={() => setIsSaveModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">لغو</button>
                   <button onClick={handleSaveAnalysis} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">ذخیره در آرشیو</button>
@@ -627,15 +556,8 @@ export default function AnalysisBoard() {
       <AnimatePresence>
         {isSettingsModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} 
-              className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar"
-            >
-               <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3">
-                  <Sliders size={20} className="text-farzin-accent" />
-                  <h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2>
-               </div>
-               
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
+               <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Sliders size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2></div>
                <div className="flex flex-col gap-5 mb-6">
                  
                  <div className="bg-[#1e1c19] border border-farzin-accent/30 p-3 rounded-xl flex items-center justify-between shadow-inner">
@@ -647,76 +569,28 @@ export default function AnalysisBoard() {
                  </div>
 
                  <div className={`transition-opacity ${tempSettings.coachMode ? 'opacity-50 pointer-events-none' : ''}`}>
-                   <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label>
-                     <span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span>
-                   </div>
-                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[1, 2, 3].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num} لاین
-                        </button>
-                      ))}
-                   </div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label><span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 3].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num} لاین</button>))}</div>
                  </div>
-
                  <div>
-                   <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Target size={14} className="text-emerald-500"/> حداکثر عمق (Depth)</label>
-                     <span className="text-emerald-500 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{tempSettings.maxDepth === 99 ? '∞' : tempSettings.maxDepth}</span>
-                   </div>
-                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[18, 22, 24, 99].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, maxDepth: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxDepth === num ? 'bg-[#262421] text-emerald-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num === 99 ? 'نامحدود' : num}
-                        </button>
-                      ))}
-                   </div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Target size={14} className="text-emerald-500"/> حداکثر عمق (Depth)</label><span className="text-emerald-500 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{tempSettings.maxDepth === 99 ? '∞' : tempSettings.maxDepth}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[18, 22, 24, 99].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, maxDepth: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxDepth === num ? 'bg-[#262421] text-emerald-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num === 99 ? 'نامحدود' : num}</button>))}</div>
                  </div>
-
                  <div>
-                   <div className="flex justify-between items-center mb-2">
-                     <label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Clock size={14} className="text-rose-500"/> زمان محاسبه هر حرکت</label>
-                     <span className="text-rose-500 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">{tempSettings.maxTime === 0 ? '∞' : `${tempSettings.maxTime}s`}</span>
-                   </div>
-                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                      {[1, 3, 5, 0].map(num => (
-                        <button key={num} onClick={() => setTempSettings(prev => ({...prev, maxTime: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxTime === num ? 'bg-[#262421] text-rose-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                          {num === 0 ? 'بدون محدودیت' : `${num} ثانیه`}
-                        </button>
-                      ))}
-                   </div>
+                   <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold flex items-center gap-1.5"><Clock size={14} className="text-rose-500"/> زمان محاسبه هر حرکت</label><span className="text-rose-500 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">{tempSettings.maxTime === 0 ? '∞' : `${tempSettings.maxTime}s`}</span></div>
+                   <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 3, 5, 0].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, maxTime: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.maxTime === num ? 'bg-[#262421] text-rose-500 shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num === 0 ? 'بدون محدودیت' : `${num} ثانیه`}</button>))}</div>
                  </div>
-
                  <div className="flex gap-3">
                    <div className="flex-1">
-                     <div className="flex justify-between items-center mb-2">
-                       <label className="text-[11px] text-zinc-400 flex items-center gap-1"><Cpu size={12}/> پردازنده</label>
-                     </div>
-                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                        {[1, 2, 4].map(num => (
-                          <button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                            {num}
-                          </button>
-                        ))}
-                     </div>
+                     <div className="flex justify-between items-center mb-2"><label className="text-[11px] text-zinc-400 flex items-center gap-1"><Cpu size={12}/> پردازنده</label></div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 4].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, threads: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.threads === num ? 'bg-[#262421] text-amber-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num}</button>))}</div>
                    </div>
                    <div className="flex-1">
-                     <div className="flex justify-between items-center mb-2">
-                       <label className="text-[11px] text-zinc-400 flex items-center gap-1"><Database size={12}/> رَم (MB)</label>
-                     </div>
-                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">
-                        {[16, 64, 128].map(num => (
-                          <button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                            {num}
-                          </button>
-                        ))}
-                     </div>
+                     <div className="flex justify-between items-center mb-2"><label className="text-[11px] text-zinc-400 flex items-center gap-1"><Database size={12}/> رَم (MB)</label></div>
+                     <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[16, 64, 128].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, hash: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.hash === num ? 'bg-[#262421] text-sky-500 border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num}</button>))}</div>
                    </div>
                  </div>
-
                </div>
-
                <div className="flex gap-2 w-full mt-2">
                   <button onClick={() => setIsSettingsModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">انصراف</button>
                   <button onClick={handleApplySettings} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white font-bold py-2.5 text-sm rounded-xl transition-colors shadow-lg">اعمال تنظیمات</button>
@@ -731,22 +605,18 @@ export default function AnalysisBoard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Route size={20} className="text-amber-500" /><h2 className="font-bold text-base">راهنمای بصری تخته</h2></div>
-               
                <div className="flex flex-col gap-4 mb-6">
                  <div className="flex items-center justify-between bg-[#1e1c19] p-3 rounded-xl border border-[#35332e]">
                     <span className="text-sm font-bold text-white">رسم فلش حرکات برتر</span>
                     <ToggleSwitch checked={arrowSettings.showArrows} onChange={(v) => setArrowSettings(prev => ({...prev, showArrows: v}))} />
                  </div>
-                 
                  <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
                     <div className="flex items-center justify-between mb-3">
                        <span className="text-sm font-bold text-white">نمایش مانور مهره‌ها</span>
                        <ToggleSwitch checked={arrowSettings.showManeuvers} onChange={(v) => setArrowSettings(prev => ({...prev, showManeuvers: v}))} />
                     </div>
                     <div className="p-3 bg-[#161512] rounded-lg border border-[#35332e]">
-                       <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">
-                          مانور نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.
-                       </p>
+                       <p className="text-xs text-zinc-400 leading-relaxed mb-4 text-justify">مانور نشان می‌دهد که موتور قصد دارد یک مهره را در چند حرکت متوالی طی یک مسیر پیوسته جابجا کند.</p>
                        <div className="flex items-center justify-center text-zinc-500 pb-1">
                           <div className="w-8 h-8 rounded-lg bg-[#262421] flex items-center justify-center border border-[#403e3a] shadow-inner"><span className="text-amber-500 text-lg">♞</span></div>
                           <div className="h-0.5 w-8 bg-amber-500 relative"><div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 border-l-2 border-b-2 border-amber-500 rotate-45 -ml-0.5"></div></div>
@@ -756,7 +626,6 @@ export default function AnalysisBoard() {
                        </div>
                     </div>
                  </div>
-
                  <div className={`flex flex-col bg-[#1e1c19] p-3 rounded-xl border border-[#35332e] transition-opacity ${!arrowSettings.showArrows ? 'opacity-50 pointer-events-none' : ''}`}>
                     <span className="text-sm font-bold text-white mb-1">رنگ‌بندی اختصاصی لاین‌ها</span>
                     <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">این رنگ‌ها هم روی فلش‌های تخته و هم در داشبورد موتور اعمال می‌شوند.</p>
@@ -779,7 +648,6 @@ export default function AnalysisBoard() {
                     </div>
                  </div>
                </div>
-
                <button onClick={() => setIsArrowModalOpen(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3 text-sm rounded-xl transition-colors">تایید و بستن</button>
             </motion.div>
           </div>
