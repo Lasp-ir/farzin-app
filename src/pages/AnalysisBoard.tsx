@@ -7,7 +7,7 @@ import {
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
   Share2, List, TrendingUp, BookOpen, User, Edit2, Check,
   Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route,
-  Sparkles, ThumbsUp, HelpCircle, XCircle, AlertTriangle, CheckCircle2, ThumbsDown, Star, Award, Maximize2, X
+  Sparkles, ThumbsUp, HelpCircle, XCircle, AlertTriangle, CheckCircle2, ThumbsDown, Star, Award, Maximize2, X, BarChart2, MoveDiagonal, Minimize2
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -48,7 +48,6 @@ const COLOR_PALETTES = [
   { label: 'خاکستری', hex: '#a1a1aa', rgb: '161, 161, 170' },
 ];
 
-// توابع کمکی مطلق و قطعی
 const getAbsScore = (line: any, fenTurn: 'w' | 'b') => {
     if (!line) return 0;
     let score = line.isMate ? (line.mateIn > 0 ? 100 : -100) : line.score;
@@ -113,7 +112,6 @@ export default function AnalysisBoard() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
   const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0, coachMode: true });
@@ -123,6 +121,11 @@ export default function AnalysisBoard() {
   const [arrowSettings, setArrowSettings] = useState({ showArrows: true, showManeuvers: true });
   const [arrowColors, setArrowColors] = useState([COLOR_PALETTES[0], COLOR_PALETTES[2], COLOR_PALETTES[5]]);
   const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
+
+  // 🌟 حالت گراف: بسته، بزرگ، یا شناور
+  const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
+  const [graphSettings, setGraphSettings] = useState({ showVariations: true });
+  const [showGraphSettings, setShowGraphSettings] = useState(false);
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
@@ -153,7 +156,6 @@ export default function AnalysisBoard() {
     }
   }, [lines, currentNodeId]);
 
-  // 🌟 تابع مجزا شده و هوشمندِ مربی برای استفاده در بازی و گراف
   const calculateNodeCoachData = useCallback((nodeId: string, currentLines: any[], t: Record<string, MoveNode>) => {
     if (!engineSettings.coachMode || nodeId === 'root') return null;
     const node = t[nodeId];
@@ -191,7 +193,6 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // فاز ۱
     if (userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
     else if (epB < 0.10) classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
     else {
@@ -202,7 +203,6 @@ export default function AnalysisBoard() {
         else classificationKey = 'blunder'; 
     }
 
-    // فاز ۲
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey) && grandParentId && grandparentFen) {
         const grandparentLines = engineCache.current[grandParentId];
         if (grandparentLines && grandparentLines[0]) {
@@ -248,16 +248,38 @@ export default function AnalysisBoard() {
 
   const coachData = useMemo(() => calculateNodeCoachData(currentNodeId, lines, tree), [currentNodeId, lines, tree, calculateNodeCoachData]);
 
-  // 🌟 استخراج تاریخچه کامل بازی برای رسم گراف
-  const fullPath = useMemo(() => {
-      const p = []; let c = currentNodeId;
-      while (c && tree[c]) { p.unshift(tree[c]); c = tree[c].parentId; }
+  // 🌟 استخراج مسیر اصلی (از گره فعلی تا برگ نهاییِ همون شاخه)
+  const activeMainline = useMemo(() => {
+      let leaf = currentNodeId;
+      // پیدا کردن دورترین برگ در شاخه فعلی
+      while (tree[leaf] && tree[leaf].childrenIds.length > 0) {
+          leaf = tree[leaf].childrenIds[0];
+      }
+      const p = []; let c = leaf;
+      while (c && tree[c]) { p.unshift(tree[c]); c = tree[c].parentId as string; }
       return p;
   }, [tree, currentNodeId]);
 
-  // 🌟 ماشین پردازش گراف و تشخیص فاز بازی
+  // 🌟 استخراج تمام مسیرها (برای رسم Ghost Lines)
+  const allPaths = useMemo(() => {
+      const paths: MoveNode[][] = [];
+      const traverse = (nodeId: string, currentPath: MoveNode[]) => {
+          const node = tree[nodeId];
+          if (!node) return;
+          const newPath = [...currentPath, node];
+          if (node.childrenIds.length === 0) {
+              paths.push(newPath);
+          } else {
+              node.childrenIds.forEach(childId => traverse(childId, newPath));
+          }
+      };
+      traverse('root', []);
+      return paths;
+  }, [tree]);
+
+  // 🌟 ماشین پردازش گراف برای خط اصلی
   const graphPoints = useMemo(() => {
-      return fullPath.map(node => {
+      return activeMainline.map(node => {
           const isCurrent = node.id === currentNodeId;
           const nodeLines = isCurrent ? lines : engineCache.current[node.id];
           
@@ -285,27 +307,91 @@ export default function AnalysisBoard() {
               coach: node.id === 'root' ? null : calculateNodeCoachData(node.id, nodeLines || [], tree) 
           };
       });
-  }, [fullPath, lines, currentNodeId, tree, calculateNodeCoachData]);
+  }, [activeMainline, lines, currentNodeId, tree, calculateNodeCoachData]);
 
-  // 🌟 سیستم تعاملی (Hover) برای گراف
+  // 🌟 استخراج مسیرهای SVG برای شاخه اصلی و شاخه‌های روح
+  const { areaWhite, areaBlack, linePath, ghostPaths } = useMemo(() => {
+    if (graphPoints.length === 0) return { areaWhite: '', areaBlack: '', linePath: '', ghostPaths: [] };
+    
+    const maxX = Math.max(1, activeMainline.length - 1);
+    
+    let wPath = `M 0,150 `;
+    let bPath = `M 0,150 `;
+    let lPath = ``;
+    
+    graphPoints.forEach((pt, i) => {
+        const x = (i / maxX) * 1000;
+        const y = 300 - (pt.ep * 300);
+        lPath += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
+        wPath += `L ${x},${y} `;
+        bPath += `L ${x},${y} `;
+    });
+    
+    wPath += `L ${((graphPoints.length - 1) / maxX) * 1000},150 Z`;
+    bPath += `L ${((graphPoints.length - 1) / maxX) * 1000},150 Z`;
+
+    const gPaths: string[] = [];
+    if (graphSettings.showVariations) {
+        allPaths.forEach(path => {
+            // آیا این مسیر با مسیر اصلی یکی است؟ اگر بله نادیده بگیر
+            const isMainline = path.length === activeMainline.length && path.every((n, i) => n.id === activeMainline[i].id);
+            if (!isMainline) {
+                let gp = ``;
+                path.forEach((node, i) => {
+                    const nodeLines = engineCache.current[node.id];
+                    let ep = 0.5;
+                    if (nodeLines && nodeLines[0]) {
+                        const fenTurn = node.fen.split(' ')[1] as 'w' | 'b'; 
+                        ep = epFormula(getAbsScore(nodeLines[0], fenTurn));
+                    } else if (i > 0 && path[i-1]) {
+                        // اگر دیتا نبود، سعی کن از قبل حفظ کنی تا خط شکسته نشه
+                        const prevLines = engineCache.current[path[i-1].id];
+                        if (prevLines && prevLines[0]) {
+                             const fenTurn = path[i-1].fen.split(' ')[1] as 'w' | 'b'; 
+                             ep = epFormula(getAbsScore(prevLines[0], fenTurn));
+                        }
+                    }
+                    const x = (i / maxX) * 1000;
+                    const y = 300 - (ep * 300);
+                    gp += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
+                });
+                if(gp) gPaths.push(gp);
+            }
+        });
+    }
+
+    return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
+  }, [graphPoints, activeMainline, allPaths, graphSettings.showVariations]);
+
+  // 🌟 سیستم تعاملی
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoveredGraphIndex, setHoveredGraphIndex] = useState<number | null>(null);
 
-  const handleGraphPointerMove = (e: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
+  const handleGraphPointerMove = (e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
       if (!svgRef.current || graphPoints.length <= 1) return;
       const rect = svgRef.current.getBoundingClientRect();
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const pct = x / rect.width;
-      const idx = Math.round(pct * (graphPoints.length - 1));
-      setHoveredGraphIndex(idx);
+      const maxX = Math.max(1, activeMainline.length - 1);
+      const idx = Math.round(pct * maxX);
+      if (idx < graphPoints.length) setHoveredGraphIndex(idx);
   };
   const handleGraphPointerLeave = () => setHoveredGraphIndex(null);
   const handleGraphClick = () => {
       if (hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex]) {
           setCurrentNodeId(graphPoints[hoveredGraphIndex].node.id);
-          setIsGraphModalOpen(false);
+          // در حالت فول اسکرین، با کلیک به حالت شناور بریم تا مزاحم نباشه
+          if (graphMode === 'fullscreen') setGraphMode('floating');
       }
   };
+
+  // هماهنگ‌سازی نشانگر روی گراف با حرکت فعلی در تخته
+  useEffect(() => {
+     if (graphMode !== 'hidden') {
+         const idx = graphPoints.findIndex(p => p.node.id === currentNodeId);
+         if (idx !== -1) setHoveredGraphIndex(idx);
+     }
+  }, [currentNodeId, graphMode, graphPoints]);
 
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
@@ -347,7 +433,6 @@ export default function AnalysisBoard() {
             }
         }
     });
-
     return Array.from(arrowMap.values());
   }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
 
@@ -502,6 +587,7 @@ export default function AnalysisBoard() {
   }, [lines, isBlackTurn]);
 
   const evalPercentage = useMemo(() => { if (isMate) return absoluteMate > 0 ? 95 : 5; return Math.max(5, Math.min(95, 50 + (absoluteScore * 10))); }, [absoluteScore, isMate, absoluteMate]);
+  
   const getBadgeStyle = (score: number, mateFlag: boolean, mateVal: number) => {
       const isWhiteAdv = mateFlag ? mateVal > 0 : score > 0; const isBlackAdv = mateFlag ? mateVal < 0 : score < 0;
       if (isWhiteAdv) return 'bg-white text-zinc-900 border-zinc-200'; if (isBlackAdv) return 'bg-[#1a1916] text-zinc-200 border-[#262421]'; return 'bg-[#262421] text-zinc-400 border-[#35332e]'; 
@@ -534,58 +620,93 @@ export default function AnalysisBoard() {
     return result;
   }, [tree, currentNodeId]);
 
-  // 🌟 استخراج مسیرهای گرافیکی SVG
-  const getGraphPaths = () => {
-    if (graphPoints.length === 0) return { area: '', line: '' };
-    let areaPath = `M 0,150 `;
-    let linePath = ``;
-    graphPoints.forEach((pt, i) => {
-        const x = (i / Math.max(1, graphPoints.length - 1)) * 1000;
-        const y = 300 - (pt.ep * 300);
-        areaPath += `L ${x},${y} `;
-        linePath += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
-    });
-    areaPath += `L 1000,150 Z`;
-    return { area: areaPath, line: linePath };
-  };
-  const { area: graphAreaPath, line: graphLinePath } = getGraphPaths();
+  const stats = useMemo(() => {
+      const counts = { brilliant: 0, great: 0, blunder: 0, mistake: 0, miss: 0 };
+      graphPoints.forEach(p => {
+          if (p.coach && counts[p.coach.key as keyof typeof counts] !== undefined) {
+              counts[p.coach.key as keyof typeof counts]++;
+          }
+      });
+      return counts;
+  }, [graphPoints]);
 
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
-      {/* 🌟 پاپ‌آپ پیشرفته گراف (Interactive Modal) */}
+      {/* 🌟 پاپ‌آپ پیشرفته / شناور گراف */}
       <AnimatePresence>
-        {isGraphModalOpen && (
+        {graphMode !== 'hidden' && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-10 bg-black/80 backdrop-blur-md"
+            drag={graphMode === 'floating'}
+            dragMomentum={false}
+            initial={graphMode === 'fullscreen' ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: 50 }} 
+            animate={graphMode === 'fullscreen' 
+                ? { opacity: 1, scale: 1, x: 0, y: 0, width: '100%', height: '100%', maxWidth: '64rem', maxHeight: 'none', borderRadius: '1.5rem' } 
+                : { opacity: 1, scale: 1, x: 0, y: 0, width: '320px', height: '220px', maxWidth: '100%', maxHeight: '100%', borderRadius: '1rem' }} 
+            exit={{ opacity: 0, scale: 0.9 }} 
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className={`fixed z-[100] bg-[#12110f]/95 backdrop-blur-xl border border-[#35332e] shadow-2xl flex flex-col overflow-hidden
+                ${graphMode === 'fullscreen' ? 'inset-0 m-auto md:p-0' : 'bottom-4 left-4 cursor-grab active:cursor-grabbing'}
+            `}
+            style={{ 
+                // در حالت فول اسکرین، استایل‌های fixed باعث میشه در مرکز صفحه قرار بگیره
+                ...(graphMode === 'fullscreen' ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' } : {}) 
+            }}
           >
-            <div className="bg-[#12110f] border border-[#35332e] w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
                
-               <div className="flex items-center justify-between p-4 border-b border-[#35332e] bg-[#1a1916]">
+               <div className={`flex items-center justify-between border-b border-[#35332e] bg-gradient-to-r from-[#1a1916]/80 to-[#12110f]/80 ${graphMode === 'fullscreen' ? 'p-5 lg:px-8' : 'p-2 px-3'}`}>
                   <div className="flex items-center gap-3">
-                     <TrendingUp size={24} className="text-sky-500" />
-                     <div>
-                        <h2 className="font-bold text-white text-lg leading-none">گراف ارزیابی پیشرفته</h2>
-                        <span className="text-xs text-zinc-500">تحلیل فشرده‌سازی شده با سیگموئید (سطح استادبزرگ)</span>
+                     <div className={`rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 ${graphMode === 'fullscreen' ? 'w-10 h-10' : 'w-7 h-7'}`}>
+                        <TrendingUp size={graphMode === 'fullscreen' ? 20 : 14} />
+                     </div>
+                     <div className="flex flex-col">
+                        <h2 className={`font-black text-white tracking-tight ${graphMode === 'fullscreen' ? 'text-lg' : 'text-xs'}`}>گراف بازی</h2>
+                        {graphMode === 'fullscreen' && <span className="text-[10px] text-zinc-500 font-medium">خط اصلی و شاخه‌های فرعی</span>}
                      </div>
                   </div>
-                  <button onClick={() => setIsGraphModalOpen(false)} className="p-2 bg-[#262421] rounded-lg text-zinc-400 hover:text-white transition-colors"><X size={20}/></button>
+                  
+                  <div className="flex items-center gap-2">
+                     {graphMode === 'fullscreen' && (
+                         <div className="relative mr-4" onMouseEnter={() => setShowGraphSettings(true)} onMouseLeave={() => setShowGraphSettings(false)}>
+                             <button className="p-2 text-zinc-400 hover:text-white transition-colors"><Settings size={18}/></button>
+                             <AnimatePresence>
+                                {showGraphSettings && (
+                                    <motion.div initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} exit={{opacity:0, y:5}} className="absolute top-full left-0 mt-1 w-48 bg-[#1e1c19] border border-[#35332e] rounded-xl shadow-xl p-3 z-50">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-white">شاخه‌های فرعی</span>
+                                            <ToggleSwitch checked={graphSettings.showVariations} onChange={(v) => setGraphSettings({showVariations: v})} />
+                                        </div>
+                                    </motion.div>
+                                )}
+                             </AnimatePresence>
+                         </div>
+                     )}
+                     
+                     <button onClick={() => setGraphMode(graphMode === 'fullscreen' ? 'floating' : 'fullscreen')} className="p-1.5 bg-[#262421] rounded-lg text-zinc-400 hover:text-white transition-all">
+                        {graphMode === 'fullscreen' ? <Minimize2 size={16}/> : <Maximize2 size={14}/>}
+                     </button>
+                     <button onClick={() => setGraphMode('hidden')} className="p-1.5 bg-red-500/10 rounded-lg text-red-400 hover:bg-red-500 hover:text-white transition-all"><X size={16}/></button>
+                  </div>
                </div>
 
-               <div className="relative w-full h-[40vh] min-h-[250px] bg-[#100f0d]" onPointerMove={handleGraphPointerMove} onPointerLeave={handleGraphPointerLeave} onClick={handleGraphClick}>
-                  
-                  {/* فازهای بازی در پس‌زمینه گراف */}
-                  <div className="absolute inset-0 flex">
+               <div className="relative flex-1 w-full bg-[#100f0d] overflow-hidden" 
+                    onPointerMove={handleGraphPointerMove} 
+                    onPointerLeave={handleGraphPointerLeave} 
+                    onClick={handleGraphClick}
+               >
+                  <div className="absolute inset-0 flex pointer-events-none">
                      {graphPoints.length > 0 && ['opening', 'middlegame', 'endgame'].map(phase => {
                         const pointsInPhase = graphPoints.filter(p => p.phase === phase);
                         if (pointsInPhase.length === 0) return null;
                         const w = (pointsInPhase.length / graphPoints.length) * 100;
                         return (
-                          <div key={phase} className="h-full border-r border-[#35332e]/20 relative flex justify-center" style={{ width: `${w}%`, backgroundColor: phase === 'opening' ? 'rgba(255,255,255,0.01)' : phase === 'endgame' ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                              <span className="absolute bottom-2 text-[10px] font-black tracking-widest text-zinc-700 uppercase">
-                                  {phase === 'opening' ? 'گشایش' : phase === 'middlegame' ? 'وسط‌بازی' : 'آخربازی'}
-                              </span>
+                          <div key={phase} className="h-full border-r border-[#35332e]/30 relative flex justify-center transition-colors" 
+                               style={{ width: `${w}%`, backgroundColor: phase === 'opening' ? 'rgba(255,255,255,0.015)' : phase === 'endgame' ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+                              {graphMode === 'fullscreen' && (
+                                <span className="absolute bottom-3 text-[10px] font-black tracking-widest text-zinc-600 uppercase opacity-50">
+                                    {phase === 'opening' ? 'گشایش' : phase === 'middlegame' ? 'وسط‌بازی' : 'آخربازی'}
+                                </span>
+                              )}
                           </div>
                         );
                      })}
@@ -593,52 +714,78 @@ export default function AnalysisBoard() {
 
                   <svg ref={svgRef} viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full cursor-crosshair">
                      <defs>
-                        <linearGradient id="evalGradient" x1="0" y1="0" x2="0" y2="1">
-                           <stop offset="0%" stopColor="#e5e7eb" stopOpacity="0.7"/>
-                           <stop offset="49%" stopColor="#e5e7eb" stopOpacity="0.0"/>
-                           <stop offset="51%" stopColor="#1e293b" stopOpacity="0.0"/>
-                           <stop offset="100%" stopColor="#1e293b" stopOpacity="0.8"/>
+                        <linearGradient id="whiteAdvantage" x1="0" y1="0" x2="0" y2="1">
+                           <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3"/>
+                           <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0"/>
                         </linearGradient>
+                        <linearGradient id="blackAdvantage" x1="0" y1="0" x2="0" y2="1">
+                           <stop offset="0%" stopColor="#000000" stopOpacity="0.0"/>
+                           <stop offset="100%" stopColor="#000000" stopOpacity="0.6"/>
+                        </linearGradient>
+                        <clipPath id="aboveZero"><rect x="0" y="0" width="1000" height="150" /></clipPath>
+                        <clipPath id="belowZero"><rect x="0" y="150" width="1000" height="150" /></clipPath>
                      </defs>
                      
-                     <line x1="0" y1="150" x2="1000" y2="150" stroke="#35332e" strokeWidth="2" strokeDasharray="5,5" />
-                     <path d={graphAreaPath} fill="url(#evalGradient)" />
-                     <path d={graphLinePath} fill="none" stroke="#779556" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                     <line x1="0" y1="150" x2="1000" y2="150" stroke="#35332e" strokeWidth="1" strokeDasharray="4,4" />
                      
-                     {/* رسم آیکون‌های منتخب روی گراف */}
-                     {graphPoints.map((pt, i) => {
-                         if (!pt.coach || !['brilliant','great','blunder','mistake','miss'].includes(pt.coach.key)) return null;
-                         const x = (i / Math.max(1, graphPoints.length - 1)) * 1000;
-                         const y = 300 - (pt.ep * 300);
-                         return (
-                             <foreignObject key={i} x={x - 12} y={y - 12} width="24" height="24" className="overflow-visible pointer-events-none">
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-[#100f0d]" style={{ backgroundColor: pt.coach.color }}>
-                                    {typeof pt.coach.icon === 'function' ? pt.coach.icon({size: 14}) : <pt.coach.icon size={14} strokeWidth={3} />}
-                                </div>
-                             </foreignObject>
-                         );
-                     })}
+                     <path d={areaWhite} fill="url(#whiteAdvantage)" clipPath="url(#aboveZero)" />
+                     <path d={areaBlack} fill="url(#blackAdvantage)" clipPath="url(#belowZero)" />
+                     
+                     {/* 🌟 رسم خطوط روح (شاخه‌های فرعی) */}
+                     {ghostPaths.map((gp, i) => (
+                         <path key={`ghost-${i}`} d={gp} fill="none" stroke={`hsl(${(i * 137) % 360}, 70%, 50%)`} strokeWidth="1.5" strokeOpacity="0.3" strokeLinejoin="round" />
+                     ))}
 
+                     {/* 🌟 خط شاخه اصلی */}
+                     <motion.path 
+                        initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: "easeOut" }}
+                        d={linePath} fill="none" stroke="#779556" strokeWidth={graphMode === 'fullscreen' ? "3" : "2"} strokeLinejoin="round" strokeLinecap="round" 
+                     />
+                     
                      {hoveredGraphIndex !== null && (
                          <line 
-                            x1={(hoveredGraphIndex / Math.max(1, graphPoints.length - 1)) * 1000} y1="0" 
-                            x2={(hoveredGraphIndex / Math.max(1, graphPoints.length - 1)) * 1000} y2="300" 
-                            stroke="#fff" strokeWidth="2" strokeOpacity="0.5" strokeDasharray="4,4" 
+                            x1={(hoveredGraphIndex / Math.max(1, activeMainline.length - 1)) * 1000} y1="0" 
+                            x2={(hoveredGraphIndex / Math.max(1, activeMainline.length - 1)) * 1000} y2="300" 
+                            stroke="#fff" strokeWidth="2" strokeOpacity="0.3" strokeDasharray="3,3" 
                          />
                      )}
                   </svg>
 
-                  {/* Tooltip شناور */}
+                  <div className="absolute inset-0 pointer-events-none">
+                     {graphPoints.map((pt, i) => {
+                         if (!pt.coach || !['brilliant','great','blunder','mistake','miss'].includes(pt.coach.key)) return null;
+                         const leftPct = (i / Math.max(1, activeMainline.length - 1)) * 100;
+                         const topPct = (1 - pt.ep) * 100;
+                         const size = graphMode === 'fullscreen' ? 24 : 16;
+                         const iconSize = graphMode === 'fullscreen' ? 14 : 10;
+                         return (
+                             <motion.div 
+                                key={i}
+                                initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.5 + (i * 0.02), type: "spring" }}
+                                className="absolute flex items-center justify-center rounded-full text-white shadow-lg border border-[#100f0d] z-10"
+                                style={{ 
+                                    width: size, height: size,
+                                    backgroundColor: pt.coach.color,
+                                    left: `calc(${leftPct}% - ${size/2}px)`, 
+                                    top: `calc(${topPct}% - ${size/2}px)` 
+                                }}
+                             >
+                                 {typeof pt.coach.icon === 'function' ? pt.coach.icon({size: iconSize}) : <pt.coach.icon size={iconSize} strokeWidth={3} />}
+                             </motion.div>
+                         );
+                     })}
+                  </div>
+
                   {hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex] && (
                      <div 
-                        className="absolute top-4 pointer-events-none bg-[#1e1c19] border border-[#35332e] text-white px-3 py-2 rounded-xl shadow-2xl flex flex-col gap-1 z-50 transform -translate-x-1/2"
-                        style={{ left: `${(hoveredGraphIndex / Math.max(1, graphPoints.length - 1)) * 100}%` }}
+                        className="absolute top-2 pointer-events-none bg-[#1e1c19]/90 backdrop-blur border border-[#35332e] text-white px-2 py-1 rounded-lg shadow-2xl flex flex-col gap-0.5 z-50 transform -translate-x-1/2 min-w-[80px]"
+                        style={{ left: `${(hoveredGraphIndex / Math.max(1, activeMainline.length - 1)) * 100}%` }}
                      >
-                        <span className="text-[10px] font-mono text-zinc-400 block text-center">حرکت {Math.ceil(graphPoints[hoveredGraphIndex].node.depth / 2)}</span>
-                        <div className="flex items-center gap-2">
-                           <span className="font-bold text-sm" dir="ltr">{graphPoints[hoveredGraphIndex].node.san}</span>
-                           {graphPoints[hoveredGraphIndex].coach && (
-                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${graphPoints[hoveredGraphIndex].coach.color}20`, color: graphPoints[hoveredGraphIndex].coach.color }}>
+                        <span className="text-[9px] font-mono text-zinc-400 block text-center">ح {Math.ceil(graphPoints[hoveredGraphIndex].node.depth / 2)}</span>
+                        <div className="flex items-center justify-center gap-1.5">
+                           <span className="font-bold text-xs" dir="ltr">{graphPoints[hoveredGraphIndex].node.san}</span>
+                           {graphPoints[hoveredGraphIndex].coach && graphMode === 'fullscreen' && (
+                               <span className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0" style={{ backgroundColor: `${graphPoints[hoveredGraphIndex].coach.color}20`, color: graphPoints[hoveredGraphIndex].coach.color }}>
                                   {graphPoints[hoveredGraphIndex].coach.text}
                                </span>
                            )}
@@ -646,7 +793,7 @@ export default function AnalysisBoard() {
                      </div>
                   )}
                </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -684,6 +831,7 @@ export default function AnalysisBoard() {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Sliders size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2></div>
                <div className="flex flex-col gap-5 mb-6">
+                 
                  <div className="bg-[#1e1c19] border border-farzin-accent/30 p-3 rounded-xl flex items-center justify-between shadow-inner">
                     <div>
                         <span className="text-sm font-bold text-white block mb-0.5">مربی هوشمند (Coach)</span>
@@ -691,6 +839,7 @@ export default function AnalysisBoard() {
                     </div>
                     <ToggleSwitch checked={tempSettings.coachMode} onChange={(v) => setTempSettings(prev => ({...prev, coachMode: v}))} />
                  </div>
+
                  <div className={`transition-opacity ${tempSettings.coachMode ? 'opacity-50 pointer-events-none' : ''}`}>
                    <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label><span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span></div>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 3].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num} لاین</button>))}</div>
@@ -964,16 +1113,15 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* 🌟 تب گراف مینیاتوری (Preview) */}
+                {/* تب گراف مینیاتوری */}
                 {activeTab === 'graph' && (
                     <div className="absolute inset-0 p-3 flex flex-col">
                         <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512]">
-                            {/* گراف دکوری بک‌گراند */}
                             <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-                                <path d={graphAreaPath} fill="#fff" />
-                                <path d={graphLinePath} fill="none" stroke="#fff" strokeWidth="4" />
+                                <path d={areaWhite} fill="#fff" />
+                                <path d={areaBlack} fill="#000" />
+                                <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
                             </svg>
-                            {/* لایه بلور و دکمه فراخوانی */}
                             <div className="absolute inset-0 backdrop-blur-[3px] bg-black/40 flex flex-col items-center justify-center gap-4 z-10">
                                 <div className="w-12 h-12 rounded-full bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.3)]">
                                     <TrendingUp size={20} />
@@ -983,7 +1131,7 @@ export default function AnalysisBoard() {
                                     <span className="text-[10px] text-zinc-400">فشرده‌سازی سیگموئید و تشخیص فازها</span>
                                 </div>
                                 <button 
-                                    onClick={() => setIsGraphModalOpen(true)} 
+                                    onClick={() => setGraphMode('fullscreen')} 
                                     className="mt-2 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs transition-colors shadow-lg active:scale-95"
                                 >
                                     <Maximize2 size={14} /> باز کردن گراف پیشرفته
