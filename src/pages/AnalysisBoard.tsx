@@ -323,7 +323,7 @@ export default function AnalysisBoard() {
 
   const isBlackTurn = activeGame.turn() === 'b';
   
-  // 🌟 هوش مصنوعی مربی: ایزوله‌سازی فاز ۱ (پایه) و فاز ۲ (ارتقا و فیلتر)
+// 🌟 موتور مربی (Coach Engine) با معماری قطعی (Solid Pipeline)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -335,17 +335,23 @@ export default function AnalysisBoard() {
     // تشخیص زاویه دید
     const playerWhoMovedIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
     
-    // یکسان‌سازی فرمول (درصد پیروزی بین 0 تا 1) 
-    // تبدیل امتیاز استوک‌فیش به ارزش پیاده با تقسیم بر 4 (طبق استاندارد Expected Points)
+    // ۱. استخراج امتیازات خام به صورت مطلق (Absolute) - همیشه از دید سفید
+    const absScoreBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1000 : -1000) : parentLines[0].score;
+    // Lines فعلی مال حریفه، پس برای به دست آوردن زاویه مطلق، باید قرینه بشه
+    const absScoreAfter = lines[0].isMate ? (lines[0].mateIn! > 0 ? -1000 : 1000) : lines[0].score;
+
+    // ۲. محاسبه CP Loss (افت امتیاز)
+    // اگر بازیکن سفید بوده، هرچی امتیاز مطلق کم شده باشه، یعنی ضرر کرده.
+    // اگر بازیکن سیاه بوده، هرچی امتیاز مطلق زیاد شده باشه، یعنی ضرر کرده.
+    let cpLoss = playerWhoMovedIsBlack ? (absScoreAfter - absScoreBefore) : (absScoreBefore - absScoreAfter);
+    cpLoss = Math.max(0, cpLoss);
+
+    // ۳. محاسبه Expected Points (برای فیلترهای Great و Miss)
+    // فرمول: 1 / (1 + 10^(-score/4))
     const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
-
-    const scoreBeforePlayer = playerWhoMovedIsBlack ? -parentLines[0].score : parentLines[0].score;
-    const scoreAfterPlayer = isBlackTurn ? -lines[0].score : lines[0].score; 
     
-    let epBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? (playerWhoMovedIsBlack ? 0 : 1) : (playerWhoMovedIsBlack ? 1 : 0)) : epFormula(scoreBeforePlayer);
-    let epAfter = lines[0].isMate ? (lines[0].mateIn! > 0 ? (isBlackTurn ? 0 : 1) : (isBlackTurn ? 1 : 0)) : epFormula(scoreAfterPlayer);
-
-    const epLost = Math.max(0, epBefore - epAfter);
+    const epBefore = epFormula(playerWhoMovedIsBlack ? -absScoreBefore : absScoreBefore);
+    const epAfter = epFormula(playerWhoMovedIsBlack ? -absScoreAfter : absScoreAfter);
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
@@ -357,47 +363,55 @@ export default function AnalysisBoard() {
     const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     const isEndgame = fenBeforeCount <= 16; 
 
-    // === فاز ۱: طبقه‌بندی پایه ===
-    if (userUciMove === bestUciMove || epLost <= 0.01) {
+    // آستانه‌های داینامیک
+    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
+    const mistakeLimit = isEndgame ? 2.0 : 2.5;
+
+    // ==========================================
+    // فاز ۱: طبقه‌بندی پایه با CP-Loss خالص
+    // ==========================================
+    if (userUciMove === bestUciMove || cpLoss <= 0.05) {
         classificationKey = 'best';
-    } else if (epBefore < 0.1) {
-        // پوزیسیون مرده: افت‌های کوچیک اهمیت ندارن
-        classificationKey = epLost <= 0.05 ? 'excellent' : 'good';
-    } else {
-        if (epLost <= 0.02) classificationKey = 'excellent'; 
-        else if (epLost <= 0.05) classificationKey = 'good';      
-        else if (epLost <= (isEndgame ? 0.08 : 0.10)) classificationKey = 'inaccuracy';
-        else if (epLost <= (isEndgame ? 0.15 : 0.20)) classificationKey = 'mistake';
+    } 
+    else if (epBefore < 0.10) {
+        classificationKey = cpLoss <= 0.5 ? 'excellent' : 'good';
+    } 
+    else {
+        if (cpLoss <= 0.20) classificationKey = 'excellent'; 
+        else if (cpLoss <= 0.50) classificationKey = 'good';      
+        else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
+        else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
         else classificationKey = 'blunder'; 
     }
 
-    // === فاز ۲: اعمال فیلترهای ارتقا ===
+    // ==========================================
+    // فاز ۲: فیلترهای ارتقا (Context Modifiers)
+    // ==========================================
 
-    // 1️⃣ فیلتر Miss
+    // 🎯 فیلتر Miss
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
         const grandParentId = tree[parentId].parentId;
         if (grandParentId) {
             const grandparentLines = engineCache.current[grandParentId];
             if (grandparentLines && grandparentLines[0]) {
-                const scoreBeforeOpponent = playerWhoMovedIsBlack ? -grandparentLines[0].score : grandparentLines[0].score;
-                const epBeforeOpponent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? (playerWhoMovedIsBlack ? 0 : 1) : (playerWhoMovedIsBlack ? 1 : 0)) : epFormula(scoreBeforeOpponent);
+                // استخراج امتیاز دو حرکت قبل (Absolute)
+                const absScoreGrandparent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? -1000 : 1000) : grandparentLines[0].score;
+                const epGrandparent = epFormula(playerWhoMovedIsBlack ? -absScoreGrandparent : absScoreGrandparent);
                 
-                // حریف شانس برد را به ما داده است
-                if (epBefore - epBeforeOpponent >= 0.15) {
-                    // اما ما با این حرکت، آن شانس را دور ریختیم
-                    if (epAfter <= epBeforeOpponent + 0.05) {
-                        classificationKey = 'miss';
-                    }
+                // آیا حریف شانس بردِ ما رو به شدت افزایش داده بود؟ (حداقل ۲۰٪)
+                // و آیا ما با این حرکت، دوباره برگشتیم به همون حالت قبل از اشتباهِ حریف؟
+                if (epBefore - epGrandparent >= 0.20 && epAfter <= epGrandparent + 0.05) {
+                    classificationKey = 'miss';
                 }
             }
         }
     }
 
-    // 2️⃣ فیلتر Great و Brilliant
+    // 🎯 فیلتر Great و Brilliant
     if (['best', 'excellent'].includes(classificationKey)) {
         if (parentLines.length > 1) {
-            const scoreSecondBestPlayer = playerWhoMovedIsBlack ? -parentLines[1].score : parentLines[1].score;
-            const epSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? (playerWhoMovedIsBlack ? 0 : 1) : (playerWhoMovedIsBlack ? 1 : 0)) : epFormula(scoreSecondBestPlayer);
+            const absScoreSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1000 : -1000) : parentLines[1].score;
+            const epSecondBest = epFormula(playerWhoMovedIsBlack ? -absScoreSecondBest : absScoreSecondBest);
 
             const isOnlyGoodMove = (epBefore - epSecondBest) >= 0.20; 
             const isSavingMove = (epBefore >= 0.45 && epSecondBest <= 0.25);
@@ -406,49 +420,45 @@ export default function AnalysisBoard() {
 
             if (isNotBlowout && (isOnlyGoodMove || isSavingMove || isWinningMove)) {
                 classificationKey = 'great';
-            }
-
-            // تشخیص Brilliant: شبیه‌ساز تبادل استاتیک (Static Exchange Evaluation)
-            let isSacrifice = false;
-            try {
-                const getPieceValue = (p: string) => {
-                    const vals: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
-                    return vals[p.toLowerCase()] || 0;
-                };
-
-                const tempG = new Chess(tree[currentNodeId].fen);
-                const oppMoves = tempG.moves({ verbose: true });
                 
-                for (const oppMove of oppMoves) {
-                    if (oppMove.captured) {
-                        const capturedVal = getPieceValue(oppMove.captured); 
-                        
-                        // حریف مهره رو میزنه، ببینیم ما چی پس می‌گیریم
-                        tempG.move(oppMove.san);
-                        const ourRecaptures = tempG.moves({ verbose: true });
-                        let maxRecaptureVal = 0;
-                        for (const ourMove of ourRecaptures) {
-                            if (ourMove.to === oppMove.to && ourMove.captured) {
-                                const val = getPieceValue(ourMove.captured);
-                                if (val > maxRecaptureVal) maxRecaptureVal = val;
+                // بررسی Brilliant: تست تبادل استاتیک
+                let isSacrifice = false;
+                try {
+                    const getPieceValue = (p: string) => {
+                        const vals: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+                        return vals[p.toLowerCase()] || 0;
+                    };
+
+                    const tempG = new Chess(tree[currentNodeId].fen);
+                    const oppMoves = tempG.moves({ verbose: true });
+                    
+                    for (const oppMove of oppMoves) {
+                        if (oppMove.captured && ['n', 'b', 'r', 'q'].includes(oppMove.captured.toLowerCase())) {
+                            const capturedVal = getPieceValue(oppMove.captured); 
+                            
+                            tempG.move(oppMove.san);
+                            const ourRecaptures = tempG.moves({ verbose: true });
+                            let maxRecaptureVal = 0;
+                            for (const ourMove of ourRecaptures) {
+                                if (ourMove.to === oppMove.to && ourMove.captured) {
+                                    const val = getPieceValue(ourMove.captured);
+                                    if (val > maxRecaptureVal) maxRecaptureVal = val;
+                                }
+                            }
+                            tempG.undo();
+                            
+                            const netLoss = capturedVal - maxRecaptureVal;
+                            if (netLoss >= 2) {
+                                isSacrifice = true;
+                                break;
                             }
                         }
-                        tempG.undo();
-                        
-                        // اگه حتی بعد از پس‌گرفتن، بازم حداقل ۲ امتیاز (مثلا تفاوت رخ و اسب) ضرر کنیم
-                        const netLoss = capturedVal - maxRecaptureVal;
-                        
-                        if (netLoss >= 2) {
-                            isSacrifice = true;
-                            break;
-                        }
                     }
-                }
-            } catch(e) {}
+                } catch(e) {}
 
-            // اگر قربانی دادیم و بازی از قبل تموم شده نبود -> درخشان
-            if (isSacrifice && epBefore < 0.85) {
-                classificationKey = 'brilliant';
+                if (isSacrifice && epBefore < 0.85) {
+                    classificationKey = 'brilliant';
+                }
             }
         }
     }
@@ -468,7 +478,7 @@ export default function AnalysisBoard() {
     };
 
   }, [currentNodeId, lines, engineSettings.coachMode, tree]);
-
+  
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
     if (!node || node.id === 'root' || !node.move) return {};
