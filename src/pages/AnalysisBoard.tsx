@@ -7,7 +7,7 @@ import {
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
   Share2, List, TrendingUp, BookOpen, User, Edit2, Check,
   Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route,
-  Sparkles, ThumbsUp, HelpCircle, XCircle, AlertTriangle, CheckCircle2, ThumbsDown
+  Sparkles, ThumbsUp, HelpCircle, XCircle, AlertTriangle, CheckCircle2, ThumbsDown, Star, Award
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -22,16 +22,22 @@ export interface MoveNode {
   depth: number;
 }
 
+// 🌟 آیکون‌های متنی برای حرکاتی که نماد شطرنجی دارند
+const TextIcon = ({ text }: { text: string }) => (
+  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '11px' }}>{text}</span>
+);
+
+// 🌟 سیستم طبقه‌بندی بومی‌سازی شده با آیکون‌های درخواستی
 const COACH_COLORS = {
-  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
-  great: { color: '#3b82f6', text: 'عالی', icon: CheckCircle2 },
-  best: { color: '#22c55e', text: 'بهترین', icon: Check },
-  excellent: { color: '#86efac', text: 'فوق‌العاده', icon: ThumbsUp },
-  good: { color: '#bef264', text: 'خوب', icon: ThumbsUp },
-  inaccuracy: { color: '#eab308', text: 'دقت کم', icon: HelpCircle },
-  mistake: { color: '#f97316', text: 'اشتباه', icon: AlertTriangle },
-  blunder: { color: '#ef4444', text: 'فاجعه', icon: XCircle },
-  miss: { color: '#ec4899', text: 'از دست رفته', icon: ThumbsDown },
+  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Star }, // ستاره
+  great: { color: '#3b82f6', text: 'عالی', icon: Award }, // مدال
+  best: { color: '#22c55e', text: 'بهترین', icon: Star }, // تک ستاره ساده
+  excellent: { color: '#86efac', text: 'دقیق', icon: ThumbsUp }, // شصت لایک
+  good: { color: '#bef264', text: 'خوب', icon: Check }, // تیک
+  inaccuracy: { color: '#eab308', text: 'بی‌دقتی', icon: () => <TextIcon text="?!" /> }, // علامت سوال و تعجب
+  mistake: { color: '#f97316', text: 'اشتباه', icon: () => <TextIcon text="?" /> }, // یک علامت سوال
+  blunder: { color: '#ef4444', text: 'اشتباه فاحش', icon: () => <TextIcon text="??" /> }, // دو علامت سوال استاندارد
+  miss: { color: '#ec4899', text: 'فرصت از دست رفته', icon: AlertTriangle }, // علامت خطر
   loading: { color: '#a1a1aa', text: 'در حال تحلیل...', icon: Loader2 }
 };
 
@@ -121,8 +127,7 @@ export default function AnalysisBoard() {
 
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
-
-  // تعریف متغیر چرخش مهره‌ها قبل از coachData
+  
   const isBlackTurn = activeGame.turn() === 'b';
 
   useEffect(() => {
@@ -323,7 +328,6 @@ export default function AnalysisBoard() {
     }
   };
 
-  // 🌟 موتور مربی (Coach Engine) با معماری قطعی (Solid Pipeline)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -340,7 +344,6 @@ export default function AnalysisBoard() {
     const playerWhoMovedIsBlack = new Chess(parentFen).turn() === 'b';
     const currentTurnIsBlack = new Chess(currentFen).turn() === 'b';
 
-    // ۱. قطب‌نمای مطلق: این تابع همیشه امتیاز را از دیدگاه "سفید" (مثبت=سفید برنده) برمی‌گرداند!
     const getAbsScore = (line: any, fenTurn: 'w' | 'b') => {
         if (!line) return 0;
         let score = 0;
@@ -352,18 +355,13 @@ export default function AnalysisBoard() {
         return fenTurn === 'b' ? -score : score;
     };
 
-    // استخراج امتیازات مطلق برای نقطه B (قبل حرکت ما) و نقطه C (بعد حرکت ما)
     const absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
     const absScoreC = getAbsScore(lines[0], currentTurnIsBlack ? 'b' : 'w');
 
-    // محاسبه CP Loss (افت امتیاز) بر حسب رنگ
     let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
     cpLoss = Math.max(0, cpLoss);
 
-    // فرمول تبدیل امتیاز به درصد احتمال برد (Expected Points)
     const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
-    
-    // تابعی که همیشه EP را از دیدگاه بازیکنی که حرکت را انجام داده به دست می‌آورد
     const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
 
     const epB = getPlayerEP(absScoreB); 
@@ -382,9 +380,7 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // ==========================================
-    // فاز ۱: طبقه‌بندی پایه با CP-Loss مطلق
-    // ==========================================
+    // فاز ۱: پایه
     if (userUciMove === bestUciMove || cpLoss <= 0.05) {
         classificationKey = 'best';
     } else if (epB < 0.10) {
@@ -397,17 +393,12 @@ export default function AnalysisBoard() {
         else classificationKey = 'blunder'; 
     }
 
-    // ==========================================
-    // فاز ۲: فیلترهای ارتقا دهنده (Modifiers)
-    // ==========================================
-
-    // 🎯 ۱. فیلتر قطعی Miss (با استفاده از خط زمانی ۳ نقطه‌ای)
+    // فاز ۲: ارتقا دهنده
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
         if (grandParentId && grandparentFen) {
             const grandparentLines = engineCache.current[grandParentId];
             if (grandparentLines && grandparentLines[0]) {
                 const grandparentTurn = new Chess(grandparentFen).turn() as 'w' | 'b';
-                
                 const absScoreA = getAbsScore(grandparentLines[0], grandparentTurn);
                 const epA = getPlayerEP(absScoreA); 
 
@@ -422,7 +413,6 @@ export default function AnalysisBoard() {
         }
     }
 
-    // 🎯 ۲. فیلتر Great و Brilliant
     if (['best', 'excellent'].includes(classificationKey)) {
         if (parentLines.length > 1) {
             const absScoreSecondBest = getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'b' : 'w');
@@ -491,21 +481,24 @@ export default function AnalysisBoard() {
         userSan: tree[currentNodeId].san 
     };
 
-  }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
+  }, [currentNodeId, lines, engineSettings.coachMode, tree]);
+
+  // 🌟 تابع محاسبه مختصات برای رندر آیکون روی تخته
+  const getSquareCoordinates = (square: string) => {
+    const col = square.charCodeAt(0) - 97; // a=0, h=7
+    const row = parseInt(square[1]) - 1; // 1=0, 8=7
+    const isWhite = boardOrientation === 'white';
+    const x = isWhite ? col : 7 - col;
+    const y = isWhite ? 7 - row : row;
+    return { x, y };
+  };
 
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
     if (!node || node.id === 'root' || !node.move) return {};
     let customSq: any = { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
-    
-    if (coachData && coachData.key !== 'loading' && engineSettings.coachMode) {
-       customSq[node.move.to] = { 
-         backgroundColor: 'rgba(255, 255, 0, 0.4)',
-         boxShadow: `inset 0 0 20px ${coachData.color}80` 
-       };
-    }
     return customSq;
-  }, [tree, currentNodeId, coachData, engineSettings.coachMode]);
+  }, [tree, currentNodeId]);
 
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
@@ -766,9 +759,9 @@ export default function AnalysisBoard() {
             <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
             
             <div className="w-full flex justify-center py-0.5">
-                <div className="flex w-full max-w-[min(100vw-1.5rem,48vh)] lg:max-w-[600px] aspect-square gap-1.5" dir="ltr">
+                <div className="flex w-full max-w-[min(100vw-1.5rem,48vh)] lg:max-w-[600px] aspect-square gap-1.5 relative" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative">
-                        <div className="w-full h-full rounded-md overflow-hidden">
+                        <div className="w-full h-full rounded-md overflow-hidden relative">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
                               customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
@@ -778,8 +771,67 @@ export default function AnalysisBoard() {
                               customSquareStyles={{...moveSquares, ...optionSquares}} 
                               customArrows={engineArrows} animationDuration={200}
                           />
+
+                          {/* 🌟 شبکه‌ی هم‌پوشان برای رندر آیکون و انیمیشن روی خانه‌ی مقصد */}
+                          {engineSettings.coachMode && coachData && tree[currentNodeId] && tree[currentNodeId].id !== 'root' && (
+                            <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8">
+                                {Array.from({ length: 64 }).map((_, i) => {
+                                    const x = i % 8;
+                                    const y = Math.floor(i / 8);
+                                    const targetSquare = tree[currentNodeId].move?.to;
+                                    
+                                    if (!targetSquare) return <div key={i} />;
+                                    
+                                    const coords = getSquareCoordinates(targetSquare);
+                                    
+                                    if (x === coords.x && y === coords.y) {
+                                        return (
+                                            <div key={i} className="relative w-full h-full flex items-center justify-center">
+                                                
+                                                {/* افکت‌های پس‌زمینه درخشان و فاجعه */}
+                                                {coachData.key === 'brilliant' && (
+                                                    <motion.div 
+                                                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.9, 0.5] }}
+                                                        transition={{ duration: 1.5, repeat: Infinity }}
+                                                        className="absolute inset-0 bg-[#2dd4bf] mix-blend-screen shadow-[0_0_30px_#2dd4bf]"
+                                                    />
+                                                )}
+                                                {coachData.key === 'great' && (
+                                                    <motion.div 
+                                                        animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.7, 0.4] }}
+                                                        transition={{ duration: 2, repeat: Infinity }}
+                                                        className="absolute inset-0 bg-[#3b82f6] mix-blend-screen"
+                                                    />
+                                                )}
+                                                {coachData.key === 'blunder' && (
+                                                    <motion.div 
+                                                        animate={{ x: [-3, 3, -3, 3, 0] }}
+                                                        transition={{ duration: 0.4 }}
+                                                        className="absolute inset-0 bg-red-600/50 mix-blend-multiply"
+                                                    />
+                                                )}
+
+                                                {/* آیکون (بج) در گوشه بالا راست خانه */}
+                                                <motion.div 
+                                                    initial={{ scale: 0, opacity: 0 }}
+                                                    animate={{ scale: 1, opacity: 1 }}
+                                                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                                                    className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full flex items-center justify-center text-white shadow-lg border border-black/20"
+                                                    style={{ backgroundColor: coachData.color }}
+                                                >
+                                                    <coachData.icon size={12} strokeWidth={3} />
+                                                </motion.div>
+                                                
+                                            </div>
+                                        );
+                                    }
+                                    return <div key={i} />;
+                                })}
+                            </div>
+                          )}
                         </div>
                     </div>
+                    
                     <div className="w-3.5 shrink-0 bg-[#262421] rounded-lg overflow-hidden flex flex-col relative border border-[#35332e] shadow-inner">
                         <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                         <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center">
