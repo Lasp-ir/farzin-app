@@ -22,7 +22,6 @@ export interface MoveNode {
   depth: number;
 }
 
-// 🌟 سیستم طبقه‌بندی حرکات و پالت‌های رنگی مربی (Coach)
 const COACH_COLORS = {
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
   great: { color: '#3b82f6', text: 'عالی', icon: CheckCircle2 },
@@ -321,9 +320,7 @@ export default function AnalysisBoard() {
     }
   };
 
-  const isBlackTurn = activeGame.turn() === 'b';
-  
-// 🌟 موتور مربی (Coach Engine) با معماری قطعی (Solid Pipeline)
+  // 🔥 موتورِ کاملاً ضدگلوله‌ی Coach با سیستم امتیازدهی مطلق (Absolute Perspective)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -332,26 +329,43 @@ export default function AnalysisBoard() {
     const parentLines = engineCache.current[parentId];
     if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
 
-    // تشخیص زاویه دید
-    const playerWhoMovedIsBlack = new Chess(tree[parentId].fen).turn() === 'b';
-    
-    // ۱. استخراج امتیازات خام به صورت مطلق (Absolute) - همیشه از دید سفید
-    const absScoreBefore = parentLines[0].isMate ? (parentLines[0].mateIn! > 0 ? 1000 : -1000) : parentLines[0].score;
-    // Lines فعلی مال حریفه، پس برای به دست آوردن زاویه مطلق، باید قرینه بشه
-    const absScoreAfter = lines[0].isMate ? (lines[0].mateIn! > 0 ? -1000 : 1000) : lines[0].score;
+    const parentFen = tree[parentId].fen;
+    const currentFen = tree[currentNodeId].fen;
+    const grandParentId = tree[parentId].parentId;
+    const grandparentFen = grandParentId ? tree[grandParentId].fen : null;
 
-    // ۲. محاسبه CP Loss (افت امتیاز)
-    // اگر بازیکن سفید بوده، هرچی امتیاز مطلق کم شده باشه، یعنی ضرر کرده.
-    // اگر بازیکن سیاه بوده، هرچی امتیاز مطلق زیاد شده باشه، یعنی ضرر کرده.
-    let cpLoss = playerWhoMovedIsBlack ? (absScoreAfter - absScoreBefore) : (absScoreBefore - absScoreAfter);
+    const playerWhoMovedIsBlack = new Chess(parentFen).turn() === 'b';
+    const currentTurnIsBlack = new Chess(currentFen).turn() === 'b';
+
+    // 🌟 قلب تپنده‌ی حلِ باگ: این تابع همیشه امتیاز را از دیدگاه سفید برمی‌گرداند!
+    // مثبت یعنی سفید برنده است، منفی یعنی سیاه برنده است.
+    const getAbsScore = (line: any, fenTurn: 'w' | 'b') => {
+        if (!line) return 0;
+        let score = 0;
+        if (line.isMate) {
+            // اگر کسی که نوبتشه مات می‌کنه، امتیاز +100، اگر مات میشه -100
+            score = line.mateIn > 0 ? 100 : -100; 
+        } else {
+            score = line.score; 
+        }
+        // اگر نوبت سیاه بوده، باید امتیاز رو قرینه کنیم تا برگرده به زاویه دید سفید
+        return fenTurn === 'b' ? -score : score;
+    };
+
+    // استخراج امتیازات مطلق (Absolute) برای نقطه B و C
+    const absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
+    const absScoreC = getAbsScore(lines[0], currentTurnIsBlack ? 'b' : 'w');
+
+    // محاسبه CP Loss: اگر بازیکن سیاه بوده، هرقدر Absolute بیشتر بشه (به سمت مثبت بره) ضرر کرده.
+    let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
     cpLoss = Math.max(0, cpLoss);
 
-    // ۳. محاسبه Expected Points (برای فیلترهای Great و Miss)
-    // فرمول: 1 / (1 + 10^(-score/4))
+    // تابع محاسبه EP (همیشه از زاویه دید بازیکنی که حرکت کرده)
     const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
-    
-    const epBefore = epFormula(playerWhoMovedIsBlack ? -absScoreBefore : absScoreBefore);
-    const epAfter = epFormula(playerWhoMovedIsBlack ? -absScoreAfter : absScoreAfter);
+    const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
+
+    const epB = getPlayerEP(absScoreB);
+    const epC = getPlayerEP(absScoreC);
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
@@ -360,23 +374,19 @@ export default function AnalysisBoard() {
     const bestUciMove = parentActualPv.trim().split(' ')[0];
     const userUciMove = `${tree[currentNodeId].move.from}${tree[currentNodeId].move.to}${tree[currentNodeId].move.promotion || ''}`;
 
-    const fenBeforeCount = tree[parentId].fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+    const fenBeforeCount = parentFen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
     const isEndgame = fenBeforeCount <= 16; 
 
-    // آستانه‌های داینامیک
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // ==========================================
-    // فاز ۱: طبقه‌بندی پایه با CP-Loss خالص
-    // ==========================================
+    // === فاز ۱: طبقه‌بندی پایه ===
     if (userUciMove === bestUciMove || cpLoss <= 0.05) {
         classificationKey = 'best';
-    } 
-    else if (epBefore < 0.10) {
-        classificationKey = cpLoss <= 0.5 ? 'excellent' : 'good';
-    } 
-    else {
+    } else if (epB < 0.10) {
+        // پوزیسیون از قبل مرده بود
+        classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
+    } else {
         if (cpLoss <= 0.20) classificationKey = 'excellent'; 
         else if (cpLoss <= 0.50) classificationKey = 'good';      
         else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
@@ -384,44 +394,46 @@ export default function AnalysisBoard() {
         else classificationKey = 'blunder'; 
     }
 
-    // ==========================================
-    // فاز ۲: فیلترهای ارتقا (Context Modifiers)
-    // ==========================================
+    // === فاز ۲: فیلترهای ارتقا ===
 
-    // 🎯 فیلتر Miss
+    // 1️⃣ فیلتر دقیق و بدون‌خطای Miss
     if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
-        const grandParentId = tree[parentId].parentId;
-        if (grandParentId) {
+        if (grandParentId && grandparentFen) {
             const grandparentLines = engineCache.current[grandParentId];
             if (grandparentLines && grandparentLines[0]) {
-                // استخراج امتیاز دو حرکت قبل (Absolute)
-                const absScoreGrandparent = grandparentLines[0].isMate ? (grandparentLines[0].mateIn! > 0 ? -1000 : 1000) : grandparentLines[0].score;
-                const epGrandparent = epFormula(playerWhoMovedIsBlack ? -absScoreGrandparent : absScoreGrandparent);
+                const grandparentTurn = new Chess(grandparentFen).turn() as 'w' | 'b';
                 
-                // آیا حریف شانس بردِ ما رو به شدت افزایش داده بود؟ (حداقل ۲۰٪)
-                // و آیا ما با این حرکت، دوباره برگشتیم به همون حالت قبل از اشتباهِ حریف؟
-                if (epBefore - epGrandparent >= 0.20 && epAfter <= epGrandparent + 0.05) {
-                    classificationKey = 'miss';
+                // استخراج امتیاز مطلق برای نقطه A (دو حرکت قبل)
+                const absScoreA = getAbsScore(grandparentLines[0], grandparentTurn);
+                // محاسبه EP برای نقطه A از زاویه‌ی دیدِ بازیکنی که الان حرکت کرده
+                const epA = getPlayerEP(absScoreA); 
+
+                // آیا حریف یه گندِ بزرگ (۱۵٪ به بالا) زد که شانس برد ما رو بالا ببره؟
+                if (epB - epA >= 0.15) {
+                    // آیا ما این هدیه رو با این حرکت دور انداختیم و به وضعیت قبل (یا بدتر) برگشتیم؟
+                    if (epC <= epA + 0.05) {
+                        classificationKey = 'miss';
+                    }
                 }
             }
         }
     }
 
-    // 🎯 فیلتر Great و Brilliant
+    // 2️⃣ فیلتر Great و Brilliant
     if (['best', 'excellent'].includes(classificationKey)) {
         if (parentLines.length > 1) {
-            const absScoreSecondBest = parentLines[1].isMate ? (parentLines[1].mateIn! > 0 ? 1000 : -1000) : parentLines[1].score;
-            const epSecondBest = epFormula(playerWhoMovedIsBlack ? -absScoreSecondBest : absScoreSecondBest);
+            const absScoreSecondBest = getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'b' : 'w');
+            const epSecondBest = getPlayerEP(absScoreSecondBest);
 
-            const isOnlyGoodMove = (epBefore - epSecondBest) >= 0.20; 
-            const isSavingMove = (epBefore >= 0.45 && epSecondBest <= 0.25);
-            const isWinningMove = (epBefore >= 0.75 && epSecondBest <= 0.55);
-            const isNotBlowout = epBefore < 0.95 && epSecondBest < 0.90; 
+            const isOnlyGoodMove = (epB - epSecondBest) >= 0.15; 
+            const isSavingMove = (epB >= 0.45 && epSecondBest <= 0.25);
+            const isWinningMove = (epB >= 0.70 && epSecondBest <= 0.50);
+            const isNotBlowout = epB < 0.95 && epSecondBest < 0.90; 
 
             if (isNotBlowout && (isOnlyGoodMove || isSavingMove || isWinningMove)) {
                 classificationKey = 'great';
                 
-                // بررسی Brilliant: تست تبادل استاتیک
+                // تشخیص قربانی (Brilliant)
                 let isSacrifice = false;
                 try {
                     const getPieceValue = (p: string) => {
@@ -429,7 +441,7 @@ export default function AnalysisBoard() {
                         return vals[p.toLowerCase()] || 0;
                     };
 
-                    const tempG = new Chess(tree[currentNodeId].fen);
+                    const tempG = new Chess(currentFen);
                     const oppMoves = tempG.moves({ verbose: true });
                     
                     for (const oppMove of oppMoves) {
@@ -456,7 +468,7 @@ export default function AnalysisBoard() {
                     }
                 } catch(e) {}
 
-                if (isSacrifice && epBefore < 0.85) {
+                if (isSacrifice && epB < 0.85) {
                     classificationKey = 'brilliant';
                 }
             }
@@ -465,7 +477,7 @@ export default function AnalysisBoard() {
 
     let bestSanMove = '...';
     try {
-        const tempG = new Chess(tree[parentId].fen);
+        const tempG = new Chess(parentFen);
         const m = tempG.move({from: bestUciMove.slice(0,2), to: bestUciMove.slice(2,4), promotion: bestUciMove[4]});
         if(m) bestSanMove = m.san;
     } catch(e) {}
@@ -478,7 +490,8 @@ export default function AnalysisBoard() {
     };
 
   }, [currentNodeId, lines, engineSettings.coachMode, tree]);
-  
+
+  const isBlackTurn = activeGame.turn() === 'b';
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
     if (!node || node.id === 'root' || !node.move) return {};
