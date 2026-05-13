@@ -122,6 +122,9 @@ export default function AnalysisBoard() {
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
 
+  // تعریف متغیر چرخش مهره‌ها قبل از coachData
+  const isBlackTurn = activeGame.turn() === 'b';
+
   useEffect(() => {
     if (isReady && currentPosition) {
       analyze(currentPosition, engineSettings.maxDepth);
@@ -320,7 +323,7 @@ export default function AnalysisBoard() {
     }
   };
 
-// 🌟 ماشینِ زمان سه‌نقطه‌ای برای تشخیص قطعیِ Miss، Great و Brilliant
+  // 🌟 موتور مربی (Coach Engine) با معماری قطعی (Solid Pipeline)
   const coachData = useMemo(() => {
     if (!engineSettings.coachMode || currentNodeId === 'root') return null;
     const parentId = tree[currentNodeId]?.parentId;
@@ -337,17 +340,15 @@ export default function AnalysisBoard() {
     const playerWhoMovedIsBlack = new Chess(parentFen).turn() === 'b';
     const currentTurnIsBlack = new Chess(currentFen).turn() === 'b';
 
-    // 🌟 قطب‌نمای مطلق: این تابع همیشه امتیاز را از دیدگاه "سفید" (مثبت=سفید برنده) برمی‌گرداند!
+    // ۱. قطب‌نمای مطلق: این تابع همیشه امتیاز را از دیدگاه "سفید" (مثبت=سفید برنده) برمی‌گرداند!
     const getAbsScore = (line: any, fenTurn: 'w' | 'b') => {
         if (!line) return 0;
         let score = 0;
         if (line.isMate) {
-            // اگر کسی که نوبتشه مات می‌کنه، +100، اگر مات میشه -100
             score = line.mateIn > 0 ? 100 : -100; 
         } else {
             score = line.score; 
         }
-        // اگر نوبت سیاه بوده، باید امتیاز استوک‌فیش قرینه بشه تا دیدگاه سفید حفظ بشه
         return fenTurn === 'b' ? -score : score;
     };
 
@@ -355,18 +356,18 @@ export default function AnalysisBoard() {
     const absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
     const absScoreC = getAbsScore(lines[0], currentTurnIsBlack ? 'b' : 'w');
 
-    // محاسبه CP Loss (افت امتیاز): سفید با افتِ مطلق ضرر میکنه، سیاه با افزایشِ مطلق
+    // محاسبه CP Loss (افت امتیاز) بر حسب رنگ
     let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
     cpLoss = Math.max(0, cpLoss);
 
-    // فرمول تبدیل امتیاز (واحد پیاده) به درصد احتمال برد (Expected Points)
+    // فرمول تبدیل امتیاز به درصد احتمال برد (Expected Points)
     const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
     
     // تابعی که همیشه EP را از دیدگاه بازیکنی که حرکت را انجام داده به دست می‌آورد
     const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
 
-    const epB = getPlayerEP(absScoreB); // شانس برد ما در نقطه B
-    const epC = getPlayerEP(absScoreC); // شانس برد ما در نقطه C
+    const epB = getPlayerEP(absScoreB); 
+    const epC = getPlayerEP(absScoreC); 
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
     
@@ -407,20 +408,13 @@ export default function AnalysisBoard() {
             if (grandparentLines && grandparentLines[0]) {
                 const grandparentTurn = new Chess(grandparentFen).turn() as 'w' | 'b';
                 
-                // استخراج امتیاز مطلق نقطه A و تبدیل به EP از دید "ما"
                 const absScoreA = getAbsScore(grandparentLines[0], grandparentTurn);
-                const epA = getPlayerEP(absScoreA); // شانس برد ما در نقطه A
+                const epA = getPlayerEP(absScoreA); 
 
-                // شرط ۱ (هدیه واقعی): تو نقطه A برنده نبودیم (<=60%)، اما حریف یهو شانس ما رو برد بالا
                 const isRealGift = epA <= 0.60 && (epB - epA >= 0.15);
-                
-                // شرط ۲ (پس دادن هدیه): با این حرکتمون، شانس برد رو برگردوندیم به حدود همون نقطه A
                 const isFumbled = epC <= epA + 0.10;
-                
-                // شرط ۳ (ضد-خودکشی): اما گندی که زدیم اونقدر فاجعه نبود که از نقطه A هم خیلی بدتر بشیم
                 const isNotSuicide = epC >= epA - 0.20;
 
-                // اگر هر ۳ شرط برقرار بود، این فقط یک "فرصتِ از دست رفته" است، نه یک بلاندرِ خالص!
                 if (isRealGift && isFumbled && isNotSuicide) {
                     classificationKey = 'miss';
                 }
@@ -442,7 +436,6 @@ export default function AnalysisBoard() {
             if (isNotBlowout && (isOnlyGoodMove || isSavingMove || isWinningMove)) {
                 classificationKey = 'great';
                 
-                // تشخیص Brilliant با تبادل استاتیک در لحظه (SEE)
                 let isSacrifice = false;
                 try {
                     const getPieceValue = (p: string) => {
@@ -498,8 +491,8 @@ export default function AnalysisBoard() {
         userSan: tree[currentNodeId].san 
     };
 
-  }, [currentNodeId, lines, engineSettings.coachMode, tree]);
-  
+  }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
+
   const moveSquares = useMemo(() => {
     const node = tree[currentNodeId];
     if (!node || node.id === 'root' || !node.move) return {};
