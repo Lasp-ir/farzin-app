@@ -7,7 +7,7 @@ import {
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
   Share2, List, TrendingUp, BookOpen, User, Edit2, Check,
   Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route,
-  Sparkles, ThumbsUp, HelpCircle, XCircle, AlertTriangle, CheckCircle2, ThumbsDown, Star, Award
+  Sparkles, ThumbsUp, HelpCircle, XCircle, AlertTriangle, CheckCircle2, ThumbsDown, Star, Award, Maximize2, X
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -22,14 +22,12 @@ export interface MoveNode {
   depth: number;
 }
 
-// 🌟 آیکون‌های متنی
 const TextIcon = ({ text }: { text: string }) => (
-  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '11px' }}>{text}</span>
+  <span className="font-black font-sans leading-none tracking-tighter" style={{ fontSize: '12px' }}>{text}</span>
 );
 
-// 🌟 پالت مربی
 const COACH_COLORS = {
-  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles },
+  brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles }, 
   great: { color: '#3b82f6', text: 'عالی', icon: Award }, 
   best: { color: '#22c55e', text: 'بهترین', icon: Star }, 
   excellent: { color: '#86efac', text: 'دقیق', icon: ThumbsUp }, 
@@ -49,6 +47,15 @@ const COLOR_PALETTES = [
   { label: 'قرمز', hex: '#f43f5e', rgb: '244, 63, 94' },
   { label: 'خاکستری', hex: '#a1a1aa', rgb: '161, 161, 170' },
 ];
+
+// توابع کمکی مطلق و قطعی
+const getAbsScore = (line: any, fenTurn: 'w' | 'b') => {
+    if (!line) return 0;
+    let score = line.isMate ? (line.mateIn > 0 ? 100 : -100) : line.score;
+    return fenTurn === 'b' ? -score : score;
+};
+const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
+const getPieceValue = (p: string) => ({ p: 1, n: 3, b: 3, r: 5, q: 9 }[p.toLowerCase()] || 0);
 
 const ToggleSwitch = ({ checked, onChange, disabled = false }: { checked: boolean, onChange: (v: boolean) => void, disabled?: boolean }) => (
   <div onClick={() => !disabled && onChange(!checked)} className={`w-10 h-5 rounded-full relative transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-farzin-accent' : 'bg-[#35332e]'}`}>
@@ -106,6 +113,7 @@ export default function AnalysisBoard() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
   const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0, coachMode: true });
@@ -127,7 +135,6 @@ export default function AnalysisBoard() {
 
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
-  
   const isBlackTurn = activeGame.turn() === 'b';
 
   useEffect(() => {
@@ -146,9 +153,162 @@ export default function AnalysisBoard() {
     }
   }, [lines, currentNodeId]);
 
+  // 🌟 تابع مجزا شده و هوشمندِ مربی برای استفاده در بازی و گراف
+  const calculateNodeCoachData = useCallback((nodeId: string, currentLines: any[], t: Record<string, MoveNode>) => {
+    if (!engineSettings.coachMode || nodeId === 'root') return null;
+    const node = t[nodeId];
+    if (!node || !node.parentId) return null;
+    
+    const parentLines = engineCache.current[node.parentId];
+    if (!parentLines || !parentLines[0] || !currentLines || !currentLines[0]) return COACH_COLORS.loading;
+
+    const parentFen = t[node.parentId].fen;
+    const grandParentId = t[node.parentId].parentId;
+    const grandparentFen = grandParentId ? t[grandParentId].fen : null;
+
+    const playerWhoMovedIsBlack = new Chess(parentFen).turn() === 'b';
+    const currentTurnIsBlack = new Chess(node.fen).turn() === 'b';
+
+    const absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
+    const absScoreC = getAbsScore(currentLines[0], currentTurnIsBlack ? 'b' : 'w');
+
+    let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
+    cpLoss = Math.max(0, cpLoss);
+
+    const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
+    const epB = getPlayerEP(absScoreB); 
+    const epC = getPlayerEP(absScoreC); 
+
+    let classificationKey: keyof typeof COACH_COLORS = 'good';
+    
+    const rawParentPv = parentLines[0].pv || '';
+    const parentActualPv = rawParentPv.includes(' pv ') ? rawParentPv.split(' pv ')[1] : rawParentPv;
+    const bestUciMove = parentActualPv.trim().split(' ')[0];
+    const userUciMove = `${node.move.from}${node.move.to}${node.move.promotion || ''}`;
+
+    const fenBeforeCount = parentFen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+    const isEndgame = fenBeforeCount <= 16; 
+    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
+    const mistakeLimit = isEndgame ? 2.0 : 2.5;
+
+    // فاز ۱
+    if (userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
+    else if (epB < 0.10) classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
+    else {
+        if (cpLoss <= 0.20) classificationKey = 'excellent'; 
+        else if (cpLoss <= 0.50) classificationKey = 'good';      
+        else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
+        else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
+        else classificationKey = 'blunder'; 
+    }
+
+    // فاز ۲
+    if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey) && grandParentId && grandparentFen) {
+        const grandparentLines = engineCache.current[grandParentId];
+        if (grandparentLines && grandparentLines[0]) {
+            const grandparentTurn = new Chess(grandparentFen).turn() as 'w' | 'b';
+            const epA = getPlayerEP(getAbsScore(grandparentLines[0], grandparentTurn)); 
+            if (epA <= 0.60 && (epB - epA >= 0.15) && epC <= epA + 0.10 && epC >= epA - 0.20) classificationKey = 'miss';
+        }
+    }
+
+    if (['best', 'excellent'].includes(classificationKey) && parentLines.length > 1) {
+        const epSecondBest = getPlayerEP(getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'b' : 'w'));
+        if (epB < 0.95 && epSecondBest < 0.90 && ((epB - epSecondBest >= 0.20) || (epB >= 0.45 && epSecondBest <= 0.25) || (epB >= 0.75 && epSecondBest <= 0.55))) {
+            classificationKey = 'great';
+            let isSacrifice = false;
+            try {
+                const tempG = new Chess(node.fen);
+                const oppMoves = tempG.moves({ verbose: true });
+                for (const oppMove of oppMoves) {
+                    if (oppMove.captured && ['n', 'b', 'r', 'q'].includes(oppMove.captured.toLowerCase())) {
+                        const capturedVal = getPieceValue(oppMove.captured); 
+                        tempG.move(oppMove.san);
+                        let maxRecaptureVal = 0;
+                        for (const ourMove of tempG.moves({ verbose: true })) {
+                            if (ourMove.to === oppMove.to && ourMove.captured) maxRecaptureVal = Math.max(maxRecaptureVal, getPieceValue(ourMove.captured));
+                        }
+                        tempG.undo();
+                        if (capturedVal - maxRecaptureVal >= 2) { isSacrifice = true; break; }
+                    }
+                }
+            } catch(e) {}
+            if (isSacrifice && epB < 0.85) classificationKey = 'brilliant';
+        }
+    }
+
+    let bestSanMove = '...';
+    try {
+        const m = new Chess(parentFen).move({from: bestUciMove.slice(0,2), to: bestUciMove.slice(2,4), promotion: bestUciMove[4]});
+        if(m) bestSanMove = m.san;
+    } catch(e) {}
+
+    return { ...COACH_COLORS[classificationKey], key: classificationKey, bestSan: bestSanMove, userSan: node.san };
+  }, [engineSettings.coachMode]);
+
+  const coachData = useMemo(() => calculateNodeCoachData(currentNodeId, lines, tree), [currentNodeId, lines, tree, calculateNodeCoachData]);
+
+  // 🌟 استخراج تاریخچه کامل بازی برای رسم گراف
+  const fullPath = useMemo(() => {
+      const p = []; let c = currentNodeId;
+      while (c && tree[c]) { p.unshift(tree[c]); c = tree[c].parentId; }
+      return p;
+  }, [tree, currentNodeId]);
+
+  // 🌟 ماشین پردازش گراف و تشخیص فاز بازی
+  const graphPoints = useMemo(() => {
+      return fullPath.map(node => {
+          const isCurrent = node.id === currentNodeId;
+          const nodeLines = isCurrent ? lines : engineCache.current[node.id];
+          
+          let ep = 0.5;
+          let phase: 'opening' | 'middlegame' | 'endgame' = 'opening';
+
+          if (nodeLines && nodeLines[0]) {
+              const fenTurn = node.fen.split(' ')[1] as 'w' | 'b'; 
+              const absScore = getAbsScore(nodeLines[0], fenTurn);
+              ep = epFormula(absScore); 
+          }
+
+          if (node.depth > 30) {
+              const fenRaw = node.fen.split(' ')[0];
+              const nonPawns = fenRaw.replace(/[^qrnbQRNB]/g, '');
+              let weight = 0;
+              for(let char of nonPawns) weight += getPieceValue(char);
+              phase = weight < 14 ? 'endgame' : 'middlegame';
+          } else if (node.depth > 20) {
+              phase = 'middlegame';
+          }
+
+          return { 
+              node, ep, phase, 
+              coach: node.id === 'root' ? null : calculateNodeCoachData(node.id, nodeLines || [], tree) 
+          };
+      });
+  }, [fullPath, lines, currentNodeId, tree, calculateNodeCoachData]);
+
+  // 🌟 سیستم تعاملی (Hover) برای گراف
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoveredGraphIndex, setHoveredGraphIndex] = useState<number | null>(null);
+
+  const handleGraphPointerMove = (e: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
+      if (!svgRef.current || graphPoints.length <= 1) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const pct = x / rect.width;
+      const idx = Math.round(pct * (graphPoints.length - 1));
+      setHoveredGraphIndex(idx);
+  };
+  const handleGraphPointerLeave = () => setHoveredGraphIndex(null);
+  const handleGraphClick = () => {
+      if (hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex]) {
+          setCurrentNodeId(graphPoints[hoveredGraphIndex].node.id);
+          setIsGraphModalOpen(false);
+      }
+  };
+
   const engineArrows = useMemo(() => {
     if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
-    
     const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
@@ -163,19 +323,14 @@ export default function AnalysisBoard() {
 
         const firstMove = { from: moves[0].slice(0, 2), to: moves[0].slice(2, 4) };
         const selectedColor = arrowColors[index] || arrowColors[2];
-        
         let alpha = 0.85; 
         if (index > 0) {
             if (bestIsMate && !line.isMate) alpha = 0.15; 
-            else if (!bestIsMate && !line.isMate) {
-                const diff = Math.abs(bestScore - line.score);
-                alpha = Math.max(0.15, 0.85 - (diff * 0.35));
-            }
+            else if (!bestIsMate && !line.isMate) alpha = Math.max(0.15, 0.85 - (Math.abs(bestScore - line.score) * 0.35));
         }
         
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
         const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
-        
         if (!arrowMap.has(mainArrowKey)) arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
 
         if (arrowSettings.showManeuvers) {
@@ -313,182 +468,23 @@ export default function AnalysisBoard() {
   const handleShowMe = (useBestMove: boolean) => {
     const parentId = tree[currentNodeId]?.parentId;
     if (!parentId) return;
-
     if (useBestMove) {
         const parentLines = engineCache.current[parentId];
         if (!parentLines || !parentLines[0]) return;
         const rawPv = parentLines[0].pv || '';
-        const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
-        executeVariation(parentId, actualPv);
+        executeVariation(parentId, rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv);
     } else {
         if (!lines || !lines[0]) return;
         const rawPv = lines[0].pv || '';
-        const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
-        executeVariation(currentNodeId, actualPv);
+        executeVariation(currentNodeId, rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv);
     }
   };
 
-  const coachData = useMemo(() => {
-    if (!engineSettings.coachMode || currentNodeId === 'root') return null;
-    const parentId = tree[currentNodeId]?.parentId;
-    if (!parentId) return null;
-    
-    const parentLines = engineCache.current[parentId];
-    if (!parentLines || !parentLines[0] || !lines || !lines[0]) return COACH_COLORS.loading;
-
-    const parentFen = tree[parentId].fen;
-    const currentFen = tree[currentNodeId].fen;
-    const grandParentId = tree[parentId].parentId;
-    const grandparentFen = grandParentId ? tree[grandParentId].fen : null;
-
-    const playerWhoMovedIsBlack = new Chess(parentFen).turn() === 'b';
-    const currentTurnIsBlack = new Chess(currentFen).turn() === 'b';
-
-    const getAbsScore = (line: any, fenTurn: 'w' | 'b') => {
-        if (!line) return 0;
-        let score = 0;
-        if (line.isMate) {
-            score = line.mateIn > 0 ? 100 : -100; 
-        } else {
-            score = line.score; 
-        }
-        return fenTurn === 'b' ? -score : score;
-    };
-
-    const absScoreB = getAbsScore(parentLines[0], playerWhoMovedIsBlack ? 'b' : 'w');
-    const absScoreC = getAbsScore(lines[0], currentTurnIsBlack ? 'b' : 'w');
-
-    let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
-    cpLoss = Math.max(0, cpLoss);
-
-    const epFormula = (scoreInPawns: number) => 1 / (1 + Math.pow(10, -scoreInPawns / 4));
-    const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
-
-    const epB = getPlayerEP(absScoreB); 
-    const epC = getPlayerEP(absScoreC); 
-
-    let classificationKey: keyof typeof COACH_COLORS = 'good';
-    
-    const rawParentPv = parentLines[0].pv || '';
-    const parentActualPv = rawParentPv.includes(' pv ') ? rawParentPv.split(' pv ')[1] : rawParentPv;
-    const bestUciMove = parentActualPv.trim().split(' ')[0];
-    const userUciMove = `${tree[currentNodeId].move.from}${tree[currentNodeId].move.to}${tree[currentNodeId].move.promotion || ''}`;
-
-    const fenBeforeCount = parentFen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
-    const isEndgame = fenBeforeCount <= 16; 
-
-    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
-    const mistakeLimit = isEndgame ? 2.0 : 2.5;
-
-    if (userUciMove === bestUciMove || cpLoss <= 0.05) {
-        classificationKey = 'best';
-    } else if (epB < 0.10) {
-        classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
-    } else {
-        if (cpLoss <= 0.20) classificationKey = 'excellent'; 
-        else if (cpLoss <= 0.50) classificationKey = 'good';      
-        else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
-        else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
-        else classificationKey = 'blunder'; 
-    }
-
-    if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey)) {
-        if (grandParentId && grandparentFen) {
-            const grandparentLines = engineCache.current[grandParentId];
-            if (grandparentLines && grandparentLines[0]) {
-                const grandparentTurn = new Chess(grandparentFen).turn() as 'w' | 'b';
-                const absScoreA = getAbsScore(grandparentLines[0], grandparentTurn);
-                const epA = getPlayerEP(absScoreA); 
-
-                const isRealGift = epA <= 0.60 && (epB - epA >= 0.15);
-                const isFumbled = epC <= epA + 0.10;
-                const isNotSuicide = epC >= epA - 0.20;
-
-                if (isRealGift && isFumbled && isNotSuicide) {
-                    classificationKey = 'miss';
-                }
-            }
-        }
-    }
-
-    if (['best', 'excellent'].includes(classificationKey)) {
-        if (parentLines.length > 1) {
-            const absScoreSecondBest = getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'b' : 'w');
-            const epSecondBest = getPlayerEP(absScoreSecondBest);
-
-            const isOnlyGoodMove = (epB - epSecondBest) >= 0.20; 
-            const isSavingMove = (epB >= 0.45 && epSecondBest <= 0.25);
-            const isWinningMove = (epB >= 0.75 && epSecondBest <= 0.55);
-            const isNotBlowout = epB < 0.95 && epSecondBest < 0.90; 
-
-            if (isNotBlowout && (isOnlyGoodMove || isSavingMove || isWinningMove)) {
-                classificationKey = 'great';
-                
-                let isSacrifice = false;
-                try {
-                    const getPieceValue = (p: string) => {
-                        const vals: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
-                        return vals[p.toLowerCase()] || 0;
-                    };
-
-                    const tempG = new Chess(currentFen);
-                    const oppMoves = tempG.moves({ verbose: true });
-                    
-                    for (const oppMove of oppMoves) {
-                        if (oppMove.captured && ['n', 'b', 'r', 'q'].includes(oppMove.captured.toLowerCase())) {
-                            const capturedVal = getPieceValue(oppMove.captured); 
-                            
-                            tempG.move(oppMove.san);
-                            const ourRecaptures = tempG.moves({ verbose: true });
-                            let maxRecaptureVal = 0;
-                            for (const ourMove of ourRecaptures) {
-                                if (ourMove.to === oppMove.to && ourMove.captured) {
-                                    const val = getPieceValue(ourMove.captured);
-                                    if (val > maxRecaptureVal) maxRecaptureVal = val;
-                                }
-                            }
-                            tempG.undo();
-                            
-                            const netLoss = capturedVal - maxRecaptureVal;
-                            if (netLoss >= 2) {
-                                isSacrifice = true;
-                                break;
-                            }
-                        }
-                    }
-                } catch(e) {}
-
-                if (isSacrifice && epB < 0.85) {
-                    classificationKey = 'brilliant';
-                }
-            }
-        }
-    }
-
-    let bestSanMove = '...';
-    try {
-        const tempG = new Chess(parentFen);
-        const m = tempG.move({from: bestUciMove.slice(0,2), to: bestUciMove.slice(2,4), promotion: bestUciMove[4]});
-        if(m) bestSanMove = m.san;
-    } catch(e) {}
-
-    return { 
-        ...COACH_COLORS[classificationKey], 
-        key: classificationKey,
-        bestSan: bestSanMove,
-        userSan: tree[currentNodeId].san 
-    };
-
-  }, [currentNodeId, lines, engineSettings.coachMode, tree, isBlackTurn]);
-
-  // محاسبه مختصات برای رندر آیکون روی تخته
   const getSquareCoordinates = (square: string) => {
-    const col = square.charCodeAt(0) - 97; // a=0, h=7
-    const row = parseInt(square[1]) - 1; // 1=0, 8=7
+    const col = square.charCodeAt(0) - 97; 
+    const row = parseInt(square[1]) - 1; 
     const isWhite = boardOrientation === 'white';
-    const x = isWhite ? col : 7 - col;
-    const y = isWhite ? 7 - row : row;
-    return { x, y };
+    return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
   };
 
   const moveSquares = useMemo(() => {
@@ -538,9 +534,123 @@ export default function AnalysisBoard() {
     return result;
   }, [tree, currentNodeId]);
 
+  // 🌟 استخراج مسیرهای گرافیکی SVG
+  const getGraphPaths = () => {
+    if (graphPoints.length === 0) return { area: '', line: '' };
+    let areaPath = `M 0,150 `;
+    let linePath = ``;
+    graphPoints.forEach((pt, i) => {
+        const x = (i / Math.max(1, graphPoints.length - 1)) * 1000;
+        const y = 300 - (pt.ep * 300);
+        areaPath += `L ${x},${y} `;
+        linePath += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
+    });
+    areaPath += `L 1000,150 Z`;
+    return { area: areaPath, line: linePath };
+  };
+  const { area: graphAreaPath, line: graphLinePath } = getGraphPaths();
+
   return (
     <div className="h-[100dvh] bg-[#100f0d] text-zinc-200 flex flex-col font-sans overflow-hidden" dir="rtl" onContextMenu={e => {e.preventDefault(); setClickedSquare(null); setOptionSquares({});}}>
       
+      {/* 🌟 پاپ‌آپ پیشرفته گراف (Interactive Modal) */}
+      <AnimatePresence>
+        {isGraphModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-10 bg-black/80 backdrop-blur-md"
+          >
+            <div className="bg-[#12110f] border border-[#35332e] w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+               
+               <div className="flex items-center justify-between p-4 border-b border-[#35332e] bg-[#1a1916]">
+                  <div className="flex items-center gap-3">
+                     <TrendingUp size={24} className="text-sky-500" />
+                     <div>
+                        <h2 className="font-bold text-white text-lg leading-none">گراف ارزیابی پیشرفته</h2>
+                        <span className="text-xs text-zinc-500">تحلیل فشرده‌سازی شده با سیگموئید (سطح استادبزرگ)</span>
+                     </div>
+                  </div>
+                  <button onClick={() => setIsGraphModalOpen(false)} className="p-2 bg-[#262421] rounded-lg text-zinc-400 hover:text-white transition-colors"><X size={20}/></button>
+               </div>
+
+               <div className="relative w-full h-[40vh] min-h-[250px] bg-[#100f0d]" onPointerMove={handleGraphPointerMove} onPointerLeave={handleGraphPointerLeave} onClick={handleGraphClick}>
+                  
+                  {/* فازهای بازی در پس‌زمینه گراف */}
+                  <div className="absolute inset-0 flex">
+                     {graphPoints.length > 0 && ['opening', 'middlegame', 'endgame'].map(phase => {
+                        const pointsInPhase = graphPoints.filter(p => p.phase === phase);
+                        if (pointsInPhase.length === 0) return null;
+                        const w = (pointsInPhase.length / graphPoints.length) * 100;
+                        return (
+                          <div key={phase} className="h-full border-r border-[#35332e]/20 relative flex justify-center" style={{ width: `${w}%`, backgroundColor: phase === 'opening' ? 'rgba(255,255,255,0.01)' : phase === 'endgame' ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                              <span className="absolute bottom-2 text-[10px] font-black tracking-widest text-zinc-700 uppercase">
+                                  {phase === 'opening' ? 'گشایش' : phase === 'middlegame' ? 'وسط‌بازی' : 'آخربازی'}
+                              </span>
+                          </div>
+                        );
+                     })}
+                  </div>
+
+                  <svg ref={svgRef} viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full cursor-crosshair">
+                     <defs>
+                        <linearGradient id="evalGradient" x1="0" y1="0" x2="0" y2="1">
+                           <stop offset="0%" stopColor="#e5e7eb" stopOpacity="0.7"/>
+                           <stop offset="49%" stopColor="#e5e7eb" stopOpacity="0.0"/>
+                           <stop offset="51%" stopColor="#1e293b" stopOpacity="0.0"/>
+                           <stop offset="100%" stopColor="#1e293b" stopOpacity="0.8"/>
+                        </linearGradient>
+                     </defs>
+                     
+                     <line x1="0" y1="150" x2="1000" y2="150" stroke="#35332e" strokeWidth="2" strokeDasharray="5,5" />
+                     <path d={graphAreaPath} fill="url(#evalGradient)" />
+                     <path d={graphLinePath} fill="none" stroke="#779556" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                     
+                     {/* رسم آیکون‌های منتخب روی گراف */}
+                     {graphPoints.map((pt, i) => {
+                         if (!pt.coach || !['brilliant','great','blunder','mistake','miss'].includes(pt.coach.key)) return null;
+                         const x = (i / Math.max(1, graphPoints.length - 1)) * 1000;
+                         const y = 300 - (pt.ep * 300);
+                         return (
+                             <foreignObject key={i} x={x - 12} y={y - 12} width="24" height="24" className="overflow-visible pointer-events-none">
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-[#100f0d]" style={{ backgroundColor: pt.coach.color }}>
+                                    {typeof pt.coach.icon === 'function' ? pt.coach.icon({size: 14}) : <pt.coach.icon size={14} strokeWidth={3} />}
+                                </div>
+                             </foreignObject>
+                         );
+                     })}
+
+                     {hoveredGraphIndex !== null && (
+                         <line 
+                            x1={(hoveredGraphIndex / Math.max(1, graphPoints.length - 1)) * 1000} y1="0" 
+                            x2={(hoveredGraphIndex / Math.max(1, graphPoints.length - 1)) * 1000} y2="300" 
+                            stroke="#fff" strokeWidth="2" strokeOpacity="0.5" strokeDasharray="4,4" 
+                         />
+                     )}
+                  </svg>
+
+                  {/* Tooltip شناور */}
+                  {hoveredGraphIndex !== null && graphPoints[hoveredGraphIndex] && (
+                     <div 
+                        className="absolute top-4 pointer-events-none bg-[#1e1c19] border border-[#35332e] text-white px-3 py-2 rounded-xl shadow-2xl flex flex-col gap-1 z-50 transform -translate-x-1/2"
+                        style={{ left: `${(hoveredGraphIndex / Math.max(1, graphPoints.length - 1)) * 100}%` }}
+                     >
+                        <span className="text-[10px] font-mono text-zinc-400 block text-center">حرکت {Math.ceil(graphPoints[hoveredGraphIndex].node.depth / 2)}</span>
+                        <div className="flex items-center gap-2">
+                           <span className="font-bold text-sm" dir="ltr">{graphPoints[hoveredGraphIndex].node.san}</span>
+                           {graphPoints[hoveredGraphIndex].coach && (
+                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${graphPoints[hoveredGraphIndex].coach.color}20`, color: graphPoints[hoveredGraphIndex].coach.color }}>
+                                  {graphPoints[hoveredGraphIndex].coach.text}
+                               </span>
+                           )}
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
           {toastMessage && (
@@ -574,7 +684,6 @@ export default function AnalysisBoard() {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Sliders size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2></div>
                <div className="flex flex-col gap-5 mb-6">
-                 
                  <div className="bg-[#1e1c19] border border-farzin-accent/30 p-3 rounded-xl flex items-center justify-between shadow-inner">
                     <div>
                         <span className="text-sm font-bold text-white block mb-0.5">مربی هوشمند (Coach)</span>
@@ -582,7 +691,6 @@ export default function AnalysisBoard() {
                     </div>
                     <ToggleSwitch checked={tempSettings.coachMode} onChange={(v) => setTempSettings(prev => ({...prev, coachMode: v}))} />
                  </div>
-
                  <div className={`transition-opacity ${tempSettings.coachMode ? 'opacity-50 pointer-events-none' : ''}`}>
                    <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label><span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span></div>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 3].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num} لاین</button>))}</div>
@@ -693,14 +801,12 @@ export default function AnalysisBoard() {
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
           
-          {/* 🌟 کانتینر با ارتفاع ثابت (Fixed Height) برای جلوگیری از پرش صفحه */}
           <div className="mt-2 h-[56px] flex flex-col justify-start overflow-hidden">
              {engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
                      <div className="flex flex-col items-center justify-center py-2 opacity-50"><Loader2 size={18} className="animate-spin text-farzin-accent mb-1"/><span className="text-[10px] font-sans">در حال بررسی دقیق حرکت...</span></div>
                  ) : (
                      <motion.div initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} className="flex flex-col gap-1 bg-[#161512] rounded-xl p-2 border border-[#35332e] shadow-inner h-full justify-center">
-                         
                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: `${coachData.color}20`, color: coachData.color }}>
@@ -710,13 +816,10 @@ export default function AnalysisBoard() {
                                    حرکت <span className="font-mono font-black text-white px-1">{coachData.userSan}</span> <span className="font-bold" style={{color: coachData.color}}>{coachData.text}</span> بود.
                                 </span>
                             </div>
-                            
-                            {/* دکمه "نشونم بده" را فقط زمانی نشان می‌دهیم که خط دوم وجود نداشته باشد */}
                             { (['best', 'brilliant', 'great'].includes(coachData.key) || coachData.bestSan === '...') && (
                                 <button onClick={()=>handleShowMe(false)} className="text-[9px] font-bold bg-[#262421] border border-[#35332e] px-2 py-1 rounded hover:bg-[#35332e] transition-colors shrink-0">نشونم بده</button>
                             )}
                          </div>
-
                          { !['best', 'brilliant', 'great'].includes(coachData.key) && coachData.bestSan !== '...' && (
                              <div className="flex items-center justify-between border-t border-[#262421] pt-1.5 mt-0.5 opacity-80">
                                 <div className="flex items-center gap-2">
@@ -730,7 +833,6 @@ export default function AnalysisBoard() {
                                 <button onClick={()=>handleShowMe(true)} className="text-[9px] font-bold bg-[#1e1c19] text-farzin-accent border border-farzin-accent/30 px-2 py-1 rounded hover:bg-farzin-accent hover:text-white transition-colors shrink-0">نشونم بده</button>
                              </div>
                          )}
-
                      </motion.div>
                  )
              ) : (
@@ -762,10 +864,8 @@ export default function AnalysisBoard() {
             <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
             
             <div className="w-full flex justify-center py-0.5">
-                {/* 🌟 استایل‌های آپدیت‌شده‌ی کانتینر برای رفع باگ پرش Aspect Ratio */}
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative flex flex-col justify-center">
-                        {/* اعمال aspect-square مستقیماً روی کادرِ دربرگیرنده‌ی تخته */}
                         <div className="w-full aspect-square rounded-md relative z-10">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
@@ -777,7 +877,6 @@ export default function AnalysisBoard() {
                               customArrows={engineArrows} animationDuration={200}
                           />
 
-                          {/* 🌟 شبکه‌ی هم‌پوشان (Grid) کاملاً منطبق بر خانه‌ها */}
                           {engineSettings.coachMode && coachData && tree[currentNodeId] && tree[currentNodeId].id !== 'root' && (
                             <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8">
                                 {Array.from({ length: 64 }).map((_, i) => {
@@ -786,50 +885,23 @@ export default function AnalysisBoard() {
                                     const targetSquare = tree[currentNodeId].move?.to;
                                     
                                     if (!targetSquare) return <div key={i} />;
-                                    
                                     const coords = getSquareCoordinates(targetSquare);
                                     
                                     if (x === coords.x && y === coords.y) {
                                         return (
                                             <div key={i} className="relative w-full h-full flex items-center justify-center">
-                                                
-                                                {/* 🌟 هاله‌های متحرک و محو (Radial Gradients) - بدون لرزش زشت */}
                                                 {coachData.key === 'brilliant' && (
-                                                    <motion.div 
-                                                        animate={{ scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] }}
-                                                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                                                        className="absolute inset-0 z-0"
-                                                        style={{ background: 'radial-gradient(circle, rgba(45,212,191,0) 10%, rgba(45,212,191,0.6) 60%, rgba(45,212,191,0) 100%)' }}
-                                                    />
+                                                    <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(45,212,191,0) 10%, rgba(45,212,191,0.6) 60%, rgba(45,212,191,0) 100%)' }} />
                                                 )}
                                                 {coachData.key === 'great' && (
-                                                    <motion.div 
-                                                        animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }}
-                                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                                                        className="absolute inset-0 z-0"
-                                                        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0) 10%, rgba(59,130,246,0.5) 60%, rgba(59,130,246,0) 100%)' }}
-                                                    />
+                                                    <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0) 10%, rgba(59,130,246,0.5) 60%, rgba(59,130,246,0) 100%)' }} />
                                                 )}
                                                 {coachData.key === 'blunder' && (
-                                                    <motion.div 
-                                                        animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }}
-                                                        transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
-                                                        className="absolute inset-0 z-0"
-                                                        style={{ background: 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }}
-                                                    />
+                                                    <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }} />
                                                 )}
-
-                                                {/* 🌟 آیکونِ بزرگتر (Badge) - هل داده شده به بیرون (Top-Right) */}
-                                                <motion.div 
-                                                    initial={{ scale: 0, opacity: 0 }}
-                                                    animate={{ scale: 1, opacity: 1 }}
-                                                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                                                    className="absolute -top-[6px] -right-[6px] w-[22px] h-[22px] rounded-full flex items-center justify-center text-white shadow-[0_4px_10px_rgba(0,0,0,0.6)] border border-black/40 z-10"
-                                                    style={{ backgroundColor: coachData.color }}
-                                                >
+                                                <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 400, damping: 20 }} className="absolute -top-[6px] -right-[6px] w-[22px] h-[22px] rounded-full flex items-center justify-center text-white shadow-[0_4px_10px_rgba(0,0,0,0.6)] border border-black/40 z-10" style={{ backgroundColor: coachData.color }}>
                                                     {typeof coachData.icon === 'function' ? coachData.icon({size: 13}) : <coachData.icon size={13} strokeWidth={3} />}
                                                 </motion.div>
-                                                
                                             </div>
                                         );
                                     }
@@ -874,22 +946,53 @@ export default function AnalysisBoard() {
                 <button onClick={() => setActiveTab('explorer')} className={`flex items-center gap-2 px-4 py-2 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'explorer' ? 'border-purple-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><BookOpen size={14} /> دیتابیس (گشایش)</button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto bg-[#12110f] p-3 custom-scrollbar">
+            <div className="flex-1 min-h-0 overflow-y-auto bg-[#12110f] custom-scrollbar relative">
                 {activeTab === 'notation' && (
-                    <AnimatePresence mode="wait">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm font-mono leading-loose" dir="ltr">
-                            {Object.keys(tree).length <= 1 ? (
-                              <div className="flex flex-col items-center justify-center mt-10 text-zinc-600 gap-3">
-                                  <List size={28} className="opacity-50" />
-                                  <span className="text-xs font-sans">هیچ حرکتی ثبت نشده است</span>
-                              </div>
-                            ) : (
-                              renderTreeNodes('root')
-                            )}
-                        </motion.div>
-                    </AnimatePresence>
+                    <div className="p-3">
+                        <AnimatePresence mode="wait">
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm font-mono leading-loose" dir="ltr">
+                                {Object.keys(tree).length <= 1 ? (
+                                  <div className="flex flex-col items-center justify-center mt-10 text-zinc-600 gap-3">
+                                      <List size={28} className="opacity-50" />
+                                      <span className="text-xs font-sans">هیچ حرکتی ثبت نشده است</span>
+                                  </div>
+                                ) : (
+                                  renderTreeNodes('root')
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
                 )}
-                {activeTab === 'graph' && (<div className="flex flex-col items-center justify-center h-full text-sky-500/50 gap-3"><TrendingUp size={28} /><span className="text-xs font-sans">گراف در مرحله بعدی رسم می‌شود...</span></div>)}
+                
+                {/* 🌟 تب گراف مینیاتوری (Preview) */}
+                {activeTab === 'graph' && (
+                    <div className="absolute inset-0 p-3 flex flex-col">
+                        <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512]">
+                            {/* گراف دکوری بک‌گراند */}
+                            <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
+                                <path d={graphAreaPath} fill="#fff" />
+                                <path d={graphLinePath} fill="none" stroke="#fff" strokeWidth="4" />
+                            </svg>
+                            {/* لایه بلور و دکمه فراخوانی */}
+                            <div className="absolute inset-0 backdrop-blur-[3px] bg-black/40 flex flex-col items-center justify-center gap-4 z-10">
+                                <div className="w-12 h-12 rounded-full bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.3)]">
+                                    <TrendingUp size={20} />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-sm font-bold text-white">تحلیل گرافیکی بازی</span>
+                                    <span className="text-[10px] text-zinc-400">فشرده‌سازی سیگموئید و تشخیص فازها</span>
+                                </div>
+                                <button 
+                                    onClick={() => setIsGraphModalOpen(true)} 
+                                    className="mt-2 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs transition-colors shadow-lg active:scale-95"
+                                >
+                                    <Maximize2 size={14} /> باز کردن گراف پیشرفته
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
                 {activeTab === 'explorer' && (<div className="flex flex-col items-center justify-center h-full text-purple-500/50 gap-3"><BookOpen size={28} /><span className="text-xs font-sans">اتصال به دیتابیس لیچس به زودی...</span></div>)}
             </div>
 
