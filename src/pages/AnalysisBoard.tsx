@@ -1083,7 +1083,7 @@ export default function AnalysisBoard() {
                 
                 <div className="flex items-center gap-2">
                     <button 
-                        onClick={() => navigate('/report')} 
+                        onClick={() => navigate('/report', { state: { data: getPgnString(), meta: playerMeta } })} 
                         className="relative flex items-center h-[34px] gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 rounded-lg text-[11px] font-black transition-all shadow-[0_0_10px_rgba(119,149,86,0.5)] hover:shadow-[0_0_15px_rgba(119,149,86,0.8)] active:scale-95 group"
                     >
                         <PieChart size={14} className="group-hover:scale-110 transition-transform" /> 

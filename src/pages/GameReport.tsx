@@ -95,7 +95,7 @@ export default function GameReport() {
 
     // آماده‌سازی دیتای اولیه
     useEffect(() => {
-        if (!initialData) { navigate('/setup'); return; }
+        if (!initialData) { navigate('/analysis'); return; }
         try {
             const game = new Chess();
             game.loadPgn(initialData);
