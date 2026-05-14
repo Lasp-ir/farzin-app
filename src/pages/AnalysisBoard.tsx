@@ -55,7 +55,7 @@ export default function AnalysisBoard() {
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
   const [isEnginePaused, setIsEnginePaused] = useState(false);
 
-  // 🌟 استیت کنترل ایستر اگ
+  // 🌟 استیت کنترل ایستر اگ (حالت‌های: خاموش، درخواست، انفجار، نتیجه)
   const [easterEggState, setEasterEggState] = useState<'idle' | 'prompt' | 'exploded' | 'resolved'>('idle');
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
@@ -118,11 +118,11 @@ export default function AnalysisBoard() {
     setTree(initialTree);
     setCurrentNodeId(endNodeId); 
     setIsLoaded(true);
-  }, []);
+  }, [initialData]);
 
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   
-  // 🌟 محافظت از کرش شدن chess.js در صورت خراب شدن FEN
+  // محافظت از کرش شدن chess.js در صورت خراب شدن FEN
   const activeGame = useMemo(() => {
     try {
         return new Chess(currentPosition);
@@ -165,22 +165,22 @@ export default function AnalysisBoard() {
       return { white: whiteAdv, black: blackAdv };
   }, [currentPosition]);
 
-  // 🌟 ماشین حساب هوشمند تشخیص وضعیت‌های غیرقانونی (شاه زیر ضرب)
+  // ماشین حساب هوشمند تشخیص وضعیت‌های غیرقانونی (شاه زیر ضرب)
   const isKingInDanger = useMemo(() => {
       try {
           const parts = currentPosition.split(' ');
           const turn = parts[1];
-          parts[1] = turn === 'w' ? 'b' : 'w'; // نوبت را عوض می‌کنیم تا ببینیم شاه حریف کیش است یا نه
-          parts[3] = '-'; // آن‌پاسان رو خاموش می‌کنیم که گیر نده
+          parts[1] = turn === 'w' ? 'b' : 'w';
+          parts[3] = '-'; 
           const temp = new Chess();
           temp.load(parts.join(' ')); 
-          return temp.isCheck(); // اگر نوبت حریف باشه و کیش باشه، یعنی الان ما می‌تونیم بزنیمش!
+          return temp.isCheck(); 
       } catch (e) {
           return false;
       }
   }, [currentPosition]);
 
-  // 🌟 جلوگیری از ارسال FEN غیرقانونی به موتور و راه‌اندازی ایستر اگ
+  // جلوگیری از ارسال FEN غیرقانونی به موتور و راه‌اندازی ایستر اگ
   useEffect(() => {
     if (isKingInDanger && easterEggState === 'idle') {
         setEasterEggState('prompt');
@@ -628,32 +628,33 @@ export default function AnalysisBoard() {
         if (targetPiece && targetPiece.type === 'k' && targetPiece.color !== activeGame.turn()) {
             setEasterEggState('exploded');
             
-            // 💥 انیمیشن سینمایی، نرم‌تر و زیباتر
+            // 💥 انیمیشن سینمایی با باقی ماندن مهره‌های بزرگ در صفحه
             setTimeout(() => {
                 const pieces = document.querySelectorAll('[data-piece]');
                 pieces.forEach((p: any) => {
                     const x = (Math.random() - 0.5) * 2000;
-                    const y = (Math.random() - 0.5) * 2000 - 400; // تمایل به پرتاب رو به بالا
-                    const rot = (Math.random() - 0.5) * 720;
-                    // ترانزیشن 3 ثانیه‌ای و محو شدن نرم مهره‌ها
+                    const y = (Math.random() - 0.5) * 2000 - 200;
+                    const rot = (Math.random() - 0.5) * 1080;
+                    const scale = Math.random() * 4 + 1;
+                    
+                    const shouldFade = Math.random() > 0.4; 
+                    
                     p.style.transition = 'transform 3s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.5s ease-in-out';
-                    p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${Math.random() * 2 + 1})`;
-                    p.style.opacity = '0';
+                    p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
+                    if (shouldFade) p.style.opacity = '0';
                 });
                 
                 const board = document.getElementById('farzin-board-container');
                 if (board) {
                     board.style.transition = 'all 3s cubic-bezier(0.25, 1, 0.5, 1)';
-                    // لرزش، کج شدن ظریف‌تر و افکت بلور (Blur)
                     board.style.transform = 'rotate(5deg) scale(0.85) translateY(30px)';
-                    board.style.filter = 'contrast(1.5) sepia(1) hue-rotate(-50deg) drop-shadow(0 0 80px rgba(225,29,72,0.8)) blur(2px)';
+                    board.style.filter = 'contrast(1.5) sepia(1) hue-rotate(-50deg) drop-shadow(0 0 80px rgba(225,29,72,0.8)) blur(1px)';
                 }
                 
-                // تاخیر بیشتر برای دیدن کامل انیمیشن
                 setTimeout(() => setEasterEggState('resolved'), 3500);
             }, 100);
             
-            return true;
+            return true; 
         }
         return false; 
     }
@@ -799,27 +800,27 @@ export default function AnalysisBoard() {
       {/* 😈 پاپ‌آپ‌های ایستر اگ */}
       <AnimatePresence>
         {easterEggState === 'prompt' && (
-          // 🌟 پوزیشن به بالا (top-10) تغییر کرد تا روی تخته را نپوشاند
-          <motion.div initial={{ y: -50, scale: 0.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-8 left-1/2 -translate-x-1/2 z-[200] pointer-events-none">
-            <div className="bg-[#12110f]/90 border border-rose-500/50 backdrop-blur-xl p-4 lg:p-6 rounded-3xl shadow-[0_10px_50px_rgba(225,29,72,0.6)] flex flex-row lg:flex-col items-center gap-4 text-center min-w-[300px]">
-              <span className="text-4xl lg:text-6xl drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] animate-pulse">😈</span>
-              <h2 className="text-white font-black text-lg lg:text-xl tracking-tight">تعارف نکن. بزن تو شاه!</h2>
+          // 🌟 استفاده از inset-x-0 و flex justify-center برای وسط‌چین کردنِ بی‌نقص در حالت RTL
+          <motion.div initial={{ y: -50, scale: 0.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-10 inset-x-0 flex justify-center z-[200] pointer-events-none px-4">
+            <div className="bg-[#12110f]/95 border border-rose-500/50 backdrop-blur-xl p-6 rounded-3xl shadow-[0_10px_50px_rgba(225,29,72,0.6)] flex flex-col items-center gap-4 text-center max-w-[300px] w-full">
+              <span className="text-6xl drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] animate-bounce">😈</span>
+              <h2 className="text-white font-black text-xl tracking-tight">تعارف نکن. بزن تو شاه!</h2>
             </div>
           </motion.div>
         )}
 
         {easterEggState === 'resolved' && (
-          <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="fixed bottom-0 inset-x-0 z-[300] flex justify-center p-6 bg-black/80 backdrop-blur-xl border-t border-purple-500/30 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
+          <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="fixed bottom-0 inset-x-0 z-[300] flex justify-center p-6 bg-black/90 backdrop-blur-xl border-t border-purple-500/30 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
             <div className="w-full max-w-md flex flex-col items-center gap-6 text-center">
               <span className="text-5xl drop-shadow-[0_0_15px_rgba(168,85,247,0.8)]">👽</span>
               <div className="flex flex-col gap-2">
                 <h2 className="text-white font-black text-2xl">حالا دیدی چی میشه؟</h2>
-                <p className="text-zinc-400 font-bold">خیالت راحت شد؟ قانون شکنی عواقب داره!</p>
+                <p className="text-zinc-400 font-bold">خیالت راحت شد؟ قانون‌شکنی عواقب داره!</p>
               </div>
               <button 
                 onClick={() => {
                     setEasterEggState('idle');
-                    navigate('/analysis'); // 🌟 تغییر آدرس بازگشت
+                    navigate('/analysis'); 
                 }} 
                 className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] active:scale-95 text-lg"
               >
