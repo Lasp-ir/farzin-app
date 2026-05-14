@@ -6,14 +6,14 @@ import { ChevronRight, Target, Activity, Flame, Shield, BookOpen, AlertTriangle,
 import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 
-// 🌟 ترجمه دقیق فرمول‌های Lichess (Win% و Accuracy%)
+// 🌟 فرمول‌های ریاضی Lichess
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
     if (winAfter >= winBefore) return 100;
     const winDiff = winBefore - winAfter;
     const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) - 3.166924740191411;
-    return Math.max(0, Math.min(100, raw + 1)); // +1 uncertainty bonus
+    return Math.max(0, Math.min(100, raw + 1)); 
 };
 
 const standardDeviation = (arr: number[]) => {
@@ -23,14 +23,13 @@ const standardDeviation = (arr: number[]) => {
     return Math.sqrt(variance);
 };
 
-// تابع جامع محاسبه دقت کل بازی بر اساس پنجره‌های لغزان
+// محاسبه میانگین وزنی و همساز (Harmonic Mean)
 const calculateGameAccuracy = (winPercents: number[], isWhite: boolean) => {
     if (winPercents.length < 2) return 100;
     
     const windowSize = Math.max(2, Math.min(8, Math.floor(winPercents.length / 10)));
     let windows: number[][] = [];
     
-    // بازسازی منطق لیست‌بندی لیچس
     const padCount = Math.max(0, Math.min(windowSize, winPercents.length) - 2);
     for (let i = 0; i < padCount; i++) windows.push(winPercents.slice(0, windowSize));
     for (let i = 0; i <= winPercents.length - windowSize; i++) windows.push(winPercents.slice(i, i + windowSize));
@@ -64,7 +63,6 @@ const calculateGameAccuracy = (winPercents: number[], isWhite: boolean) => {
     return (weightedMean + harmonicMean) / 2;
 };
 
-// 🌟 طبقه‌بندی فازهای بازی (گشایش، وسط بازی، آخر بازی)
 const getGamePhase = (fen: string, moveNumber: number) => {
     if (moveNumber <= 12 || isBookPosition(fen)) return 'opening';
     const nonPawns = fen.split(' ')[0].replace(/[^qrnbQRNB]/g, '');
@@ -92,8 +90,8 @@ export default function GameReport() {
     const { isReady, lines, analyze, stop } = useStockfish() as any;
     
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [isWaitingReset, setIsWaitingReset] = useState(false); // 🌟 اضافه شدن قفل همگام‌سازی
 
-    // آماده‌سازی دیتای اولیه
     useEffect(() => {
         if (!initialData) { navigate('/analysis'); return; }
         try {
@@ -118,17 +116,16 @@ export default function GameReport() {
             setCpHistory([]);
             setCurrentIndex(0);
         } catch (e) {
-            navigate('/setup');
+            navigate('/analysis');
         }
     }, [initialData]);
 
-    // 🌟 موتور آنالیزگر زنده (Live Processing)
+    // 🌟 ماشه شروع آنالیز برای هر حرکت
     useEffect(() => {
         if (!isReady || movesData.length === 0 || currentIndex >= movesData.length) return;
 
         const currentMove = movesData[currentIndex];
         
-        // اگر حرکت کتابی باشه، بدون پردازش انجین ۱۰۰ ثبتش می‌کنیم
         if (currentMove.isBook) {
             setCpHistory(prev => {
                 const newCp = prev.length > 0 ? prev[prev.length - 1] : 0;
@@ -136,38 +133,41 @@ export default function GameReport() {
             });
             setProgress(Math.round(((currentIndex + 1) / movesData.length) * 100));
             setCurrentIndex(idx => idx + 1);
-            return;
+        } else {
+            setIsWaitingReset(true); // قفل کردن دریافت نتیجه تا زمانی که انجین نمرات قدیمی را پاک کند
+            analyze(currentMove.fen, 14); 
         }
-
-        analyze(currentMove.fen, 14); // عمق 14 برای سرعت بالای لایو رندرینگ
-        
     }, [isReady, currentIndex, movesData]);
 
-    // دریافت نتیجه از استوک‌فیش
+    // 🌟 دریافت و پردازش خروجی استوک‌فیش (با رفع باگ Race Condition)
     useEffect(() => {
-        if (isAnalyzing && lines && lines[0] && lines[0].depth >= 14) {
-            if (stop) stop(); // توقف برای حرکت بعدی
+        // اگر عمق کمتر از ۱۴ است، یعنی انجین ریست شده و در حال تحلیل حرکت جدید است
+        if (!lines || lines.length === 0 || lines[0].depth < 14) {
+            if (isWaitingReset) setIsWaitingReset(false); // باز کردن قفل
+        }
+
+        // فقط زمانی نمره را می‌پذیریم که قفل باز شده باشد و عمق به ۱۴ رسیده باشد
+        if (isAnalyzing && !isWaitingReset && lines && lines.length > 0 && lines[0].depth >= 14) {
+            if (stop) stop(); 
             
             const cp = lines[0].isMate 
                 ? (lines[0].mateIn > 0 ? 10000 : -10000) 
                 : lines[0].score * 100;
 
-            const finalCp = (currentIndex % 2 === 0) ? cp : -cp; // نرمال‌سازی Cp از دید سفید
+            const finalCp = (currentIndex % 2 === 0) ? cp : -cp; 
 
             setCpHistory(prev => [...prev, finalCp]);
             setProgress(Math.round(((currentIndex + 1) / movesData.length) * 100));
             setCurrentIndex(idx => idx + 1);
         }
-    }, [lines, isAnalyzing, currentIndex]);
+    }, [lines, isAnalyzing, currentIndex, isWaitingReset]);
 
-    // پایان آنالیز
     useEffect(() => {
         if (movesData.length > 0 && currentIndex >= movesData.length) {
             setTimeout(() => setIsAnalyzing(false), 1000);
         }
     }, [currentIndex, movesData]);
 
-    // 🌟 محاسبه نهایی با فرمول‌های Lichess
     const reportStats = useMemo(() => {
         if (cpHistory.length < 2) return null;
         
@@ -176,7 +176,6 @@ export default function GameReport() {
         const whiteAcc = calculateGameAccuracy(winPercents, true);
         const blackAcc = calculateGameAccuracy(winPercents, false);
 
-        // محاسبه دقت در فازهای مختلف
         const phases = { w: { opening: [] as number[], mid: [] as number[], end: [] as number[] }, b: { opening: [] as number[], mid: [] as number[], end: [] as number[] } };
         
         for (let i = 0; i < winPercents.length - 1; i++) {
@@ -206,7 +205,6 @@ export default function GameReport() {
         };
     }, [cpHistory, movesData, isAnalyzing]);
 
-    // رندر لودینگ آنالیز زنده
     if (isAnalyzing) {
         return (
             <div className="h-[100dvh] bg-[#110f0d] flex flex-col items-center justify-center p-6 relative overflow-hidden" dir="rtl">
@@ -236,7 +234,6 @@ export default function GameReport() {
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="min-h-screen bg-[#110f0d] pb-24 overflow-x-hidden font-sans" dir="rtl">
             
-            {/* 🌟 هدر لوکس بازی */}
             <div className="bg-gradient-to-b from-[#1e1c19] to-[#110f0d] border-b border-[#35332e] px-4 py-8 pt-12 relative overflow-hidden">
                 <button onClick={() => navigate(-1)} className="absolute top-6 right-6 p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-white transition-all z-20"><ChevronRight size={20} /></button>
                 
@@ -260,12 +257,10 @@ export default function GameReport() {
 
             <div className="max-w-3xl mx-auto px-4 mt-8 flex flex-col gap-6">
                 
-                {/* 🌟 حلقه‌های دقت (Accuracy) */}
                 <div className="bg-[#1a1917] border border-[#35332e] rounded-[32px] p-6 shadow-xl relative overflow-hidden">
                     <h3 className="font-black text-zinc-400 text-sm mb-6 flex items-center gap-2"><Target size={18}/> دقت بازی (Accuracy)</h3>
                     
                     <div className="flex justify-around items-center">
-                        {/* دقت سفید */}
                         <div className="flex flex-col items-center">
                             <div className="relative w-28 h-28">
                                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -276,7 +271,6 @@ export default function GameReport() {
                             </div>
                         </div>
 
-                        {/* دقت سیاه */}
                         <div className="flex flex-col items-center">
                             <div className="relative w-28 h-28">
                                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -289,7 +283,6 @@ export default function GameReport() {
                     </div>
                 </div>
 
-                {/* 🌟 فازهای بازی */}
                 <div className="bg-[#1a1917] border border-[#35332e] rounded-[32px] p-6 shadow-xl">
                     <h3 className="font-black text-zinc-400 text-sm mb-6 flex items-center gap-2"><Activity size={18}/> بررسی فازهای بازی</h3>
                     
@@ -311,7 +304,6 @@ export default function GameReport() {
                     </div>
                 </div>
 
-                {/* دکمه‌های اکشن */}
                 <div className="mt-4 flex flex-col sm:flex-row gap-3">
                     <button onClick={() => navigate('/analysis/board', { state: location.state })} className="flex-1 bg-farzin-accent hover:bg-[#68824b] text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(119,149,86,0.3)] transition-all active:scale-95">
                         <CheckCircle2 size={20} /> بررسی دقیق حرکات با مربی
