@@ -905,24 +905,24 @@ export default function AnalysisBoard() {
                 </div>
                 
                 {/* 🌟 دکمه گزارش و کنترل‌ها */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <button 
                         onClick={() => navigate('/report')} 
-                        className="relative flex items-center gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-4 py-2 rounded-lg text-xs font-black transition-all shadow-[0_0_12px_rgba(119,149,86,0.6)] hover:shadow-[0_0_20px_rgba(119,149,86,0.9)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 group"
+                        className="relative flex items-center h-[34px] gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 rounded-lg text-[11px] font-black transition-all shadow-[0_0_10px_rgba(119,149,86,0.5)] hover:shadow-[0_0_15px_rgba(119,149,86,0.8)] active:scale-95 group"
                     >
-                        <PieChart size={15} className="group-hover:scale-110 transition-transform" /> 
+                        <PieChart size={14} className="group-hover:scale-110 transition-transform" /> 
                         گزارش بازی
-                        {/* 🌟 پالس ترغیب‌کننده */}
-                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                        {/* 🌟 پالس ظریف‌تر و تنظیم‌شده */}
+                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
                         </span>
                     </button>
-                    <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
-                        <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
-                        <button onClick={prevMove} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipBack size={18} /></button>
-                        <button onClick={nextMove} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipForward size={18} /></button>
-                        <button onClick={goEnd} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><FastForward size={18} /></button>
+                    <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
+                        <button onClick={goStart} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors h-full flex items-center"><Rewind size={17} /></button>
+                        <button onClick={prevMove} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipBack size={17} /></button>
+                        <button onClick={nextMove} className="p-1.5 px-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipForward size={17} /></button>
+                        <button onClick={goEnd} className="p-1.5 px-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50 h-full flex items-center"><FastForward size={17} /></button>
                     </div>
                 </div>
             </div>
