@@ -110,36 +110,10 @@ export default function AnalysisSetup() {
           finalData = await res.text(); // دانلود PGN
           finalType = 'PGN';
         } else if (urlLower.includes('chess.com')) {
-          // 🌟 استخراج PGN از سایت Chess.com با استفاده از پروکسی‌های مقاوم‌تر
-          try {
-             let html = '';
-             try {
-                 // تلاش اول: سرورهای corsproxy
-                 const res1 = await fetch(`https://corsproxy.io/?${encodeURIComponent(finalData)}`);
-                 if (!res1.ok) throw new Error();
-                 html = await res1.text();
-             } catch(err1) {
-                 // تلاش دوم: سرورهای codetabs (فال‌بک در صورت فیلتر بودن سرور اول)
-                 const res2 = await fetch(`https://api.codetabs.com/v1/proxy?quest=${finalData}`);
-                 if (!res2.ok) throw new Error();
-                 html = await res2.text();
-             }
-             
-             // الگوی جستجو برای پیدا کردن PGN مخفی در سورس HTML سایت
-             const pgnMatch = html.match(/\[Event \\"[\s\S]*?(?:1\/2-1\/2|1-0|0-1|\*)/) || html.match(/"pgn":"(.*?(?:1-0|0-1|1\/2-1\/2|\*))"/);
-             
-             if (pgnMatch) {
-                 finalData = pgnMatch[0].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/"pgn":"/, '');
-                 if (finalData.endsWith('"')) finalData = finalData.slice(0, -1);
-                 finalType = 'PGN';
-             } else {
-                 throw new Error('متاسفانه امکان استخراج اتوماتیک PGN از این لینک وجود ندارد. لطفا متن PGN را کپی کنید.');
-             }
-          } catch (error: any) {
-              throw new Error('ارتباط با سرورهای Chess.com برقرار نشد (احتمالاً به دلیل فیلترینگ یا قطعی شبکه). لطفاً PGN بازی را دستی کپی کنید.');
-          }
+          // 🌟 رویکرد جایگزین برای شبکه ایران: راهنمایی شفاف به جای استفاده از پروکسی‌های مسدود شده
+          throw new Error('دریافت مستقیم لینک از Chess.com به دلیل محدودیت‌های شبکه (CORS) مسدود است.\n\nلطفاً در سایت Chess.com روی آیکون اشتراک‌گذاری (Share) کلیک کنید، از تب PGN متن را کپی کرده و در بخش "وارد کردن PGN" قرار دهید.');
         } else {
-          throw new Error('لینک وارد شده نامعتبر است. لطفاً لینک یک بازی از Lichess یا Chess.com وارد کنید.');
+          throw new Error('لینک وارد شده نامعتبر است. لطفاً لینک یک بازی از Lichess وارد کنید.');
         }
       }
 
