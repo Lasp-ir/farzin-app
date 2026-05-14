@@ -55,6 +55,9 @@ export default function AnalysisBoard() {
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
   const [isEnginePaused, setIsEnginePaused] = useState(false);
 
+  // 🌟 استیت کنترل ایستر اگ (حالت‌های: خاموش، درخواست، انفجار، نتیجه)
+  const [easterEggState, setEasterEggState] = useState<'idle' | 'prompt' | 'exploded' | 'resolved'>('idle');
+
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
   // 🌟 منطق جدید و هوشمند برای لود کردن PGN یا FEN
@@ -158,17 +161,29 @@ export default function AnalysisBoard() {
 
   useEffect(() => {
     if (isReady && currentPosition) {
-      if (isEnginePaused) {
-          if (stop) stop(); 
-      } else {
-          analyze(currentPosition, engineSettings.maxDepth);
-          if (engineSettings.maxTime > 0 && stop) {
-            const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
-            return () => clearTimeout(timer);
+      try {
+          // 🌟 تلاش برای خواندن پوزیسیون؛ اگر نوبت ما باشد و شاه حریف زیر ضرب باشد، ارور می‌دهد!
+          new Chess(currentPosition);
+          
+          if (isEnginePaused) {
+              if (stop) stop(); 
+          } else {
+              analyze(currentPosition, engineSettings.maxDepth);
+              if (engineSettings.maxTime > 0 && stop) {
+                const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
+                return () => clearTimeout(timer);
+              }
+          }
+      } catch (error) {
+          // 😈 بوم! باگ تشخیص داده شد. فعال‌سازی خنده شیطانی
+          if (easterEggState === 'idle') {
+              setEasterEggState('prompt');
+              setIsEnginePaused(true);
+              if (stop) stop(); // خفه کردن موتور!
           }
       }
     }
-  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused]);
+  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, easterEggState]);
 
   useEffect(() => {
     if (lines && lines.length > 0) {
@@ -578,8 +593,47 @@ export default function AnalysisBoard() {
   };
 
   const onPieceDragBegin = (piece: string, sourceSquare: string) => { if (piece[0] !== activeGame.turn()) return; setClickedSquare(sourceSquare); highlightLegalMoves(sourceSquare); };
-  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { setOptionSquares({}); setClickedSquare(null); return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' }); };
+  const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { 
+    setOptionSquares({}); setClickedSquare(null); 
+    
+    // 🌟 منطق ایستر اگ در زمان رها کردن مهره
+    if (easterEggState === 'prompt') {
+        // آیا مهره مقصد شاه است؟
+        const targetPiece = activeGame.get(targetSquare as any);
+        // بهش اجازه می‌دیم فقط شاه رو بزنه
+        setEasterEggState('exploded');
+        
+        // 💥 انیمیشن انفجارِ جاوااسکریپتی خالص!
+        setTimeout(() => {
+            const pieces = document.querySelectorAll('[data-piece]');
+            pieces.forEach((p: any) => {
+                const x = (Math.random() - 0.5) * 3000;
+                const y = (Math.random() - 0.5) * 3000;
+                const rot = (Math.random() - 0.5) * 1080;
+                p.style.transition = 'transform 1.5s cubic-bezier(0.25, 1, 0.5, 1)';
+                p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${Math.random() * 3 + 1})`;
+            });
+            
+            const board = document.getElementById('farzin-board-container');
+            if (board) {
+                board.style.transition = 'all 2s ease-out';
+                board.style.transform = 'rotate(15deg) scale(0.8) skew(10deg)';
+                board.style.filter = 'contrast(2) sepia(1) hue-rotate(90deg) drop-shadow(0 0 50px red)';
+            }
+            
+            // نمایش پاپ‌آپ مرموز بعد از پایان انفجار
+            setTimeout(() => setEasterEggState('resolved'), 2500);
+        }, 100);
+        
+        return true; // فقط نمایشی قبول کن، اما تو درخت ثبت نکن
+    }
+    
+    // اگر وسط انفجار هستیم، هیچ حرکتی مجاز نیست
+    if (easterEggState !== 'idle') return false;
 
+    return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' }); 
+  };
+  
   const handleSquareClick = (square: string) => {
     if (clickedSquare === square) { setClickedSquare(null); setOptionSquares({}); return; }
     if (clickedSquare) {
@@ -711,6 +765,40 @@ export default function AnalysisBoard() {
       <ResetModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} onConfirm={confirmResetAnalysis} />
       <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} tempSettings={tempSettings} setTempSettings={setTempSettings} onApply={handleApplySettings} />
       <ArrowSettingsModal isOpen={isArrowModalOpen} onClose={() => setIsArrowModalOpen(false)} arrowSettings={arrowSettings} setArrowSettings={setArrowSettings} arrowColors={arrowColors} setArrowColors={setArrowColors} multiPv={engineSettings.multiPv} />
+      
+      {/* 😈 پاپ‌آپ‌های ایستر اگ */}
+      <AnimatePresence>
+        {easterEggState === 'prompt' && (
+          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] pointer-events-none">
+            <div className="bg-[#12110f]/90 border border-rose-500/50 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_50px_rgba(225,29,72,0.4)] flex flex-col items-center gap-4 text-center min-w-[280px]">
+              <span className="text-6xl drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] animate-pulse">😈</span>
+              <h2 className="text-white font-black text-xl tracking-tight">تعارف نکن. بزن تو شاه!</h2>
+            </div>
+          </motion.div>
+        )}
+
+        {easterEggState === 'resolved' && (
+          <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="fixed bottom-0 inset-x-0 z-[300] flex justify-center p-6 bg-black/80 backdrop-blur-xl border-t border-purple-500/30 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
+            <div className="w-full max-w-md flex flex-col items-center gap-6 text-center">
+              <span className="text-5xl drop-shadow-[0_0_15px_rgba(168,85,247,0.8)]">👽</span>
+              <div className="flex flex-col gap-2">
+                <h2 className="text-white font-black text-2xl">حالا دیدی چی میشه؟</h2>
+                <p className="text-zinc-400 font-bold">خیالت راحت شد؟ قانون شکنی عواقب داره!</p>
+              </div>
+              <button 
+                onClick={() => {
+                    setEasterEggState('idle');
+                    navigate('/setup'); // بازگشت به صفحه ستاپ
+                }} 
+                className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] active:scale-95 text-lg"
+              >
+                آره ببخشید، فهمیدم!
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
