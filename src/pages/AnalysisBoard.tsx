@@ -5,14 +5,16 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw, AlertOctagon, Pause, Play
+  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, 
+  RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, 
+  Maximize2, RotateCcw, AlertOctagon, Pause, Play,
+  Send, MessageCircle, Twitter, Download, FileText, PieChart // 🌟 آیکون‌های جدید اضافه شدند
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
 import OpeningExplorer from '../components/OpeningExplorer';
 import OpeningDisplay from '../components/OpeningDisplay';
-// 🌟 ایمپورت تابع تشخص بوک موو
 import { isBookPosition } from '../utils/ecoParser';
 import type { MoveNode } from '../utils/analysisConfig';
 import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
@@ -39,6 +41,9 @@ export default function AnalysisBoard() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  
+  // 🌟 استیت مودال اشتراک‌گذاری
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
   const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0, coachMode: true });
@@ -172,7 +177,6 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    // 🌟 منطق تشخیص حرکت تئوری (Book Move)
     const fenIsBook = isBookPosition(node.fen);
 
     if (fenIsBook) {
@@ -396,7 +400,8 @@ export default function AnalysisBoard() {
     setIsSettingsModalOpen(false); showToast('تنظیمات با موفقیت اعمال شد');
   };
 
-  const copyMainlinePgn = () => {
+  // 🌟 استخراج تابع تولید PGN برای استفاده‌ی مشترک
+  const getPgnString = () => {
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
     let pgn = `[Event "Farzin Analysis"]\n[Site "Lasp - Farzin App"]\n[Date "${dateStr}"]\n[White "${playerMeta.white.name || 'White'}"]\n[Black "${playerMeta.black.name || 'Black'}"]\n`;
     if (playerMeta.white.elo) pgn += `[WhiteElo "${playerMeta.white.elo}"]\n`;
@@ -410,7 +415,50 @@ export default function AnalysisBoard() {
         else { movesString += `${node.san} `; moveNum++; }
         curr = node.childrenIds[0]; 
     }
-    pgn += movesString.trim() + " *"; navigator.clipboard.writeText(pgn); showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
+    return pgn + movesString.trim() + " *";
+  };
+
+  const copyMainlinePgn = () => {
+    navigator.clipboard.writeText(getPgnString()); 
+    showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
+  };
+
+  // 🌟 تابع کمکی برای دانلود فایل
+  const downloadFile = (content: string, filename: string) => {
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+  };
+
+  // 🌟 مدیریت پلتفرم‌های اشتراک‌گذاری
+  const handleShare = (platform: string) => {
+      const pgn = getPgnString();
+      const text = encodeURIComponent(`بررسی آنالیز شطرنج در فرزین:\n\n${pgn}`);
+      
+      switch(platform) {
+          case 'telegram':
+              window.open(`https://t.me/share/url?url=${text}`, '_blank');
+              break;
+          case 'whatsapp':
+              window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+              break;
+          case 'twitter':
+              window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+              break;
+          case 'txt':
+              downloadFile(pgn, 'farzin_analysis.txt');
+              break;
+          case 'pgn':
+              downloadFile(pgn, 'farzin_analysis.pgn');
+              break;
+      }
+      setIsShareModalOpen(false);
   };
 
   const handleSaveAnalysis = () => {
@@ -580,9 +628,7 @@ export default function AnalysisBoard() {
     
     let prefix = ''; if (isWhite) prefix = `${moveNum}. `; else if (forceShowMoveNumber) prefix = `${moveNum}... `;
     
-    // 🌟 استایل‌دهی حرکت تئوری (بوک) روی نمودار درختی (اختیاری، اما زیباست)
     const isBook = isBookPosition(mainChild.fen);
-    
     result.push(<span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? (isBook ? 'bg-[#c27a3e] text-white font-black shadow-[0_0_8px_rgba(194,122,62,0.6)]' : 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]') : (isBook ? 'text-[#c27a3e] font-bold hover:bg-[#262421]' : 'text-zinc-300 hover:bg-[#262421]')}`}>{prefix}{mainChild.san}</span>);
 
     if (node.childrenIds.length > 1) {
@@ -756,6 +802,54 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
+      {/* 🌟 پاپ‌آپ جدید و مدرن برای اشتراک‌گذاری */}
+      <AnimatePresence>
+        {isShareModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-xs shadow-2xl flex flex-col relative">
+               <button onClick={() => setIsShareModalOpen(false)} className="absolute top-4 left-4 p-1.5 text-zinc-500 hover:text-white bg-[#262421] rounded-lg transition-colors z-10"><X size={16} /></button>
+               <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-sky-500/10 text-sky-400 flex items-center justify-center rounded-xl border border-sky-500/20"><Share2 size={20} /></div>
+                  <div className="flex flex-col">
+                     <h2 className="font-black text-white text-sm">اشتراک‌گذاری آنالیز</h2>
+                     <span className="text-[10px] text-zinc-500">ارسال برای دوستان یا دانلود فایل</span>
+                  </div>
+               </div>
+               
+               <div className="grid grid-cols-2 gap-3 mb-2">
+                   <button onClick={() => handleShare('telegram')} className="flex flex-col items-center justify-center gap-2 p-3 bg-[#1e1c19] hover:bg-[#2aa198]/20 border border-[#35332e] hover:border-[#2aa198]/50 rounded-xl transition-all group">
+                       <Send size={24} className="text-[#2aa198] group-hover:scale-110 transition-transform" />
+                       <span className="text-[10px] font-bold text-zinc-300">تلگرام</span>
+                   </button>
+                   <button onClick={() => handleShare('whatsapp')} className="flex flex-col items-center justify-center gap-2 p-3 bg-[#1e1c19] hover:bg-green-500/20 border border-[#35332e] hover:border-green-500/50 rounded-xl transition-all group">
+                       <MessageCircle size={24} className="text-green-500 group-hover:scale-110 transition-transform" />
+                       <span className="text-[10px] font-bold text-zinc-300">واتس‌اپ</span>
+                   </button>
+                   <button onClick={() => handleShare('twitter')} className="flex flex-col items-center justify-center gap-2 p-3 bg-[#1e1c19] hover:bg-zinc-700/50 border border-[#35332e] hover:border-zinc-500 rounded-xl transition-all group col-span-2">
+                       <Twitter size={20} className="text-zinc-200 group-hover:scale-110 transition-transform" />
+                       <span className="text-[10px] font-bold text-zinc-300">انتشار در X (توییتر)</span>
+                   </button>
+               </div>
+               
+               <div className="flex items-center gap-2 my-3">
+                   <div className="h-[1px] flex-1 bg-[#35332e]"></div>
+                   <span className="text-[9px] text-zinc-500 font-bold px-2">دانلود محلی</span>
+                   <div className="h-[1px] flex-1 bg-[#35332e]"></div>
+               </div>
+
+               <div className="flex gap-3">
+                   <button onClick={() => handleShare('txt')} className="flex-1 flex items-center justify-center gap-1.5 p-2.5 bg-[#262421] hover:bg-[#35332e] border border-[#403e3a] text-zinc-300 rounded-lg text-xs font-bold transition-all">
+                       <FileText size={14} /> فایل TXT
+                   </button>
+                   <button onClick={() => handleShare('pgn')} className="flex-1 flex items-center justify-center gap-1.5 p-2.5 bg-farzin-accent/10 hover:bg-farzin-accent text-farzin-accent hover:text-white border border-farzin-accent/30 rounded-lg text-xs font-bold transition-all shadow-sm">
+                       <Download size={14} /> فایل PGN
+                   </button>
+               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className={`flex-none w-full px-4 py-2 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] transition-colors text-zinc-400"><ChevronRight size={20} /></button>
         <div className="flex flex-col items-center">
@@ -766,7 +860,8 @@ export default function AnalysisBoard() {
         <div className="flex gap-1.5">
             <button onClick={openSettingsModal} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="تنظیمات موتور"><Settings size={16}/></button>
             <button onClick={() => setIsSaveModalOpen(true)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="ذخیره آنالیز"><Save size={16}/></button>
-            <button className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors"><Share2 size={16}/></button>
+            {/* 🌟 فعال‌سازی دکمه شیر */}
+            <button onClick={() => setIsShareModalOpen(true)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="اشتراک‌گذاری"><Share2 size={16}/></button>
         </div>
       </div>
 
@@ -994,11 +1089,21 @@ export default function AnalysisBoard() {
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
-                <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
-                    <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
-                    <button onClick={prevMove} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipBack size={18} /></button>
-                    <button onClick={nextMove} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipForward size={18} /></button>
-                    <button onClick={goEnd} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><FastForward size={18} /></button>
+                
+                {/* 🌟 دکمه گزارش بازی و کنترل‌های مدیا در کنار هم */}
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => navigate('/report')} 
+                        className="flex items-center gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 py-2 rounded-lg text-[11px] font-bold transition-colors shadow-md active:scale-95"
+                    >
+                        <PieChart size={14} /> گزارش
+                    </button>
+                    <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
+                        <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
+                        <button onClick={prevMove} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipBack size={18} /></button>
+                        <button onClick={nextMove} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipForward size={18} /></button>
+                        <button onClick={goEnd} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><FastForward size={18} /></button>
+                    </div>
                 </div>
             </div>
 
