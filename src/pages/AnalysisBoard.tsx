@@ -5,7 +5,7 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw, AlertOctagon // 🌟 اضافه شدن آیکون هشدار
+  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw, AlertOctagon
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -35,7 +35,7 @@ export default function AnalysisBoard() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false); // 🌟 استیت برای مودال ریست
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
   const [engineSettings, setEngineSettings] = useState({ multiPv: 3, threads: 1, hash: 16, maxDepth: 24, maxTime: 0, coachMode: true });
@@ -372,13 +372,12 @@ export default function AnalysisBoard() {
     if(!saveName.trim()) return; setIsSaveModalOpen(false); showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`); setSaveName("");
   };
 
-  // 🌟 تابع اجرای پاکسازی نهایی (وقتی کاربر تو مودال بله رو زد)
   const confirmResetAnalysis = () => {
       const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
       setTree({ 'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 } });
       setCurrentNodeId('root');
       engineCache.current = {}; 
-      setIsResetModalOpen(false); // بستن مودال
+      setIsResetModalOpen(false); 
       showToast('آنالیز با موفقیت پاک شد');
   };
 
@@ -573,7 +572,6 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* 🌟 پاپ‌آپ جدید و مدرن تایید ریست آنالیز */}
       <AnimatePresence>
         {isResetModalOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
@@ -738,7 +736,8 @@ export default function AnalysisBoard() {
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
           
-          <div className="mt-2 h-[56px] flex flex-col justify-start overflow-hidden">
+          {/* 🌟 ارتفاع این باکس از 74px به 88px افزایش یافت */}
+          <div className="mt-2 h-[88px] flex flex-col justify-start overflow-hidden">
              {engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
                      <div className="flex flex-col items-center justify-center py-2 opacity-50"><Loader2 size={18} className="animate-spin text-farzin-accent mb-1"/><span className="text-[10px] font-sans">در حال بررسی دقیق حرکت...</span></div>
@@ -866,12 +865,7 @@ export default function AnalysisBoard() {
             <div className="flex-none px-3 py-2 border-b border-[#35332e] flex items-center justify-between bg-[#1a1916] rounded-t-2xl lg:rounded-none">
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
-                  
-                  {/* 🌟 دکمه فراخوانی مودال ریست */}
-                  <button onClick={() => setIsResetModalOpen(true)} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز">
-                    <RotateCcw size={16} />
-                  </button>
-
+                  <button onClick={() => setIsResetModalOpen(true)} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز"><RotateCcw size={16} /></button>
                   <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
