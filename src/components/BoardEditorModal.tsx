@@ -31,6 +31,7 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
     const [turn, setTurn] = useState<'w' | 'b'>('w');
     const [castling, setCastling] = useState({ K: true, Q: true, k: true, q: true });
     const [enPassant, setEnPassant] = useState('-');
+    const [invalidPawnWarning, setInvalidPawnWarning] = useState(false);
 
     const boardRef = useRef<HTMLDivElement>(null);
 
@@ -134,6 +135,22 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
     const hasWhiteKing = Object.values(position).includes('wK');
     const hasBlackKing = Object.values(position).includes('bK');
     const isValid = hasWhiteKing && hasBlackKing;
+
+    const handleConfirm = () => {
+        let hasInvalidPawn = false;
+        for (const [square, piece] of Object.entries(position)) {
+            // پیاده سفید در عرض 1 یا پیاده سیاه در عرض 8
+            if (piece === 'wP' && square.includes('1')) hasInvalidPawn = true;
+            if (piece === 'bP' && square.includes('8')) hasInvalidPawn = true;
+        }
+
+        if (hasInvalidPawn) {
+            setInvalidPawnWarning(true);
+            return;
+        }
+
+        onConfirm(generateFinalFen());
+    };
 
     return (
         <AnimatePresence>
@@ -288,12 +305,27 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                                     </div>
                                 )}
 
-                                <button onClick={() => onConfirm(generateFinalFen())} disabled={!isValid}
-                                    className={`w-full py-4 rounded-[1.25rem] font-black text-sm flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-farzin-accent hover:bg-[#68824b] shadow-[0_5px_20px_rgba(119,149,86,0.4)] text-white active:scale-95' : 'bg-[#262421] text-zinc-600 border border-[#35332e] cursor-not-allowed'}`}
+                                <button onClick={handleConfirm} disabled={!isValid}
+                                className={`w-full py-4 rounded-[1.25rem] font-black text-sm flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-farzin-accent hover:bg-[#68824b] shadow-[0_5px_20px_rgba(119,149,86,0.4)] text-white active:scale-95' : 'bg-[#262421] text-zinc-600 border border-[#35332e] cursor-not-allowed'}`}
                                 >
                                     <Zap size={20} /> شروع آنالیز
                                 </button>
                             </div>
+                            {/* 🌟 پاپ‌آپ خطای پیاده غیرقانونی */}
+                        <AnimatePresence>
+                            {invalidPawnWarning && (
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" dir="rtl">
+                                    <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#1e1c19] border border-amber-500/30 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center max-w-sm">
+                                        <span className="text-6xl mb-4 drop-shadow-md">😲</span>
+                                        <h3 className="font-black text-white text-lg mb-2">پیاده تو اولین عرض؟</h3>
+                                        <p className="text-sm text-zinc-400 mb-8 leading-relaxed">واقعاً؟ این پوزیشن اصلاً ممکن نیست. امکان نداره پیاده در عرض اول (یا آخر) حضور داشته باشه.</p>
+                                        <button onClick={() => setInvalidPawnWarning(false)} className="w-full bg-[#262421] hover:bg-[#35332e] text-white font-bold py-3.5 rounded-xl transition-all border border-[#35332e] active:scale-95">
+                                            باشه، اصلاح می‌کنم
+                                        </button>
+                                    </motion.div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         </div>
                     </motion.div>
