@@ -854,10 +854,10 @@ export default function AnalysisBoard() {
                 <button onClick={() => setActiveTab('explorer')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'explorer' ? 'border-purple-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><BookOpen size={14} /> دیتابیس (گشایش)</button>
             </div>
 
-            {/* 🌟 محتوای تب‌ها (وسط) */}
+{/* محتوای تب‌ها (وسط) */}
             <div className="flex-1 min-h-0 overflow-y-auto bg-[#12110f] custom-scrollbar relative">
                 {activeTab === 'notation' && (
-                    <div className="p-3">
+                    <div className="p-3 h-full">
                         <AnimatePresence mode="wait">
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm font-mono leading-loose" dir="ltr">
                                 {Object.keys(tree).length <= 1 ? (
@@ -873,35 +873,39 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
+                {/* 🌟 تب گراف (اصلاح شده با Flexbox و Padding ایمن) */}
                 {activeTab === 'graph' && (
-                    <div className="absolute inset-0 p-3 flex flex-col">
-                        <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512]">
+                    <div className="h-full w-full p-3 flex flex-col">
+                        <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex flex-col items-center justify-center">
                             <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
                                 <path d={areaWhite} fill="#fff" />
                                 <path d={areaBlack} fill="#000" />
                                 <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
                             </svg>
-                            <div className="absolute inset-0 backdrop-blur-[3px] bg-black/40 flex flex-col items-center justify-center gap-4 z-10">
-                                <div className="w-12 h-12 rounded-full bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.3)]">
+                            <div className="absolute inset-0 backdrop-blur-[2px] bg-black/40 z-10" />
+                            
+                            <div className="relative z-20 flex flex-col items-center gap-3 p-2 text-center">
+                                <div className="w-12 h-12 rounded-full bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.3)] shrink-0">
                                     <TrendingUp size={20} />
                                 </div>
-                                <div className="flex flex-col items-center gap-1">
+                                <div className="flex flex-col items-center gap-1 shrink-0">
                                     <span className="text-sm font-bold text-white">تحلیل گرافیکی بازی</span>
-                                    <span className="text-[10px] text-zinc-400">فشرده‌سازی سیگموئید و تشخیص فازها</span>
+                                    <span className="text-[10px] text-zinc-400">فشرده‌سازی سیگموئید و فازها</span>
                                 </div>
                                 <button 
                                     onClick={() => setGraphMode('fullscreen')} 
-                                    className="mt-2 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs transition-colors shadow-lg active:scale-95"
+                                    className="mt-1 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs transition-colors shadow-lg active:scale-95 shrink-0"
                                 >
-                                    <Maximize2 size={14} /> باز کردن گراف پیشرفته
+                                    <Maximize2 size={14} /> باز کردن گراف
                                 </button>
                             </div>
                         </div>
                     </div>
                 )}
                 
+                {/* 🌟 تب دیتابیس (اصلاح شده با Padding ایمن) */}
                 {activeTab === 'explorer' && (
-                    <div className="absolute inset-0 p-2 border-t border-[#35332e]/50">
+                    <div className="h-full w-full p-3 flex flex-col">
                         <OpeningExplorer 
                             fen={currentPosition} 
                             onMoveSelect={(uci) => {
