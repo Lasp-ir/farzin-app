@@ -601,7 +601,6 @@ export default function AnalysisBoard() {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#161512] border border-[#35332e] rounded-2xl p-5 w-full max-w-sm shadow-2xl flex flex-col relative max-h-[90dvh] overflow-y-auto custom-scrollbar">
                <div className="flex items-center gap-2 mb-5 text-white border-b border-[#35332e] pb-3"><Sliders size={20} className="text-farzin-accent" /><h2 className="font-bold text-base">تنظیمات پیشرفته موتور</h2></div>
                <div className="flex flex-col gap-5 mb-6">
-                 
                  <div className="bg-[#1e1c19] border border-farzin-accent/30 p-3 rounded-xl flex items-center justify-between shadow-inner">
                     <div>
                         <span className="text-sm font-bold text-white block mb-0.5">مربی هوشمند (Coach)</span>
@@ -609,7 +608,6 @@ export default function AnalysisBoard() {
                     </div>
                     <ToggleSwitch checked={tempSettings.coachMode} onChange={(v) => setTempSettings(prev => ({...prev, coachMode: v}))} />
                  </div>
-
                  <div className={`transition-opacity ${tempSettings.coachMode ? 'opacity-50 pointer-events-none' : ''}`}>
                    <div className="flex justify-between items-center mb-2"><label className="text-sm text-zinc-300 font-bold">خطوط تحلیل (Multi-PV)</label><span className="text-farzin-accent font-mono font-bold bg-farzin-accent/10 px-2 py-0.5 rounded">{tempSettings.multiPv}</span></div>
                    <div className="flex bg-[#1e1c19] p-1 rounded-xl border border-[#35332e]">{[1, 2, 3].map(num => (<button key={num} onClick={() => setTempSettings(prev => ({...prev, multiPv: num}))} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${tempSettings.multiPv === num ? 'bg-[#262421] text-farzin-accent shadow-sm border border-[#403e3a]' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>{num} لاین</button>))}</div>
@@ -696,7 +694,6 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      {/* 🌟 هدر جمع‌وجورتر شد (پدینگ کمتر) */}
       <div className={`flex-none w-full px-4 py-2 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] transition-colors text-zinc-400"><ChevronRight size={20} /></button>
         <div className="flex flex-col items-center">
@@ -844,20 +841,18 @@ export default function AnalysisBoard() {
             <EditablePlayer color={boardOrientation === 'white' ? 'w' : 'b'} data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} />
         </div>
 
-        {/* 🌟 بخش راست/پایین: بازطراحی کامل چینش تب‌ها و فوتر */}
         <div className="flex-1 min-h-0 flex flex-col bg-[#161512] border-t lg:border-t-0 lg:border-r border-[#35332e] relative z-10 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] lg:shadow-none rounded-t-2xl lg:rounded-none mt-2 lg:mt-0">
             
-            {/* 🌟 هدرِ تب‌ها (آمد بالا) */}
             <div className="flex-none flex px-2 pt-1 border-b border-[#35332e] bg-[#1a1916] overflow-x-auto no-scrollbar rounded-t-2xl lg:rounded-none">
                 <button onClick={() => setActiveTab('notation')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'notation' ? 'border-farzin-accent text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><List size={14} /> ثبت حرکات</button>
                 <button onClick={() => setActiveTab('graph')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'graph' ? 'border-sky-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><TrendingUp size={14} /> گراف ارزیابی</button>
                 <button onClick={() => setActiveTab('explorer')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'explorer' ? 'border-purple-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><BookOpen size={14} /> دیتابیس (گشایش)</button>
             </div>
 
-{/* محتوای تب‌ها (وسط) */}
-            <div className="flex-1 min-h-0 overflow-y-auto bg-[#12110f] custom-scrollbar relative">
+            {/* محتوای تب‌ها (وسط) */}
+            <div className="flex-1 min-h-0 p-2.5 lg:p-3 flex flex-col bg-[#12110f]">
                 {activeTab === 'notation' && (
-                    <div className="p-3 h-full">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <AnimatePresence mode="wait">
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm font-mono leading-loose" dir="ltr">
                                 {Object.keys(tree).length <= 1 ? (
@@ -873,39 +868,39 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* 🌟 تب گراف (اصلاح شده با Flexbox و Padding ایمن) */}
+                {/* 🌟 تب گراف (طراحی افقی و جمع‌وجور) */}
                 {activeTab === 'graph' && (
-                    <div className="h-full w-full p-3 flex flex-col">
-                        <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex flex-col items-center justify-center">
-                            <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-                                <path d={areaWhite} fill="#fff" />
-                                <path d={areaBlack} fill="#000" />
-                                <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
-                            </svg>
-                            <div className="absolute inset-0 backdrop-blur-[2px] bg-black/40 z-10" />
-                            
-                            <div className="relative z-20 flex flex-col items-center gap-3 p-2 text-center">
-                                <div className="w-12 h-12 rounded-full bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.3)] shrink-0">
+                    <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex items-center p-3">
+                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
+                            <path d={areaWhite} fill="#fff" />
+                            <path d={areaBlack} fill="#000" />
+                            <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
+                        </svg>
+                        <div className="absolute inset-0 backdrop-blur-[2px] bg-black/40 z-10" />
+                        
+                        <div className="relative z-20 flex items-center justify-between w-full gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.3)] shrink-0">
                                     <TrendingUp size={20} />
                                 </div>
-                                <div className="flex flex-col items-center gap-1 shrink-0">
-                                    <span className="text-sm font-bold text-white">تحلیل گرافیکی بازی</span>
-                                    <span className="text-[10px] text-zinc-400">فشرده‌سازی سیگموئید و فازها</span>
+                                <div className="flex flex-col text-right">
+                                    <span className="text-xs font-bold text-white">تحلیل گرافیکی</span>
+                                    <span className="text-[9px] text-zinc-400">سیگموئید و فازها</span>
                                 </div>
-                                <button 
-                                    onClick={() => setGraphMode('fullscreen')} 
-                                    className="mt-1 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl font-bold text-xs transition-colors shadow-lg active:scale-95 shrink-0"
-                                >
-                                    <Maximize2 size={14} /> باز کردن گراف
-                                </button>
                             </div>
+                            <button 
+                                onClick={() => setGraphMode('fullscreen')} 
+                                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg font-bold text-[10px] transition-colors shadow-lg active:scale-95 shrink-0"
+                            >
+                                باز کردن <Maximize2 size={12} />
+                            </button>
                         </div>
                     </div>
                 )}
                 
-                {/* 🌟 تب دیتابیس (اصلاح شده با Padding ایمن) */}
+                {/* تب دیتابیس */}
                 {activeTab === 'explorer' && (
-                    <div className="h-full w-full p-3 flex flex-col">
+                    <div className="flex-1 flex flex-col min-h-0">
                         <OpeningExplorer 
                             fen={currentPosition} 
                             onMoveSelect={(uci) => {
@@ -915,8 +910,7 @@ export default function AnalysisBoard() {
                     </div>
                 )}
             </div>
-
-            {/* 🌟 فوتر کنترل‌ها (رفت پایین) */}
+            
             <div className="flex-none px-3 py-2 border-t border-[#35332e] flex items-center justify-between bg-[#1a1916]">
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
