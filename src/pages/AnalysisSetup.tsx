@@ -10,6 +10,8 @@ import {
   Link as LinkIcon, Sparkles, Plus
 } from 'lucide-react';
 
+import BoardEditorModal from '../components/BoardEditorModal';
+
 const MOCK_ARCHIVE = [
   { id: '1', white: 'Alireza_Karkon', black: 'Stockfish_16', result: 'win', date: 'امروز', pgn: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4' },
   { id: '2', white: 'Hikaru', black: 'Alireza_Karkon', result: 'loss', date: 'دیروز', pgn: '1. d4 Nf6 2. c4 g6 3. Nc3 Bg7' },
@@ -60,7 +62,7 @@ export default function AnalysisSetup() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
-  const [isSoonModalOpen, setIsSoonModalOpen] = useState(false);
+  const [isEditorModalOpen, setIsEditorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
 
@@ -173,22 +175,22 @@ export default function AnalysisSetup() {
         <SourceCard title="وارد کردن لینک بازی" desc="وارد کردن لینک از چس و لیچس" icon={LinkIcon} color="text-emerald-400" onClick={() => setIsLinkModalOpen(true)} />
         <SourceCard title="وارد کردن PGN / FEN" desc="پیست کردن مستقیم کدهای متنی" icon={FileText} color="text-amber-400" onClick={() => setIsInputModalOpen(true)} />
         <SourceCard title="آپلود فایل PGN" desc="بارگذاری فایل از سیستم" icon={UploadCloud} color="text-sky-400" onClick={() => setIsUploadModalOpen(true)} />
-        <SourceCard title="چیدمان دستی مهره‌ها" desc="ساخت پوزیشن دلخواه روی بورد" icon={LayoutGrid} color="text-rose-400" badge="SOON" onClick={() => setIsSoonModalOpen(true)} />
+        <SourceCard 
+           title="چیدمان دستی مهره‌ها" 
+           desc="ساخت پوزیشن دلخواه روی بورد" 
+           icon={LayoutGrid} 
+           color="text-rose-400" 
+           onClick={() => setIsEditorModalOpen(true)} 
+        />
       </div>
 
       {/* مودال‌ها (بخش‌های فشرده شده برای عملکرد یکسان) */}
-      <AnimatePresence>
-        {isSoonModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md px-4" dir="rtl" onClick={() => setIsSoonModalOpen(false)}>
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", damping: 25 }} onClick={e => e.stopPropagation()} className="w-full max-w-sm bg-[#1e1c19] border border-[#35332e] rounded-[32px] p-8 text-center relative overflow-hidden shadow-2xl">
-              <div className="w-20 h-20 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(225,29,72,0.2)]"><LayoutGrid size={36} className="text-rose-500" /><Sparkles size={20} className="absolute -top-2 -right-2 text-amber-400 animate-pulse" /></div>
-              <h3 className="font-black text-2xl text-white mb-2">در حال توسعه...</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-8">بخش <span className="text-rose-400 font-bold">ویرایشگر بورد</span> در آپدیت بعدی فعال می‌شود.</p>
-              <button onClick={() => setIsSoonModalOpen(false)} className="w-full py-4 rounded-xl font-black text-sm bg-[#262421] text-white border border-[#403e3a] active:scale-95 transition-all">متوجه شدم</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* 🌟 مودال ویرایشگر حرفه‌ای */}
+      <BoardEditorModal 
+         isOpen={isEditorModalOpen} 
+         onClose={() => setIsEditorModalOpen(false)} 
+         onConfirm={(fen: string) => processAndNavigate(fen, null, 'FEN')} 
+      />
 
       {/* سایر مودال‌ها (بدون تغییر منطقی) */}
       <AnimatePresence>{isLinkModalOpen && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl"><motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full sm:max-w-md bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] flex flex-col pb-safe"><div className="p-6 border-b border-[#35332e] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><LinkIcon size={20} /></div><h3 className="font-black text-lg text-white">لینک بازی</h3></div><button onClick={() => setIsLinkModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button></div><div className="p-6 flex flex-col gap-6"><input type="url" className="w-full bg-[#161512] border border-[#35332e] rounded-xl p-4 text-sm text-emerald-100 placeholder-zinc-600 outline-none transition-colors shadow-inner" placeholder="https://lichess.org/..." value={linkInput} onChange={(e) => setLinkInput(e.target.value)} dir="ltr" /><button onClick={() => processAndNavigate(linkInput, null, 'LINK')} disabled={!linkInput.trim() || isChecking} className={`w-full py-4 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${!linkInput.trim() ? 'bg-[#262421] text-zinc-500' : 'bg-emerald-500 text-black shadow-[0_5px_20px_rgba(16,185,129,0.3)] active:scale-95'}`}>{isChecking ? <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div> : <><Zap size={18} /> استخراج PGN</>}</button></div></motion.div></motion.div>)}</AnimatePresence>
