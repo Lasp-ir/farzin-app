@@ -61,7 +61,9 @@ export default function AnalysisSetup() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [isSoonModalOpen, setIsSoonModalOpen] = useState(false);
-  
+  const [errorMessage, setErrorMessage] = useState('');
+
+
   const [inputData, setInputData] = useState('');
   const [linkInput, setLinkInput] = useState('');
   const [isChecking, setIsChecking] = useState(false);
@@ -85,41 +87,67 @@ export default function AnalysisSetup() {
     reader.readAsText(file);
   };
 
-  // 🔥 منطق بررسی اصلاح شده برای سازگاری با تمام نسخه‌های chess.js
-  const processAndNavigate = (data: string, meta?: any, forcedType?: string) => {
+  // 🌟 منطق پردازش، اعتبارسنجی و دانلود PGN در صورت نیاز
+  const processAndNavigate = async (data: string, meta?: any, forcedType?: string) => {
     setIsChecking(true);
-    setTimeout(() => {
-      let isValid = false;
+    setErrorMessage('فرمت ورودی صحیح نیست. لطفاً FEN یا PGN استاندارد وارد کنید.'); // پیام خطای پیش‌فرض
+
+    try {
+      let finalData = data.trim();
       let finalType = forcedType || '';
 
+      // 🌟 فاز ۴: هندل کردن لینک‌های بازی
       if (forcedType === 'LINK') {
-        const urlLower = data.toLowerCase();
-        if (urlLower.includes('lichess.org/') || urlLower.includes('chess.com/')) isValid = true;
-      } else {
-        const chess = new Chess();
-        try {
-          chess.load(data); // اگر FEN معتبر باشد اجرا می‌شود
-          isValid = true;
-          finalType = 'FEN';
-        } catch (e) {
-          try {
-            chess.loadPgn(data); // اگر FEN نبود، PGN را چک می‌کند
-            isValid = true;
-            finalType = 'PGN';
-          } catch (pe) {
-            isValid = false;
-          }
+        const urlLower = finalData.toLowerCase();
+        const lichessMatch = finalData.match(/lichess\.org\/([a-zA-Z0-9]{8,12})/);
+        
+        if (lichessMatch) {
+          const gameId = lichessMatch[1].slice(0, 8); // استخراج ID دقیق بازی از لینک لیچس
+          const res = await fetch(`https://lichess.org/game/export/${gameId}`);
+          if (!res.ok) throw new Error('بازی در سرورهای لیچس یافت نشد یا در دسترس نیست.');
+          finalData = await res.text(); // دانلود PGN
+          finalType = 'PGN';
+        } else if (urlLower.includes('chess.com')) {
+          throw new Error('برای بازی‌های Chess.com فعلاً باید متن PGN بازی را مستقیماً کپی کنید.');
+        } else {
+          throw new Error('لینک وارد شده نامعتبر است. لطفاً لینک یک بازی از Lichess.org وارد کنید.');
         }
       }
 
-      setIsChecking(false);
-      if (isValid) {
-        setIsInputModalOpen(false); setIsArchiveModalOpen(false); setIsUploadModalOpen(false); setIsLinkModalOpen(false);
-        navigate('/analysis/board', { state: { data, type: finalType, meta } });
+      // 🌟 فاز ۳: اعتبارسنجی قطعی متن، آرشیو و فایل با موتور
+      const chess = new Chess();
+      if (finalType !== 'PGN') {
+        try {
+          chess.load(finalData); // تست به عنوان FEN
+          finalType = 'FEN';
+        } catch (e) {
+          try {
+            chess.loadPgn(finalData); // تست به عنوان PGN
+            finalType = 'PGN';
+          } catch (pe) {
+            throw new Error('فرمت متن وارد شده معتبر نیست. لطفاً یک FEN یا PGN استاندارد وارد کنید.');
+          }
+        }
       } else {
-        setIsErrorModalOpen(true);
+         try {
+            chess.loadPgn(finalData); // تست نهایی PGN دانلود شده
+         } catch(e) {
+            throw new Error('دیتای دریافت شده مخدوش است و قابل پردازش نیست.');
+         }
       }
-    }, 600);
+
+      // در صورت موفقیت و اعتبارسنجی کامل
+      setIsChecking(false);
+      setIsInputModalOpen(false); setIsArchiveModalOpen(false); setIsUploadModalOpen(false); setIsLinkModalOpen(false);
+      
+      // 🌟 فاز ۲: ارسال پکیج استاندارد به آزمایشگاه
+      navigate('/analysis/board', { state: { data: finalData, type: finalType, meta } });
+
+    } catch (err: any) {
+      setErrorMessage(err.message || 'خطایی در پردازش اطلاعات رخ داد.');
+      setIsChecking(false);
+      setIsErrorModalOpen(true);
+    }
   };
 
   return (
@@ -167,7 +195,19 @@ export default function AnalysisSetup() {
       <AnimatePresence>{isUploadModalOpen && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl"><motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full sm:max-w-xl bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] flex flex-col pb-safe max-h-[90vh]"><div className="p-5 border-b border-[#35332e] flex items-center justify-between shrink-0"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400"><UploadCloud size={20} /></div><h3 className="font-black text-lg text-white">آپلود PGN</h3></div><button onClick={() => setIsUploadModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button></div><div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6"><div onClick={() => fileInputRef.current?.click()} className={`w-full p-6 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-all ${uploadedFileName ? 'bg-sky-500/10 border-sky-500/50' : 'bg-[#161512] border-[#35332e]'}`}><input type="file" accept=".pgn,.txt" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />{uploadedFileName ? (<><FileText size={24} className="text-sky-400" /><span className="font-bold text-sky-400 text-sm" dir="ltr">{uploadedFileName}</span></>) : (<><UploadCloud size={24} className="text-zinc-500" /><p className="font-bold text-zinc-300 text-sm">انتخاب فایل PGN</p></>)}</div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="bg-[#161512] border border-[#35332e] p-4 rounded-2xl flex flex-col gap-3"><div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border border-zinc-400 rounded-sm"></div><span className="font-bold text-sm text-zinc-300">سفید</span></div><input type="text" placeholder="نام" value={gameMeta.whiteName} onChange={e => setGameMeta({...gameMeta, whiteName: e.target.value})} className="w-full bg-[#1e1c19] border border-[#35332e] rounded-lg py-2.5 px-3 text-sm text-white" /><div className="flex gap-2"><input type="number" placeholder="Elo" value={gameMeta.whiteElo} onChange={e => setGameMeta({...gameMeta, whiteElo: e.target.value})} className="w-1/2 bg-[#1e1c19] border border-[#35332e] rounded-lg py-2 px-3 text-sm text-white" /><CustomSelect value={gameMeta.whiteTitle} onChange={(v:any) => setGameMeta({...gameMeta, whiteTitle: v})} options={TITLES} /></div></div><div className="bg-[#161512] border border-[#35332e] p-4 rounded-2xl flex flex-col gap-3"><div className="flex items-center gap-2"><div className="w-3 h-3 bg-black border border-zinc-700 rounded-sm"></div><span className="font-bold text-sm text-zinc-300">سیاه</span></div><input type="text" placeholder="نام" value={gameMeta.blackName} onChange={e => setGameMeta({...gameMeta, blackName: e.target.value})} className="w-full bg-[#1e1c19] border border-[#35332e] rounded-lg py-2.5 px-3 text-sm text-white" /><div className="flex gap-2"><input type="number" placeholder="Elo" value={gameMeta.blackElo} onChange={e => setGameMeta({...gameMeta, blackElo: e.target.value})} className="w-1/2 bg-[#1e1c19] border border-[#35332e] rounded-lg py-2 px-3 text-sm text-white" /><CustomSelect value={gameMeta.blackTitle} onChange={(v:any) => setGameMeta({...gameMeta, blackTitle: v})} options={TITLES} /></div></div></div></div><div className="p-5 border-t border-[#35332e] bg-[#1a1815] rounded-b-[32px] sm:rounded-b-[28px]"><button onClick={() => processAndNavigate(uploadedFileContent, gameMeta)} disabled={!uploadedFileContent || isChecking} className={`w-full py-4 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${!uploadedFileContent ? 'bg-[#262421] text-zinc-500' : 'bg-sky-500 text-white shadow-[0_5px_20px_rgba(56,189,248,0.3)] active:scale-95'}`}>{isChecking ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <><Zap size={18} /> تایید و ورود به آزمایشگاه</>}</button></div></motion.div></motion.div>)}</AnimatePresence>
       <AnimatePresence>{isArchiveModalOpen && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl"><motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full sm:max-w-md bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] flex flex-col pb-safe max-h-[85vh]"><div className="p-5 border-b border-[#35332e] flex items-center justify-between shrink-0"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400"><History size={20} /></div><h3 className="font-black text-lg text-white">آرشیو</h3></div><button onClick={() => setIsArchiveModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button></div><div className="p-4 border-b border-[#35332e] flex flex-col gap-3 shrink-0"><div className="relative"><div className="absolute inset-y-0 right-3 flex items-center text-zinc-500"><Search size={16} /></div><input type="text" placeholder="جستجو..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#161512] border border-[#35332e] rounded-xl py-2.5 pr-10 pl-4 text-sm text-white" /></div><div className="flex items-center gap-2 overflow-x-auto no-scrollbar">{['all','win','loss','draw'].map(f => (<button key={f} onClick={() => setFilterResult(f as any)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${filterResult === f ? 'bg-purple-500 text-white' : 'bg-[#262421] text-zinc-400 border border-[#35332e]'}`}>{f === 'all' ? 'همه' : f === 'win' ? 'برد' : f === 'loss' ? 'باخت' : 'مساوی'}</button>))}</div></div><div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col gap-3">{filteredArchive.length > 0 ? (filteredArchive.map((g) => (<div key={g.id} className="bg-[#161512] border border-[#35332e] p-4 rounded-2xl flex items-center justify-between hover:border-zinc-500 transition-colors"><div className="flex items-center gap-3"><div className={`w-1 h-8 rounded-full ${g.result === 'win' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div><div className="flex flex-col"><div className="flex items-center gap-1.5 text-sm font-bold text-white"><span>{g.white}</span><span className="text-zinc-600">vs</span><span>{g.black}</span></div><span className="text-[10px] text-zinc-500">{g.date}</span></div></div><button onClick={() => processAndNavigate(g.pgn)} className="px-4 py-2 rounded-xl text-xs font-bold bg-[#262421] text-purple-400 hover:bg-purple-500 hover:text-white transition-all">انتخاب</button></div>))) : (<div className="py-10 text-center opacity-50"><History size={40} className="mx-auto mb-2" /><span className="text-sm">یافت نشد</span></div>)}</div></motion.div></motion.div>)}</AnimatePresence>
       <AnimatePresence>{isInputModalOpen && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:px-4" dir="rtl"><motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full sm:max-w-md bg-[#1e1c19] sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-2xl flex flex-col pb-safe"><div className="p-6 border-b border-[#35332e] flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500"><FileText size={20} /></div><h3 className="font-black text-lg text-white">متن PGN یا FEN</h3></div><button onClick={() => setIsInputModalOpen(false)} className="p-2 bg-[#262421] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button></div><div className="p-6 flex flex-col gap-6"><textarea className="w-full h-48 bg-[#161512] border border-[#35332e] focus:border-amber-500 rounded-xl p-4 text-sm text-amber-100 placeholder-zinc-600 outline-none transition-colors shadow-inner font-mono leading-relaxed" placeholder="Paste here..." value={inputData} onChange={(e) => setInputData(e.target.value)} dir="ltr" spellCheck={false} /><button onClick={() => processAndNavigate(inputData)} disabled={!inputData.trim() || isChecking} className={`w-full py-4 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${!inputData.trim() ? 'bg-[#262421] text-zinc-500' : 'bg-amber-500 text-black shadow-[0_5px_20px_rgba(245,158,11,0.3)] active:scale-95'}`}>{isChecking ? <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div> : <><Zap size={18} /> ورود به آزمایشگاه</>}</button></div></motion.div></motion.div>)}</AnimatePresence>
-      <AnimatePresence>{isErrorModalOpen && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" dir="rtl"><motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm bg-[#1e1c19] border border-rose-500/30 rounded-[28px] shadow-2xl flex flex-col items-center p-8 text-center"><div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4"><AlertTriangle size={32} className="text-rose-500" /></div><h3 className="font-black text-xl text-white mb-2">نامعتبر!</h3><p className="text-sm text-zinc-400 mb-8 px-4">فرمت ورودی صحیح نیست. لطفاً FEN یا PGN استاندارد وارد کنید.</p><button onClick={() => setIsErrorModalOpen(false)} className="w-full py-3.5 rounded-xl font-bold text-sm bg-[#262421] text-white border border-[#35332e] hover:border-zinc-500 transition-all active:scale-95">بستن</button></motion.div></motion.div>)}</AnimatePresence>
+      <AnimatePresence>
+        {isErrorModalOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" dir="rtl">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm bg-[#1e1c19] border border-rose-500/30 rounded-[28px] shadow-2xl flex flex-col items-center p-8 text-center">
+              <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4"><AlertTriangle size={32} className="text-rose-500" /></div>
+              <h3 className="font-black text-xl text-white mb-2">نامعتبر!</h3>
+              {/* 🌟 متن استاتیک حذف و پیام داینامیک اضافه شد */}
+              <p className="text-sm text-zinc-400 mb-8 px-4">{errorMessage}</p>
+              <button onClick={() => setIsErrorModalOpen(false)} className="w-full py-3.5 rounded-xl font-bold text-sm bg-[#262421] text-white border border-[#35332e] hover:border-zinc-500 transition-all active:scale-95">بستن</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
