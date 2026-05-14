@@ -5,13 +5,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, Target, Activity, Flame, Shield, BookOpen, 
     AlertTriangle, XCircle, HelpCircle, CheckCircle2, 
-    Star, Award, Zap, Ghost, CircleSlash, Info, Search
+    Star, Award, Zap, CircleSlash, Info
 } from 'lucide-react';
 import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue } from '../utils/analysisConfig';
 
-// 🌟 فرمول‌های فوق‌دقیق Lichess
+// 🌟 تنظیمات موتور (دقت و عمق بالا برای گزارش حرفه‌ای)
+const TARGET_DEPTH = 18; 
+
+// فرمول‌های استاندارد Lichess
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
@@ -21,32 +24,25 @@ const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
     return Math.max(0, Math.min(100, raw + 1)); 
 };
 
-// 🧠 موتور طبقه‌بندی هوشمند حرکات (۹ دسته کامل)
-const classifyMoveDetailed = (
-    winBefore: number, 
-    winAfter: number, 
-    isBook: boolean, 
-    move: any, 
-    prevFen: string,
-    isSacrifice: boolean
-) => {
+// 🧠 موتور طبقه‌بندی عمیق حرکات بر اساس Win%
+const classifyMoveDetailed = (winBefore: number, winAfter: number, isBook: boolean, isSacrifice: boolean) => {
     if (isBook) return 'book';
     const diff = winBefore - winAfter;
 
-    // تشخیص Miss (از دست رفتن برد قاطع)
-    if (winBefore > 75 && winAfter < 55) return 'miss';
+    // تشخیص Miss (از دست رفتن شانس قطعی برد)
+    if (winBefore > 80 && winAfter < 50) return 'miss';
 
-    // تشخیص Brilliant (قربانی صحیح با حفظ برتری)
-    if (isSacrifice && winAfter > 45 && diff < 5) return 'brilliant';
+    // تشخیص Brilliant (قربانی با حفظ برتری قاطع)
+    if (isSacrifice && winAfter > 60 && diff <= 2) return 'brilliant';
 
-    // تشخیص Great (تنها حرکت خوب یا حرکت بسیار قوی)
-    if (diff < 0.5 && winAfter > 60) return 'great';
+    // تشخیص Great (پیدا کردن تنها حرکت برنده یا سخت)
+    if (diff < 1 && winAfter > 70 && !isSacrifice) return 'great';
 
-    if (diff <= 1) return 'best';
+    if (diff <= 1.5) return 'best';
     if (diff <= 3) return 'excellent';
-    if (diff <= 7) return 'good';
-    if (diff <= 15) return 'inaccuracy';
-    if (diff <= 25) return 'mistake';
+    if (diff <= 6) return 'good';
+    if (diff <= 12) return 'inaccuracy';
+    if (diff <= 22) return 'mistake';
     return 'blunder';
 };
 
@@ -88,7 +84,7 @@ export default function GameReport() {
     const { isReady, lines, analyze, stop } = useStockfish() as any;
     const [currentIndex, setCurrentIndex] = useState(0);
 
-    // آماده‌سازی اولیه دیتای بازی
+    // ۱. استخراج اطلاعات حرکات
     useEffect(() => {
         if (!initialData) { navigate('/analysis'); return; }
         try {
@@ -97,9 +93,8 @@ export default function GameReport() {
             const history = game.history({ verbose: true });
             const tempGame = new Chess();
             
-            let parsed = [{ fen: tempGame.fen(), isBook: true, phase: 'opening', move: null, prevFen: null }];
+            let parsed = [{ fen: tempGame.fen(), isBook: true, phase: 'opening', move: null, san: 'Start' }];
             history.forEach((m, idx) => {
-                const prevFen = tempGame.fen();
                 tempGame.move(m);
                 const fen = tempGame.fen();
                 parsed.push({ 
@@ -107,7 +102,7 @@ export default function GameReport() {
                     isBook: isBookPosition(fen), 
                     phase: getGamePhase(fen, Math.ceil((idx+1)/2)),
                     move: m,
-                    prevFen
+                    san: m.san
                 });
             });
             setMovesData(parsed);
@@ -116,7 +111,7 @@ export default function GameReport() {
         } catch (e) { navigate('/analysis'); }
     }, [initialData]);
 
-    // حلقه آنالیز موتور
+    // ۲. اجرای موتور با عمق بالا
     useEffect(() => {
         if (!isReady || movesData.length === 0 || currentIndex >= movesData.length) return;
         const currentMove = movesData[currentIndex];
@@ -127,34 +122,35 @@ export default function GameReport() {
             setCurrentIndex(idx => idx + 1);
         } else {
             setIsWaitingReset(true);
-            analyze(currentMove.fen, 14); 
+            analyze(currentMove.fen, TARGET_DEPTH); 
         }
     }, [isReady, currentIndex, movesData]);
 
-    // دریافت خروجی از موتور
+    // ۳. ثبت نتیجه پس از رسیدن به عمق هدف
     useEffect(() => {
-        if (lines && lines.length > 0 && lines[0].depth < 14) setIsWaitingReset(false);
-        if (isAnalyzing && !isWaitingReset && lines && lines.length > 0 && lines[0].depth >= 14) {
+        if (lines && lines.length > 0 && lines[0].depth < TARGET_DEPTH) setIsWaitingReset(false);
+        if (isAnalyzing && !isWaitingReset && lines && lines.length > 0 && lines[0].depth >= TARGET_DEPTH) {
             if (stop) stop(); 
             const cp = lines[0].isMate ? (lines[0].mateIn > 0 ? 10000 : -10000) : lines[0].score * 100;
-            // ذخیره نمره همیشه از دید سفید برای محاسبات بعدی
             setCpHistory(prev => [...prev, cp]);
             setProgress(Math.round(((currentIndex + 1) / movesData.length) * 100));
             setCurrentIndex(idx => idx + 1);
         }
     }, [lines, isAnalyzing, currentIndex, isWaitingReset]);
 
+    // ۴. پایان آنالیز
     useEffect(() => {
         if (movesData.length > 0 && currentIndex >= movesData.length) {
             setTimeout(() => setIsAnalyzing(false), 800);
         }
     }, [currentIndex, movesData]);
 
+    // ۵. محاسبه آمار و تولید دیتای گراف
     const reportStats = useMemo(() => {
         if (cpHistory.length < 2) return null;
         
-        // تبدیل نمرات به Win% جهانی (از دید سفید)
         const globalWinPercents = cpHistory.map(cp => calcWinPercent(cp));
+        const graphPoints: any[] = [];
         
         const data = {
             white: { accs: [] as any[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } },
@@ -167,35 +163,57 @@ export default function GameReport() {
             const isWhiteTurn = (i % 2 === 0);
             const side = isWhiteTurn ? data.white : data.black;
             
-            // Win% قبل و بعد از حرکت از دید بازیکنِ صاحب نوبت
             const winBefore = isWhiteTurn ? globalWinPercents[i] : 100 - globalWinPercents[i];
             const winAfter = isWhiteTurn ? globalWinPercents[i+1] : 100 - globalWinPercents[i+1];
             
             const moveInfo = movesData[i+1];
-            
-            // تشخیص ساده قربانی برای Brilliant (اگر مهره گرفته شد و ارزش مهره بالا بود)
             const isSacrifice = moveInfo.move?.captured && ['n','b','r','q'].includes(moveInfo.move.captured);
             
             const acc = moveInfo.isBook ? 100 : calcMoveAccuracy(winBefore, winAfter);
-            const cls = classifyMoveDetailed(winBefore, winAfter, moveInfo.isBook, moveInfo.move, moveInfo.prevFen, !!isSacrifice) as keyof typeof side.counts;
+            const cls = classifyMoveDetailed(winBefore, winAfter, moveInfo.isBook, !!isSacrifice);
             
-            // محاسبه وزن بر اساس نوسان پنجره فعلی
             const window = globalWinPercents.slice(Math.max(0, i - windowSize), i + 1);
             const weight = Math.max(0.5, Math.min(12, standardDeviation(window)));
             
             side.accs.push({ acc, weight });
-            side.counts[cls]++;
+            side.counts[cls as keyof typeof side.counts]++;
             
             if (moveInfo.phase === 'opening') side.phases.op.push(acc);
             else if (moveInfo.phase === 'middlegame') side.phases.mid.push(acc);
             else if (moveInfo.phase === 'endgame') side.phases.end.push(acc);
+
+            // استخراج دیتا برای کشیدن گراف
+            graphPoints.push({
+                index: i + 1,
+                winPercent: globalWinPercents[i+1],
+                cls,
+                isWhiteTurn,
+                san: moveInfo.san
+            });
         }
 
         const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
 
+        // تولید بردارهای SVG برای گراف
+        const GRAPH_WIDTH = 1000;
+        const GRAPH_HEIGHT = 200;
+        const MID_Y = GRAPH_HEIGHT / 2;
+        
+        let linePath = `M 0,${GRAPH_HEIGHT - (globalWinPercents[0] / 100) * GRAPH_HEIGHT} `;
+        graphPoints.forEach(pt => {
+            const x = (pt.index / graphPoints.length) * GRAPH_WIDTH;
+            const y = GRAPH_HEIGHT - (pt.winPercent / 100) * GRAPH_HEIGHT;
+            linePath += `L ${x},${y} `;
+            pt.x = x; pt.y = y; // ذخیره مختصات برای رندر آیکون‌ها
+        });
+
+        const areaWhite = `${linePath} L ${GRAPH_WIDTH},${MID_Y} L 0,${MID_Y} Z`;
+        const areaBlack = `${linePath} L ${GRAPH_WIDTH},${MID_Y} L 0,${MID_Y} Z`;
+
         return {
             white: { total: calculateGameAccuracy(data.white.accs), counts: data.white.counts, phases: { op: avg(data.white.phases.op), mid: avg(data.white.phases.mid), end: avg(data.white.phases.end) } },
-            black: { total: calculateGameAccuracy(data.black.accs), counts: data.black.counts, phases: { op: avg(data.black.phases.op), mid: avg(data.black.phases.mid), end: avg(data.black.phases.end) } }
+            black: { total: calculateGameAccuracy(data.black.accs), counts: data.black.counts, phases: { op: avg(data.black.phases.op), mid: avg(data.black.phases.mid), end: avg(data.black.phases.end) } },
+            graph: { points: graphPoints, linePath, areaWhite, areaBlack, width: GRAPH_WIDTH, height: GRAPH_HEIGHT }
         };
     }, [cpHistory, movesData, isAnalyzing]);
 
@@ -211,11 +229,11 @@ export default function GameReport() {
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                             <span className="text-4xl font-black text-white">{progress}%</span>
-                            <span className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Stockfish 16</span>
+                            <span className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Depth {TARGET_DEPTH}</span>
                         </div>
                     </div>
-                    <h2 className="text-2xl font-black text-white mb-2">در حال آنالیز لایه‌ها...</h2>
-                    <p className="text-xs text-zinc-500 text-center font-bold">فرزین در حال کالبدشکافی {movesData.length} حرکت است</p>
+                    <h2 className="text-xl font-black text-white mb-2">آنالیز عمیق حرکات...</h2>
+                    <p className="text-xs text-zinc-500 text-center font-bold">فرزین در حال ارزیابی استراتژیک {movesData.length} حرکت است. لطفا شکیبا باشید.</p>
                 </motion.div>
             </div>
         );
@@ -236,6 +254,8 @@ export default function GameReport() {
         { label: 'بلاندر', key: 'blunder', icon: XCircle, color: '#b91c1c' },
     ];
 
+    const getMarkerColor = (cls: string) => ALL_CATEGORIES.find(c => c.key === cls)?.color || 'transparent';
+
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-[#110f0d] pb-24 font-sans" dir="rtl">
             
@@ -248,7 +268,7 @@ export default function GameReport() {
                     </div>
                     <div className="text-center">
                         <span className="text-5xl font-black text-farzin-accent drop-shadow-[0_0_20px_rgba(119,149,86,0.4)] block mb-2" dir="ltr">{meta.result === '*' ? '½-½' : meta.result}</span>
-                        <div className="bg-farzin-accent/10 px-3 py-1 rounded-full border border-farzin-accent/20"><span className="text-[10px] text-farzin-accent font-black uppercase tracking-tighter">بررسی نهایی انجام شد</span></div>
+                        <div className="bg-farzin-accent/10 px-3 py-1 rounded-full border border-farzin-accent/20"><span className="text-[10px] text-farzin-accent font-black uppercase tracking-tighter">بررسی عمیق انجام شد</span></div>
                     </div>
                     <div className="flex flex-col items-center gap-3">
                         <div className="w-20 h-20 rounded-3xl bg-[#262421] border border-[#35332e] text-zinc-200 flex items-center justify-center font-black text-2xl shadow-2xl">B</div>
@@ -257,9 +277,9 @@ export default function GameReport() {
                 </div>
             </div>
 
-            <div className="max-w-2xl mx-auto px-4 mt-8 flex flex-col gap-6">
+            <div className="max-w-3xl mx-auto px-4 mt-6 flex flex-col gap-6">
                 
-                {/* 🎯 دقت کلی (Accuracy) */}
+                {/* 🎯 دقت کلی */}
                 <div className="bg-[#1a1917]/60 backdrop-blur-md border border-[#35332e] rounded-[40px] p-8 shadow-2xl">
                     <div className="flex justify-around items-center">
                         {[ {side: 'سفید', acc: reportStats.white.total, color: '#fff'}, {side: 'سیاه', acc: reportStats.black.total, color: '#71717a'} ].map((item, i) => (
@@ -277,57 +297,66 @@ export default function GameReport() {
                     </div>
                 </div>
 
-                {/* 📊 جدول کامل دسته‌بندی حرکات (All Categories) */}
+                {/* 📈 گراف ارزیابی با مارکرهای حرکات */}
+                <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] overflow-hidden shadow-2xl p-5">
+                    <h3 className="text-xs font-black text-white mb-4 flex items-center gap-2"><Activity size={16} className="text-sky-400" /> روند بازی و حرکات سرنوشت‌ساز</h3>
+                    <div className="relative w-full aspect-[3/1] bg-[#12110f] rounded-[24px] border border-[#262421] overflow-hidden">
+                        <svg viewBox={`0 0 ${reportStats.graph.width} ${reportStats.graph.height}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
+                            {/* پس‌زمینه‌های سفید و سیاه */}
+                            <path d={reportStats.graph.areaWhite} fill="#ffffff" fillOpacity="0.1" />
+                            <path d={reportStats.graph.areaBlack} fill="#000000" fillOpacity="0.4" />
+                            {/* خط اصلی ارزیابی */}
+                            <path d={reportStats.graph.linePath} fill="none" stroke="#ffffff" strokeWidth="3" strokeOpacity="0.8" />
+                            
+                            {/* 🌟 مارک کردن حرکات خاص روی گراف */}
+                            {reportStats.graph.points.map((pt, i) => {
+                                if (['blunder', 'mistake', 'miss', 'brilliant', 'great'].includes(pt.cls)) {
+                                    const color = getMarkerColor(pt.cls);
+                                    return (
+                                        <g key={i} transform={`translate(${pt.x}, ${pt.y})`}>
+                                            <circle r="6" fill={color} stroke="#12110f" strokeWidth="2" />
+                                            {pt.cls === 'brilliant' && <text y="1" fontSize="10" fill="#12110f" fontWeight="bold" textAnchor="middle" dominantBaseline="central">!</text>}
+                                            {pt.cls === 'blunder' && <text y="1" fontSize="10" fill="#12110f" fontWeight="bold" textAnchor="middle" dominantBaseline="central">×</text>}
+                                        </g>
+                                    );
+                                }
+                                return null;
+                            })}
+                        </svg>
+                        <div className="absolute inset-x-0 top-1/2 h-[1px] bg-white/20 pointer-events-none border-t border-dashed border-white/10" />
+                    </div>
+                </div>
+
+                {/* 📊 جدول کامل دسته‌بندی حرکات */}
                 <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] overflow-hidden shadow-2xl">
                     <div className="p-5 bg-[#211f1c] border-b border-[#35332e] flex items-center justify-between">
-                        <div className="flex items-center gap-2"><Activity size={18} className="text-farzin-accent" /><span className="text-xs font-black text-white">کالبدشکافی حرکات</span></div>
+                        <div className="flex items-center gap-2"><Target size={18} className="text-farzin-accent" /><span className="text-xs font-black text-white">کالبدشکافی حرکات</span></div>
                         <span className="text-[9px] font-bold text-zinc-500">مجموع {movesData.length - 1} حرکت</span>
                     </div>
                     <div className="p-3">
-                        {ALL_CATEGORIES.map((cat, i) => (
-                            <div key={i} className="flex items-center justify-between p-3.5 border-b border-[#262421] last:border-0 hover:bg-white/5 transition-colors rounded-2xl">
-                                <span className="w-12 text-center font-black text-base text-white">{reportStats.white.counts[cat.key as keyof typeof reportStats.white.counts]}</span>
-                                <div className="flex items-center gap-3 flex-1 justify-center">
-                                    <cat.icon size={16} style={{ color: cat.color }} className="drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
-                                    <span className="text-xs font-black text-zinc-300 min-w-[100px] text-center">{cat.label}</span>
-                                </div>
-                                <span className="w-12 text-center font-black text-base text-zinc-400">{reportStats.black.counts[cat.key as keyof typeof reportStats.black.counts]}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ⚡ فازهای بازی (هوشمند) */}
-                <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] p-8 shadow-2xl">
-                    <h3 className="text-xs font-black text-zinc-500 mb-6 flex items-center gap-2 uppercase tracking-widest"><Shield size={16} /> عملکرد در هر فاز</h3>
-                    <div className="flex flex-col gap-4">
-                        {[
-                            { label: 'گشایش (Opening)', w: reportStats.white.phases.op, b: reportStats.black.phases.op, icon: BookOpen },
-                            { label: 'وسط بازی (Middlegame)', w: reportStats.white.phases.mid, b: reportStats.black.phases.mid, icon: Flame },
-                            { label: 'آخر بازی (Endgame)', w: reportStats.white.phases.end, b: reportStats.black.phases.end, icon: Shield }
-                        ].map((phase, i) => (
-                            phase.w !== null && (
-                                <div key={i} className="group flex items-center justify-between p-5 bg-[#12110f] rounded-3xl border border-[#262421] hover:border-zinc-500 transition-all">
-                                    <div className="flex flex-col items-center"><span className="text-lg font-black text-white">{phase.w.toFixed(0)}%</span><span className="text-[8px] font-bold text-zinc-600">WHITE</span></div>
-                                    <div className="flex flex-col items-center gap-1.5">
-                                        <phase.icon size={18} className="text-zinc-500 group-hover:scale-125 transition-transform" />
-                                        <span className="text-[10px] font-black text-zinc-400">{phase.label}</span>
+                        {ALL_CATEGORIES.map((cat, i) => {
+                            const wCount = reportStats.white.counts[cat.key as keyof typeof reportStats.white.counts];
+                            const bCount = reportStats.black.counts[cat.key as keyof typeof reportStats.black.counts];
+                            if (wCount === 0 && bCount === 0 && ['brilliant', 'great', 'miss'].includes(cat.key)) return null; // مخفی کردن دسته‌های خالیِ خاص
+                            
+                            return (
+                                <div key={i} className="flex items-center justify-between p-3.5 border-b border-[#262421] last:border-0 hover:bg-white/5 transition-colors rounded-2xl">
+                                    <span className="w-12 text-center font-black text-base text-white">{wCount}</span>
+                                    <div className="flex items-center gap-3 flex-1 justify-center">
+                                        <cat.icon size={16} style={{ color: cat.color }} className="drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
+                                        <span className="text-xs font-black text-zinc-300 min-w-[100px] text-center">{cat.label}</span>
                                     </div>
-                                    <div className="flex flex-col items-center"><span className="text-lg font-black text-zinc-400">{phase.b.toFixed(0)}%</span><span className="text-[8px] font-bold text-zinc-600">BLACK</span></div>
+                                    <span className="w-12 text-center font-black text-base text-zinc-400">{bCount}</span>
                                 </div>
-                            )
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-4 mt-6">
+                <div className="flex flex-col gap-4 mt-2">
                     <button onClick={() => navigate('/analysis/board', { state: location.state })} className="w-full bg-farzin-accent hover:bg-[#68824b] text-white py-6 rounded-[30px] font-black text-base flex items-center justify-center gap-3 shadow-[0_20px_50px_rgba(119,149,86,0.3)] transition-all active:scale-95 group">
                         <Zap size={22} className="animate-pulse" /> ورود به میز مربی
                     </button>
-                    <div className="grid grid-cols-2 gap-4">
-                        <button className="bg-[#262421] hover:bg-[#35332e] text-zinc-300 py-5 rounded-[24px] font-black text-xs border border-[#35332e] transition-all">اشتراک گزارش</button>
-                        <button onClick={() => navigate('/analysis')} className="bg-[#262421] hover:bg-[#35332e] text-zinc-300 py-5 rounded-[24px] font-black text-xs border border-[#35332e] transition-all">بازی جدید</button>
-                    </div>
                 </div>
 
             </div>
