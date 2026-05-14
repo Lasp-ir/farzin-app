@@ -575,36 +575,20 @@ export default function AnalysisBoard() {
       <AnimatePresence>
         {isResetModalOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
-              animate={{ scale: 1, opacity: 1, y: 0 }} 
-              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
-              className="bg-[#12110f] border border-red-500/20 rounded-2xl p-6 w-full max-w-sm shadow-[0_20px_50px_rgba(239,68,68,0.1)] flex flex-col relative"
-            >
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} transition={{ type: "spring", stiffness: 400, damping: 25 }} className="bg-[#12110f] border border-red-500/20 rounded-2xl p-6 w-full max-w-sm shadow-[0_20px_50px_rgba(239,68,68,0.1)] flex flex-col relative">
                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 shadow-inner">
-                     <AlertOctagon size={24} />
-                  </div>
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 shadow-inner"><AlertOctagon size={24} /></div>
                   <div className="flex flex-col">
                      <h2 className="font-black text-white text-lg tracking-tight">پاک کردن آنالیز</h2>
                      <span className="text-[10px] text-red-400/80 font-bold">این عمل غیرقابل بازگشت است!</span>
                   </div>
                </div>
-               
                <div className="bg-[#1a1916] border border-[#35332e] p-3 rounded-xl mb-6">
-                  <p className="text-xs text-zinc-400 leading-relaxed text-justify">
-                     آیا از پاک کردن کامل تاریخچه‌ی حرکات و بازگشت به پوزیسیون اولیه اطمینان دارید؟ تمام شاخه‌های فرعی بررسی شده نیز حذف خواهند شد.
-                  </p>
+                  <p className="text-xs text-zinc-400 leading-relaxed text-justify">آیا از پاک کردن کامل تاریخچه‌ی حرکات و بازگشت به پوزیسیون اولیه اطمینان دارید؟ تمام شاخه‌های فرعی بررسی شده نیز حذف خواهند شد.</p>
                </div>
-
                <div className="flex gap-3 w-full">
-                  <button onClick={() => setIsResetModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-300 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">
-                      انصراف
-                  </button>
-                  <button onClick={confirmResetAnalysis} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 text-sm rounded-xl transition-all shadow-[0_0_15px_rgba(239,68,68,0.4)] active:scale-95 flex items-center justify-center gap-2">
-                      <RotateCcw size={16} /> بله، پاک شود
-                  </button>
+                  <button onClick={() => setIsResetModalOpen(false)} className="flex-1 bg-[#262421] hover:bg-[#35332e] text-zinc-300 hover:text-white font-bold py-2.5 text-sm rounded-xl transition-colors">انصراف</button>
+                  <button onClick={confirmResetAnalysis} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 text-sm rounded-xl transition-all shadow-[0_0_15px_rgba(239,68,68,0.4)] active:scale-95 flex items-center justify-center gap-2"><RotateCcw size={16} /> بله، پاک شود</button>
                </div>
             </motion.div>
           </div>
@@ -712,7 +696,8 @@ export default function AnalysisBoard() {
         )}
       </AnimatePresence>
 
-      <div className={`flex-none w-full px-4 py-2.5 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+      {/* 🌟 هدر جمع‌وجورتر شد (پدینگ کمتر) */}
+      <div className={`flex-none w-full px-4 py-2 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] transition-colors text-zinc-400"><ChevronRight size={20} /></button>
         <div className="flex flex-col items-center">
             <h1 className="font-black text-sm text-white flex items-center gap-2">
@@ -736,7 +721,6 @@ export default function AnalysisBoard() {
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
           
-          {/* 🌟 ارتفاع این باکس از 74px به 88px افزایش یافت */}
           <div className="mt-2 h-[88px] flex flex-col justify-start overflow-hidden">
              {engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
@@ -860,29 +844,17 @@ export default function AnalysisBoard() {
             <EditablePlayer color={boardOrientation === 'white' ? 'w' : 'b'} data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} />
         </div>
 
+        {/* 🌟 بخش راست/پایین: بازطراحی کامل چینش تب‌ها و فوتر */}
         <div className="flex-1 min-h-0 flex flex-col bg-[#161512] border-t lg:border-t-0 lg:border-r border-[#35332e] relative z-10 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] lg:shadow-none rounded-t-2xl lg:rounded-none mt-2 lg:mt-0">
             
-            <div className="flex-none px-3 py-2 border-b border-[#35332e] flex items-center justify-between bg-[#1a1916] rounded-t-2xl lg:rounded-none">
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
-                  <button onClick={() => setIsResetModalOpen(true)} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز"><RotateCcw size={16} /></button>
-                  <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
-                  <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
-                </div>
-                <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
-                    <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
-                    <button onClick={prevMove} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipBack size={18} /></button>
-                    <button onClick={nextMove} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipForward size={18} /></button>
-                    <button onClick={goEnd} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><FastForward size={18} /></button>
-                </div>
+            {/* 🌟 هدرِ تب‌ها (آمد بالا) */}
+            <div className="flex-none flex px-2 pt-1 border-b border-[#35332e] bg-[#1a1916] overflow-x-auto no-scrollbar rounded-t-2xl lg:rounded-none">
+                <button onClick={() => setActiveTab('notation')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'notation' ? 'border-farzin-accent text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><List size={14} /> ثبت حرکات</button>
+                <button onClick={() => setActiveTab('graph')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'graph' ? 'border-sky-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><TrendingUp size={14} /> گراف ارزیابی</button>
+                <button onClick={() => setActiveTab('explorer')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'explorer' ? 'border-purple-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><BookOpen size={14} /> دیتابیس (گشایش)</button>
             </div>
 
-            <div className="flex-none flex px-2 pt-1 border-b border-[#35332e] bg-[#1a1916] overflow-x-auto no-scrollbar">
-                <button onClick={() => setActiveTab('notation')} className={`flex items-center gap-2 px-4 py-2 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'notation' ? 'border-farzin-accent text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><List size={14} /> ثبت حرکات</button>
-                <button onClick={() => setActiveTab('graph')} className={`flex items-center gap-2 px-4 py-2 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'graph' ? 'border-sky-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><TrendingUp size={14} /> گراف ارزیابی</button>
-                <button onClick={() => setActiveTab('explorer')} className={`flex items-center gap-2 px-4 py-2 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'explorer' ? 'border-purple-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><BookOpen size={14} /> دیتابیس (گشایش)</button>
-            </div>
-
+            {/* 🌟 محتوای تب‌ها (وسط) */}
             <div className="flex-1 min-h-0 overflow-y-auto bg-[#12110f] custom-scrollbar relative">
                 {activeTab === 'notation' && (
                     <div className="p-3">
@@ -929,7 +901,7 @@ export default function AnalysisBoard() {
                 )}
                 
                 {activeTab === 'explorer' && (
-                    <div className="absolute inset-0 p-2">
+                    <div className="absolute inset-0 p-2 border-t border-[#35332e]/50">
                         <OpeningExplorer 
                             fen={currentPosition} 
                             onMoveSelect={(uci) => {
@@ -938,6 +910,22 @@ export default function AnalysisBoard() {
                         />
                     </div>
                 )}
+            </div>
+
+            {/* 🌟 فوتر کنترل‌ها (رفت پایین) */}
+            <div className="flex-none px-3 py-2 border-t border-[#35332e] flex items-center justify-between bg-[#1a1916]">
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
+                  <button onClick={() => setIsResetModalOpen(true)} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-red-400 transition-colors active:scale-95" title="ریست کامل آنالیز"><RotateCcw size={16} /></button>
+                  <button onClick={copyMainlinePgn} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="کپی PGN"><Copy size={16} /></button>
+                  <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
+                </div>
+                <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
+                    <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
+                    <button onClick={prevMove} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipBack size={18} /></button>
+                    <button onClick={nextMove} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><SkipForward size={18} /></button>
+                    <button onClick={goEnd} className="p-2 text-white hover:text-farzin-accent hover:bg-[#35332e] transition-colors border-l border-[#35332e]/50"><FastForward size={18} /></button>
+                </div>
             </div>
 
         </div>
