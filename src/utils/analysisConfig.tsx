@@ -53,10 +53,13 @@ export const ToggleSwitch = ({ checked, onChange, disabled = false }: { checked:
   </div>
 );
 
-export const EditablePlayer = ({ color, data, onUpdate }: any) => {
+export const EditablePlayer = ({ color, data, onUpdate, material }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempData, setTempData] = useState(data);
   const handleSave = () => { onUpdate(tempData); setIsEditing(false); };
+
+  // 🌟 آیکون‌های استاندارد مهره‌ها برای نمایش اختلاف متریال
+  const PIECE_SYMBOLS: any = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 
   return (
     <div className="w-full flex items-center justify-between px-2 py-1 bg-[#1e1c19]/50 rounded-xl border border-[#35332e]/50 my-0.5">
@@ -72,8 +75,34 @@ export const EditablePlayer = ({ color, data, onUpdate }: any) => {
           </div>
         ) : (
           <div className="flex flex-col mr-2 cursor-pointer group w-full" onClick={() => setIsEditing(true)}>
-            <div className="flex items-center gap-2"><span className="font-bold text-xs text-white group-hover:text-farzin-accent transition-colors">{data.name || (color === 'w' ? 'بازیکن سفید' : 'بازیکن سیاه')}</span><Edit2 size={10} className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-            <div className="flex items-center gap-1.5 mt-0.5">{data.title && data.title !== 'بدون تایتل' && (<span className={`text-[9px] font-black px-1.5 rounded ${color === 'w' ? 'text-sky-400 bg-sky-500/10' : 'text-rose-400 bg-rose-500/10'}`}>{data.title}</span>)}<span className="text-[10px] font-mono text-zinc-500">{data.elo || '---'}</span></div>
+            <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-white group-hover:text-farzin-accent transition-colors">{data.name || (color === 'w' ? 'بازیکن سفید' : 'بازیکن سیاه')}</span>
+                <Edit2 size={10} className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <div className="flex items-center justify-between w-full mt-0.5">
+                <div className="flex items-center gap-1.5">
+                    {data.title && data.title !== 'بدون تایتل' && (<span className={`text-[9px] font-black px-1.5 rounded ${color === 'w' ? 'text-sky-400 bg-sky-500/10' : 'text-rose-400 bg-rose-500/10'}`}>{data.title}</span>)}
+                    <span className="text-[10px] font-mono text-zinc-500">{data.elo || '---'}</span>
+                </div>
+                
+                {/* 🌟 بخش رندر کردن اختلاف مهره‌ها */}
+                {material && material.pieces.length > 0 && (
+                    <div className="flex items-center gap-1 shrink-0 bg-[#161512] px-1.5 rounded border border-[#35332e]/50" dir="ltr">
+                        <div className="flex mr-1">
+                            {material.pieces.map((p: string, i: number) => (
+                                <span key={i} className={`text-xs -ml-1 ${color === 'w' ? 'text-zinc-200 drop-shadow-md' : 'text-zinc-500 drop-shadow-sm'}`}>
+                                    {PIECE_SYMBOLS[p]}
+                                </span>
+                            ))}
+                        </div>
+                        {material.score > 0 && (
+                            <span className={`text-[9px] font-bold ${color === 'w' ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                                +{material.score}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
           </div>
         )}
       </div>

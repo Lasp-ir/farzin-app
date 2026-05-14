@@ -61,6 +61,38 @@ export default function AnalysisBoard() {
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
   const isBlackTurn = activeGame.turn() === 'b';
 
+  // 🌟 ماشین حسابِ پیشرفته‌ی ارزیابی اختلاف متریال (مهره‌های تصرف‌شده)
+  const materialAdvantage = useMemo(() => {
+      const fenBoard = currentPosition.split(' ')[0];
+      const counts = { w: { p:0, n:0, b:0, r:0, q:0 }, b: { p:0, n:0, b:0, r:0, q:0 } };
+      
+      for (let char of fenBoard) {
+         if (/[pnbrq]/.test(char)) counts.b[char as keyof typeof counts.b]++;
+         if (/[PNBRQ]/.test(char)) counts.w[char.toLowerCase() as keyof typeof counts.w]++;
+      }
+      
+      let whiteAdv = { score: 0, pieces: [] as string[] };
+      let blackAdv = { score: 0, pieces: [] as string[] };
+      
+      // ترتیب نمایش استاندارد: وزیر، رخ، فیل، اسب، پیاده
+      ['q', 'r', 'b', 'n', 'p'].forEach(p => {
+         const diff = counts.w[p as keyof typeof counts.w] - counts.b[p as keyof typeof counts.b];
+         if (diff > 0) {
+             for(let i=0; i<diff; i++) whiteAdv.pieces.push(p);
+         } else if (diff < 0) {
+             for(let i=0; i<-diff; i++) blackAdv.pieces.push(p);
+         }
+      });
+      
+      let wScore = 0; whiteAdv.pieces.forEach(p => wScore += getPieceValue(p));
+      let bScore = 0; blackAdv.pieces.forEach(p => bScore += getPieceValue(p));
+      
+      if (wScore > bScore) { whiteAdv.score = wScore - bScore; blackAdv.score = 0; }
+      else if (bScore > wScore) { blackAdv.score = bScore - wScore; whiteAdv.score = 0; }
+      
+      return { white: whiteAdv, black: blackAdv };
+  }, [currentPosition]);
+
   useEffect(() => {
     if (isReady && currentPosition) {
       analyze(currentPosition, engineSettings.maxDepth);
@@ -403,22 +435,15 @@ export default function AnalysisBoard() {
   const goStart = () => setCurrentNodeId('root');
   const goEnd = () => { let curr = currentNodeId; while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0]; setCurrentNodeId(curr); };
 
-  // 🌟 اتصال ناوبری کیبورد به برنامه‌
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // اگر کاربر در حال تایپ درون یک فرم یا ورودی است، کیبورد کار نکند
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-      
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-          e.preventDefault(); // جلوگیری از اسکرول خوردن مزاحمِ صفحه
-      }
-
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) e.preventDefault();
       if (e.key === 'ArrowLeft') prevMove();
       else if (e.key === 'ArrowRight') nextMove();
       else if (e.key === 'ArrowUp') goStart();
       else if (e.key === 'ArrowDown') goEnd();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentNodeId, tree]);
@@ -798,7 +823,13 @@ export default function AnalysisBoard() {
       <div className={`w-full flex-1 min-h-0 flex flex-col lg:flex-row transition-opacity duration-700 delay-100 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         
         <div className="flex-none lg:flex-1 lg:max-w-[45vw] flex flex-col px-3 py-1 justify-center relative z-0 shrink-0">
-            <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
+            {/* 🌟 افزودن برتری متریال برای بازیکن بالا */}
+            <EditablePlayer 
+                color={boardOrientation === 'white' ? 'b' : 'w'} 
+                data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} 
+                material={boardOrientation === 'white' ? materialAdvantage.black : materialAdvantage.white}
+                onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} 
+            />
             
             <div className="w-full flex justify-center py-0.5">
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
@@ -858,7 +889,13 @@ export default function AnalysisBoard() {
                 </div>
             </div>
 
-            <EditablePlayer color={boardOrientation === 'white' ? 'w' : 'b'} data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} />
+            {/* 🌟 افزودن برتری متریال برای بازیکن پایین */}
+            <EditablePlayer 
+                color={boardOrientation === 'white' ? 'w' : 'b'} 
+                data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} 
+                material={boardOrientation === 'white' ? materialAdvantage.white : materialAdvantage.black}
+                onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} 
+            />
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col bg-[#161512] border-t lg:border-t-0 lg:border-r border-[#35332e] relative z-10 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] lg:shadow-none rounded-t-2xl lg:rounded-none mt-2 lg:mt-0">
