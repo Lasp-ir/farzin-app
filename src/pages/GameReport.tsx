@@ -10,28 +10,56 @@ import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue } from '../utils/analysisConfig';
 
+const TARGET_DEPTH = 18; 
+
+// 🌟 ۱. موتور ریاضی خالص Lichess (بدون هیچ دستکاری) 🌟
+
+// تبدیل Centipawn به درصد شانس برد
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
+// محاسبه دقت تک حرکت بر اساس افت شانس برد
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
     if (winAfter >= winBefore) return 100;
     const winDiff = winBefore - winAfter;
     const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) - 3.166924740191411;
-    return Math.max(0, Math.min(100, raw + 1)); 
+    return Math.max(0, Math.min(100, raw + 1)); // +1 uncertainty bonus
 };
 
+// انحراف معیار (برای وزن‌دهی به نوسانات)
 const standardDeviation = (arr: number[]) => {
     if (arr.length === 0) return 0;
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
     return Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
 };
 
+// محاسبه میانگین همساز و میانگین وزنیِ نوسانات (Harmonic & Volatility-Weighted Mean)
 const calculateGameAccuracy = (accuracies: {acc: number, weight: number}[]) => {
     if (accuracies.length === 0) return 100;
+    
     const sumWeights = accuracies.reduce((s, a) => s + a.weight, 0);
-    const weightedMean = accuracies.reduce((s, a) => s + (a.acc * a.weight), 0) / (sumWeights || 1);
-    const harmonicSum = accuracies.reduce((s, a) => s + (1 / Math.max(0.1, a.acc)), 0);
-    const harmonicMean = accuracies.length / harmonicSum;
+    const weightedMean = sumWeights > 0 ? accuracies.reduce((s, a) => s + (a.acc * a.weight), 0) / sumWeights : 100;
+    
+    const harmonicSum = accuracies.reduce((s, a) => s + (1 / Math.max(0.01, a.acc)), 0);
+    const harmonicMean = harmonicSum > 0 ? accuracies.length / harmonicSum : 100;
+    
     return (weightedMean + harmonicMean) / 2;
+};
+
+// 🌟 ۲. لیبل‌گذاری حرکات (فقط برای گرافیک و جدول، بدون تاثیر روی دقت)
+const classifyMoveDetailed = (winBefore: number, winAfter: number, isBook: boolean, isSacrifice: boolean) => {
+    if (isBook) return 'book';
+    const diff = winBefore - winAfter;
+
+    if (winBefore > 80 && winAfter < 50) return 'miss';
+    if (isSacrifice && winAfter > 60 && diff <= 2) return 'brilliant';
+    if (diff < 1 && winAfter > 70 && !isSacrifice) return 'great';
+    
+    if (diff <= 1.5) return 'best';
+    if (diff <= 3) return 'excellent';
+    if (diff <= 6) return 'good';
+    if (diff <= 12) return 'inaccuracy';
+    if (diff <= 22) return 'mistake';
+    return 'blunder';
 };
 
 const getGamePhase = (fen: string, moveNumber: number) => {
@@ -122,15 +150,14 @@ export default function GameReport() {
     }, [currentIndex, movesData]);
 
     const reportStats = useMemo(() => {
-        // 🌟 گارد امنیتی: اطمینان از کامل بودن داده‌های دو آرایه
         if (!movesData || movesData.length < 2) return null;
         for (let i = 0; i < movesData.length; i++) {
-            if (!engineResults[i] || !engineResults[i][0]) return null; // منتظر تکمیل آنالیز
+            if (!engineResults[i] || !engineResults[i][0]) return null; 
         }
         
         const data = {
-            white: { accs: [] as any[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } },
-            black: { accs: [] as any[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } }
+            white: { accs: [] as {acc: number, weight: number}[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } },
+            black: { accs: [] as {acc: number, weight: number}[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } }
         };
 
         const graphPoints: any[] = [];
@@ -143,90 +170,28 @@ export default function GameReport() {
 
         const windowSize = Math.max(2, Math.min(8, Math.floor(winPercentsWhitePOV.length / 10)));
 
-        // 🌟 استفاده از movesData.length به عنوان مرز قطعی برای جلوگیری از خطای undefined
         for (let i = 1; i < movesData.length; i++) {
-            const parentLines = engineResults[i-1];
-            const currentLines = engineResults[i];
             const moveInfo = movesData[i];
-            
-            // 🌟 گارد ثانویه: اگر حرکت مشکل‌دار بود از پردازش آن صرف نظر کن
             if (!moveInfo || !moveInfo.move) continue;
             
             const isWhiteTurn = (i - 1) % 2 === 0; 
             const side = isWhiteTurn ? data.white : data.black;
 
-            const wScoreBefore = getWhiteScore(parentLines[0]);
-            const wScoreAfter = getWhiteScore(currentLines[0]);
-
-            const cpLossRaw = isWhiteTurn ? wScoreBefore - wScoreAfter : wScoreAfter - wScoreBefore;
-            const cpLoss = Math.max(0, cpLossRaw) / 100;
-
-            const winBefore = calcWinPercent(isWhiteTurn ? wScoreBefore : -wScoreBefore);
-            const winAfter = calcWinPercent(isWhiteTurn ? wScoreAfter : -wScoreAfter);
-            const epB = winBefore / 100;
-            const epC = winAfter / 100;
-
-            let bestUciMove = '';
-            const rawPv = parentLines[0].pv || '';
-            const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
-            if (actualPv) bestUciMove = actualPv.trim().split(' ')[0];
-            const userUciMove = `${moveInfo.move.from}${moveInfo.move.to}${moveInfo.move.promotion || ''}`;
-
-            const isEndgame = moveInfo.phase === 'endgame';
-            const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
-            const mistakeLimit = isEndgame ? 2.0 : 2.5;
-
-            let cls = 'good';
-            if (moveInfo.isBook) {
-                cls = 'book';
-            } else if (currentLines[0].isMate || userUciMove === bestUciMove || cpLoss <= 0.05) {
-                cls = 'best';
-            } else if (epB < 0.10) {
-                cls = cpLoss <= 0.50 ? 'excellent' : 'good';
-            } else {
-                if (cpLoss <= 0.20) cls = 'excellent';
-                else if (cpLoss <= 0.50) cls = 'good';
-                else if (cpLoss <= inaccuracyLimit) cls = 'inaccuracy';
-                else if (cpLoss <= mistakeLimit) cls = 'mistake';
-                else cls = 'blunder';
-            }
-
-            if (['inaccuracy', 'mistake', 'blunder'].includes(cls) && i >= 2) {
-                const gpLines = engineResults[i-2];
-                const gpWScore = getWhiteScore(gpLines[0]);
-                const epA = calcWinPercent(isWhiteTurn ? gpWScore : -gpWScore) / 100;
-                if (epA <= 0.60 && (epB - epA >= 0.15) && epC <= epA + 0.10 && epC >= epA - 0.20) {
-                    cls = 'miss';
-                }
-            }
-
-            if (['best', 'excellent'].includes(cls) && parentLines.length > 1) {
-                const wScoreSecond = getWhiteScore(parentLines[1]);
-                const epSecond = calcWinPercent(isWhiteTurn ? wScoreSecond : -wScoreSecond) / 100;
-                if (epB < 0.95 && epSecond < 0.90 && ((epB - epSecond >= 0.20) || (epB >= 0.45 && epSecond <= 0.25) || (epB >= 0.75 && epSecond <= 0.55))) {
-                    cls = 'great';
-                    try {
-                        const tempG = new Chess(movesData[i].fen);
-                        const oppMoves = tempG.moves({ verbose: true });
-                        let isSacrifice = false;
-                        for (const oppMove of oppMoves) {
-                            if (oppMove.captured && ['n', 'b', 'r', 'q'].includes(oppMove.captured.toLowerCase())) {
-                                const capVal = getPieceValue(oppMove.captured); 
-                                tempG.move(oppMove.san);
-                                let maxRecaptureVal = 0;
-                                for (const ourMove of tempG.moves({ verbose: true })) {
-                                    if (ourMove.to === oppMove.to && ourMove.captured) maxRecaptureVal = Math.max(maxRecaptureVal, getPieceValue(ourMove.captured));
-                                }
-                                tempG.undo();
-                                if (capVal - maxRecaptureVal >= 2) { isSacrifice = true; break; }
-                            }
-                        }
-                        if (isSacrifice && epB < 0.85) cls = 'brilliant';
-                    } catch(e) {}
-                }
-            }
-
+            // محاسبه Win% از دید بازیکنی که حرکت را انجام داده
+            const winBeforeGlobal = winPercentsWhitePOV[i-1];
+            const winAfterGlobal = winPercentsWhitePOV[i];
+            
+            const winBefore = isWhiteTurn ? winBeforeGlobal : 100 - winBeforeGlobal;
+            const winAfter = isWhiteTurn ? winAfterGlobal : 100 - winAfterGlobal;
+            
+            const isSacrifice = moveInfo.move?.captured && ['n','b','r','q'].includes(moveInfo.move.captured);
+            
+            // 🌟 محاسبه دقت با ریاضیات خالص Lichess
             const acc = moveInfo.isBook ? 100 : calcMoveAccuracy(winBefore, winAfter);
+            
+            // دسته‌بندی فقط برای آیکون و گراف
+            const cls = classifyMoveDetailed(winBefore, winAfter, moveInfo.isBook, !!isSacrifice);
+            
             const window = winPercentsWhitePOV.slice(Math.max(0, i - windowSize), i + 1);
             const weight = Math.max(0.5, Math.min(12, standardDeviation(window)));
             
@@ -237,7 +202,7 @@ export default function GameReport() {
             else if (moveInfo.phase === 'middlegame') side.phases.mid.push(acc);
             else if (moveInfo.phase === 'endgame') side.phases.end.push(acc);
 
-            graphPoints.push({ index: i, winPercent: winPercentsWhitePOV[i], cls, san: moveInfo.san });
+            graphPoints.push({ index: i, winPercent: winPercentsWhitePOV[i], cls, isWhiteTurn, san: moveInfo.san });
         }
 
         const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
@@ -276,10 +241,11 @@ export default function GameReport() {
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                             <span className="text-4xl font-black text-white">{progress}%</span>
+                            <span className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Depth {TARGET_DEPTH}</span>
                         </div>
                     </div>
-                    <h2 className="text-xl font-black text-white mb-2">پردازش عمیق حرکات...</h2>
-                    <p className="text-xs text-zinc-500 text-center font-bold">موتور در حال تخصیص زمان کافی برای ارزیابی {movesData.length} حرکت است.</p>
+                    <h2 className="text-xl font-black text-white mb-2">آنالیز عمیق حرکات...</h2>
+                    <p className="text-xs text-zinc-500 text-center font-bold">فرزین در حال ارزیابی استراتژیک {movesData.length} حرکت است. لطفا شکیبا باشید.</p>
                 </motion.div>
             </div>
         );
@@ -313,7 +279,7 @@ export default function GameReport() {
                     </div>
                     <div className="text-center">
                         <span className="text-5xl font-black text-farzin-accent drop-shadow-[0_0_20px_rgba(119,149,86,0.4)] block mb-2" dir="ltr">{meta.result === '*' ? '½-½' : meta.result}</span>
-                        <div className="bg-farzin-accent/10 px-3 py-1 rounded-full border border-farzin-accent/20"><span className="text-[10px] text-farzin-accent font-black uppercase tracking-tighter">آنالیز دقیق لیچس</span></div>
+                        <div className="bg-farzin-accent/10 px-3 py-1 rounded-full border border-farzin-accent/20"><span className="text-[10px] text-farzin-accent font-black uppercase tracking-tighter">آنالیز دقیق Lichess</span></div>
                     </div>
                     <div className="flex flex-col items-center gap-3">
                         <div className="w-20 h-20 rounded-3xl bg-[#262421] border border-[#35332e] text-zinc-200 flex items-center justify-center font-black text-2xl shadow-2xl">B</div>
@@ -324,6 +290,7 @@ export default function GameReport() {
 
             <div className="max-w-3xl mx-auto px-4 mt-6 flex flex-col gap-6">
                 
+                {/* 🎯 دقت کلی */}
                 <div className="bg-[#1a1917]/60 backdrop-blur-md border border-[#35332e] rounded-[40px] p-8 shadow-2xl">
                     <div className="flex justify-around items-center">
                         {[ {side: 'سفید', acc: reportStats.white.total, color: '#fff'}, {side: 'سیاه', acc: reportStats.black.total, color: '#71717a'} ].map((item, i) => (
@@ -333,14 +300,17 @@ export default function GameReport() {
                                         <circle cx="50" cy="50" r="42" fill="none" stroke="#262421" strokeWidth="10" />
                                         <motion.circle initial={{ strokeDashoffset: 264 }} animate={{ strokeDashoffset: 264 - (264 * item.acc) / 100 }} transition={{ duration: 2, ease: "easeOut" }} cx="50" cy="50" r="42" fill="none" stroke={item.color} strokeWidth="10" strokeDasharray="264" strokeLinecap="round" />
                                     </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center text-3xl font-black text-white">{item.acc.toFixed(1)}%</div>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-3xl font-black text-white leading-none">{item.acc.toFixed(1)}%</span>
+                                    </div>
                                 </div>
-                                <span className="text-[11px] font-black text-zinc-500 uppercase tracking-widest">دقت {item.side}</span>
+                                <span className="text-xs font-black text-zinc-500 uppercase tracking-widest">دقت {item.side}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
+                {/* 📈 گراف ارزیابی */}
                 <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] overflow-hidden shadow-2xl p-5">
                     <h3 className="text-xs font-black text-white mb-4 flex items-center gap-2"><Activity size={16} className="text-sky-400" /> روند بازی و حرکات سرنوشت‌ساز</h3>
                     <div className="relative w-full aspect-[3/1] bg-[#12110f] rounded-[24px] border border-[#262421] overflow-hidden">
@@ -367,6 +337,7 @@ export default function GameReport() {
                     </div>
                 </div>
 
+                {/* 📊 جدول کالبدشکافی حرکات */}
                 <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] overflow-hidden shadow-2xl">
                     <div className="p-5 bg-[#211f1c] border-b border-[#35332e] flex items-center justify-between">
                         <div className="flex items-center gap-2"><Target size={18} className="text-farzin-accent" /><span className="text-xs font-black text-white">کالبدشکافی حرکات</span></div>
