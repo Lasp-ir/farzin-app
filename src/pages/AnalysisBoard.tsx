@@ -57,10 +57,68 @@ export default function AnalysisBoard() {
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
+  // 🌟 منطق جدید و هوشمند برای لود کردن PGN یا FEN
   useEffect(() => {
-    const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-    setTree({ 'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 } });
-    setCurrentNodeId('root');
+    let rootFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    let initialTree: Record<string, MoveNode> = {
+      'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 }
+    };
+    let endNodeId = 'root';
+
+    if (initialData.type === 'PGN' && initialData.data) {
+      try {
+        const game = new Chess();
+        // خواندن اتوماتیک PGN توسط موتور
+        game.loadPgn(initialData.data);
+        
+        // ۱. استخراج اطلاعات بازیکنان از متادیتای فایل
+        const headers = game.header();
+        setPlayerMeta(prev => ({
+          white: { 
+              name: headers.White && headers.White !== '?' ? headers.White : prev.white.name, 
+              elo: headers.WhiteElo && headers.WhiteElo !== '?' ? headers.WhiteElo : prev.white.elo, 
+              title: prev.white.title 
+          },
+          black: { 
+              name: headers.Black && headers.Black !== '?' ? headers.Black : prev.black.name, 
+              elo: headers.BlackElo && headers.BlackElo !== '?' ? headers.BlackElo : prev.black.elo, 
+              title: prev.black.title 
+          }
+        }));
+
+        // ۲. بازسازی تاریخچه حرکات و ساخت درخت برای فرزین
+        const history = game.history({ verbose: true });
+        const buildGame = new Chess(); // شروع از چیدمان اولیه
+        
+        for (const move of history) {
+          buildGame.move(move);
+          const newFen = buildGame.fen();
+          const newId = `${endNodeId}-${move.san}`;
+          
+          initialTree[newId] = {
+            id: newId,
+            san: move.san,
+            fen: newFen,
+            move: move,
+            parentId: endNodeId,
+            childrenIds: [],
+            depth: initialTree[endNodeId].depth + 1
+          };
+          
+          initialTree[endNodeId].childrenIds.push(newId);
+          endNodeId = newId;
+        }
+      } catch (e) {
+        console.error("خطا در پردازش فایل PGN:", e);
+        // در صورت خرابی فایل، پوزیسیون اولیه لود می‌شود
+      }
+    } else if (initialData.type === 'FEN' && initialData.data) {
+      rootFen = initialData.data;
+      initialTree['root'].fen = rootFen;
+    }
+
+    setTree(initialTree);
+    setCurrentNodeId(endNodeId); // ۳. پرش مستقیم به انتهای بازیِ لود شده
     setIsLoaded(true);
   }, []);
 
