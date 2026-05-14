@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-// 🌟 ایمپورت Book اضافه شد
-import { User, Edit2, Check, Sparkles, Award, Star, ThumbsUp, AlertTriangle, Loader2, Book } from 'lucide-react';
+// 🌟 BookOpen ایمپورت شد
+import { User, Edit2, Check, Sparkles, Award, Star, ThumbsUp, AlertTriangle, Loader2, BookOpen } from 'lucide-react';
 
 export interface MoveNode {
   id: string;
@@ -18,8 +18,8 @@ export const TextIcon = ({ text }: { text: string }) => (
 );
 
 export const COACH_COLORS = {
-  // 🌟 اضافه شدن حرکت تئوری (قهوه‌ای روشن/کتابی)
-  book: { color: '#c27a3e', text: 'تئوری گشایش', icon: Book }, 
+  // 🌟 آیکون کتاب باز شد
+  book: { color: '#c27a3e', text: 'تئوری گشایش', icon: BookOpen }, 
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles }, 
   great: { color: '#3b82f6', text: 'عالی', icon: Award }, 
   best: { color: '#22c55e', text: 'بهترین', icon: Star }, 

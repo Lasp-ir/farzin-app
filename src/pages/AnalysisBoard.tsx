@@ -13,7 +13,6 @@ import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
 import OpeningExplorer from '../components/OpeningExplorer';
 import OpeningDisplay from '../components/OpeningDisplay';
-// 🌟 کامپوننت‌های مودال که جدا کردیم ایمپورت شدن
 import { ShareModal, SaveModal, ResetModal, SettingsModal, ArrowSettingsModal } from '../components/AnalysisModals';
 
 import { isBookPosition } from '../utils/ecoParser';
@@ -41,7 +40,6 @@ export default function AnalysisBoard() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
-  // Modal States
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -650,7 +648,6 @@ export default function AnalysisBoard() {
          currentNodeId={currentNodeId} setCurrentNodeId={setCurrentNodeId}
       />
 
-      {/* 🌟 بخش مودال‌ها که به یک کامپوننت مجزا منتقل شدند */}
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} onShare={handleShare} />
       <SaveModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveAnalysis} saveName={saveName} setSaveName={setSaveName} />
       <ResetModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} onConfirm={confirmResetAnalysis} />
@@ -907,12 +904,19 @@ export default function AnalysisBoard() {
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                {/* 🌟 دکمه گزارش و کنترل‌ها */}
+                <div className="flex items-center gap-3">
                     <button 
                         onClick={() => navigate('/report')} 
-                        className="flex items-center gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 py-2 rounded-lg text-[11px] font-bold transition-colors shadow-md active:scale-95"
+                        className="relative flex items-center gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-4 py-2 rounded-lg text-xs font-black transition-all shadow-[0_0_12px_rgba(119,149,86,0.6)] hover:shadow-[0_0_20px_rgba(119,149,86,0.9)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 group"
                     >
-                        <PieChart size={14} /> گزارش
+                        <PieChart size={15} className="group-hover:scale-110 transition-transform" /> 
+                        گزارش بازی
+                        {/* 🌟 پالس ترغیب‌کننده */}
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                        </span>
                     </button>
                     <div className="flex bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                         <button onClick={goStart} className="p-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors"><Rewind size={18} /></button>
