@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, RotateCcw, Zap, AlertTriangle, Eraser, ShieldCheck, Footprints } from 'lucide-react';
+import { X, Trash2, RotateCcw, Zap, AlertTriangle, Eraser, ShieldCheck, Footprints, LayoutGrid } from 'lucide-react';
 import { Chessboard } from 'react-chessboard';
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
-// دریافت تصاویر مهره‌ها با بالاترین کیفیت از CDN لیچس
 const getPieceImg = (p: string) => `https://lichess1.org/assets/_64XmY2/piece/merida/${p}.svg`;
 
 function fenToObj(fen: string) {
@@ -35,16 +34,13 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
 
     const boardRef = useRef<HTMLDivElement>(null);
 
-    // 🌟 الگوریتم هوشمند تشخیص خانه‌های مجاز برای آن‌پاسان در لحظه
     const validEpSquares = useMemo(() => {
         const squares = ['-'];
         if (turn === 'w') {
-            // اگر نوبت سفید است، پیاده سیاه باید روی ردیف 5 باشد
             FILES.forEach(f => {
                 if (position[f + '5'] === 'bP' && !position[f + '6']) squares.push(f + '6');
             });
         } else {
-            // اگر نوبت سیاه است، پیاده سفید باید روی ردیف 4 باشد
             FILES.forEach(f => {
                 if (position[f + '4'] === 'wP' && !position[f + '3']) squares.push(f + '3');
             });
@@ -53,13 +49,11 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
     }, [position, turn]);
 
     useEffect(() => {
-        // اگر خانه‌ی انتخابی قبلی برای آن‌پاسان دیگر معتبر نیست، ریست شود
         if (!validEpSquares.includes(enPassant)) {
             setEnPassant('-');
         }
     }, [validEpSquares, enPassant]);
 
-    // 🌟 منطق ریاضی برای تبدیل موس درگ به مختصات تخته شطرنج
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         const piece = e.dataTransfer.getData('piece');
@@ -82,7 +76,6 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                 if (piece === 'eraser') {
                     delete next[square];
                 } else {
-                    // قانون یک شاه: اگر شاه درگ شد و از قبل وجود داشت، شاه قبلی را حذف کن
                     if (piece === 'wK') {
                         const existing = Object.keys(next).find(k => next[k] === 'wK');
                         if (existing) delete next[existing];
@@ -147,152 +140,162 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
             {isOpen && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto" dir="ltr">
                     <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-                        className="w-full max-w-4xl bg-[#161512] border border-[#35332e] rounded-3xl shadow-2xl flex flex-col lg:flex-row overflow-hidden my-auto"
+                        className="w-full max-w-5xl bg-[#161512] border border-[#35332e] rounded-3xl shadow-2xl flex flex-col overflow-hidden my-auto relative"
                     >
-                        
-                        {/* 🌟 بخش اصلی: پالت‌ها و تخته شطرنج */}
-                        <div className="flex-1 p-4 lg:p-6 flex flex-col items-center justify-center bg-[#1a1916] border-b lg:border-b-0 lg:border-r border-[#35332e]">
-                            
-                            {/* پالت مهره‌های سیاه */}
-                            <div className="flex justify-center gap-1 sm:gap-2 mb-4 w-full max-w-[440px]">
-                                {['bQ', 'bR', 'bB', 'bN', 'bK', 'bP'].map(p => (
-                                    <button 
-                                        key={p} 
-                                        onClick={() => setActivePiece(p)} 
-                                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all ${activePiece === p ? 'bg-[#35332e] border border-zinc-500 shadow-md scale-110' : 'bg-[#262421] hover:bg-[#35332e] opacity-80 hover:opacity-100'}`}
-                                    >
-                                        <img 
-                                            src={getPieceImg(p)} 
-                                            alt={p} 
-                                            draggable 
-                                            onDragStart={(e) => { e.dataTransfer.setData('piece', p); setActivePiece(p); }} 
-                                            className="w-8 h-8 sm:w-10 sm:h-10 cursor-grab active:cursor-grabbing drop-shadow-sm" 
-                                        />
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* تخته شطرنج */}
-                            <div 
-                                ref={boardRef}
-                                onDragOver={e => e.preventDefault()}
-                                onDrop={handleDrop}
-                                className="w-full max-w-[440px] aspect-square rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-[#35332e] overflow-hidden"
-                            >
-                                <Chessboard 
-                                    position={position}
-                                    onSquareClick={handleSquareClick}
-                                    dropOffBoardAction="trash"
-                                    onPieceDrop={(source, target, piece) => {
-                                        setPosition(prev => {
-                                            const next = { ...prev };
-                                            delete next[source];
-                                            next[target] = piece;
-                                            return next;
-                                        });
-                                        return true;
-                                    }}
-                                    customDarkSquareStyle={{ backgroundColor: '#779556' }}
-                                    customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                                    animationDuration={150}
-                                />
-                            </div>
-
-                            {/* پالت مهره‌های سفید و پاک‌کن */}
-                            <div className="flex justify-center items-center gap-1 sm:gap-2 mt-4 w-full max-w-[440px]">
-                                {['wQ', 'wR', 'wB', 'wN', 'wK', 'wP'].map(p => (
-                                    <button 
-                                        key={p} 
-                                        onClick={() => setActivePiece(p)} 
-                                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all ${activePiece === p ? 'bg-zinc-200 border border-white shadow-md scale-110' : 'bg-[#262421] hover:bg-[#35332e] opacity-80 hover:opacity-100'}`}
-                                    >
-                                        <img 
-                                            src={getPieceImg(p)} 
-                                            alt={p} 
-                                            draggable 
-                                            onDragStart={(e) => { e.dataTransfer.setData('piece', p); setActivePiece(p); }} 
-                                            className="w-8 h-8 sm:w-10 sm:h-10 cursor-grab active:cursor-grabbing drop-shadow-md" 
-                                        />
-                                    </button>
-                                ))}
-                                <div className="w-[1px] h-8 bg-[#35332e] mx-1 sm:mx-2" />
-                                <button 
-                                    onClick={() => setActivePiece('eraser')} 
-                                    draggable
-                                    onDragStart={(e) => { e.dataTransfer.setData('piece', 'eraser'); setActivePiece('eraser'); }}
-                                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all cursor-grab active:cursor-grabbing ${activePiece === 'eraser' ? 'bg-rose-500 text-white shadow-md scale-110' : 'bg-[#262421] text-rose-500/60 hover:bg-rose-500/20 hover:text-rose-400'}`}
-                                >
-                                    <Eraser size={20} />
-                                </button>
-                            </div>
-
-                        </div>
-
-                        {/* 🌟 بخش تنظیمات (سمت راست تخته - RTL) */}
-                        <div className="w-full lg:w-[320px] bg-[#12110f] p-5 lg:p-6 flex flex-col gap-6" dir="rtl">
-                            <div className="flex items-center justify-between">
-                                <h2 className="font-black text-white text-lg">تنظیمات صفحه</h2>
-                                <button onClick={onClose} className="p-2 bg-[#262421] rounded-xl text-zinc-500 hover:text-white transition-colors"><X size={18} /></button>
-                            </div>
-
-                            <section>
-                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 block">نوبت حرکت</label>
-                                <div className="flex bg-[#1a1916] p-1 rounded-xl border border-[#35332e]">
-                                    <button onClick={() => setTurn('w')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${turn === 'w' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>سفید</button>
-                                    <button onClick={() => setTurn('b')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${turn === 'b' ? 'bg-[#35332e] text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>سیاه</button>
+                        {/* 🌟 هدر یکپارچه و مدرن در بالای پاپ‌آپ */}
+                        <div className="flex items-center justify-between px-6 py-4 bg-[#1a1916] border-b border-[#35332e] shrink-0" dir="rtl">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400">
+                                    <LayoutGrid size={20} />
                                 </div>
-                            </section>
-
-                            <section>
-                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><ShieldCheck size={14} className="text-sky-400" /> حقوق قلعه</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[
-                                        { label: 'سفید (کوتاه)', key: 'K' }, { label: 'سفید (بلند)', key: 'Q' },
-                                        { label: 'سیاه (کوتاه)', key: 'k' }, { label: 'سیاه (بلند)', key: 'q' }
-                                    ].map(opt => (
-                                        <button key={opt.key} onClick={() => setCastling(prev => ({ ...prev, [opt.key]: !prev[opt.key as keyof typeof castling] }))} 
-                                            className={`py-2 px-2 rounded-lg text-[10px] font-bold border transition-all ${castling[opt.key as keyof typeof castling] ? 'bg-sky-500/10 border-sky-500/40 text-sky-400' : 'bg-[#1a1916] border-[#35332e] text-zinc-500 hover:text-zinc-300'}`}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
-
-                            <section>
-                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Footprints size={14} className="text-amber-400" /> خانه‌ی آن‌پاسان</label>
-                                <select value={enPassant} onChange={e => setEnPassant(e.target.value)} className="w-full bg-[#1a1916] border border-[#35332e] rounded-xl p-2.5 text-xs font-bold text-zinc-300 outline-none focus:border-amber-500 transition-colors cursor-pointer appearance-none">
-                                    {validEpSquares.map(sq => (
-                                        <option key={sq} value={sq}>{sq === '-' ? 'غیرفعال (-)' : sq}</option>
-                                    ))}
-                                </select>
-                            </section>
-
-                            <div className="flex gap-2 mt-auto pt-4 border-t border-[#35332e]">
-                                <button onClick={() => setPosition({})} className="flex-1 flex flex-col items-center gap-1 bg-[#1a1916] hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 border border-[#35332e] hover:border-rose-500/30 p-2.5 rounded-xl transition-all" title="خالی کردن تخته">
-                                    <Trash2 size={16} />
-                                    <span className="text-[9px] font-bold">خالی</span>
-                                </button>
-                                <button onClick={() => setPosition(fenToObj(INITIAL_FEN))} className="flex-1 flex flex-col items-center gap-1 bg-[#1a1916] hover:bg-[#262421] text-zinc-400 hover:text-white border border-[#35332e] p-2.5 rounded-xl transition-all" title="چیدمان اولیه">
-                                    <RotateCcw size={16} />
-                                    <span className="text-[9px] font-bold">اولیه</span>
-                                </button>
+                                <h2 className="font-black text-white text-xl tracking-tight">ویرایشگر بورد</h2>
                             </div>
-
-                            {!isValid && (
-                                <div className="bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl flex items-center gap-2">
-                                    <AlertTriangle size={14} className="text-rose-500 shrink-0" />
-                                    <span className="text-[10px] font-bold text-rose-200">هر دو شاه باید روی صفحه باشند.</span>
-                                </div>
-                            )}
-
-                            <button onClick={() => onConfirm(generateFinalFen())} disabled={!isValid}
-                                className={`w-full py-3.5 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-farzin-accent hover:bg-[#68824b] shadow-[0_5px_15px_rgba(119,149,86,0.3)] text-white active:scale-95' : 'bg-[#262421] text-zinc-600 border border-[#35332e] cursor-not-allowed'}`}
-                            >
-                                <Zap size={16} /> شروع آنالیز
+                            <button onClick={onClose} className="p-2.5 bg-[#262421] hover:bg-rose-500 hover:text-white text-zinc-400 rounded-xl transition-all shadow-sm">
+                                <X size={20} />
                             </button>
                         </div>
 
+                        <div className="flex flex-col lg:flex-row flex-1 min-h-0">
+                            {/* 🌟 بخش اصلی: پالت‌ها و تخته شطرنج */}
+                            <div className="flex-1 p-5 lg:p-8 flex flex-col items-center justify-center bg-[#12110f] border-b lg:border-b-0 lg:border-l border-[#35332e]">
+                                
+                                {/* 🌟 پالت مهره‌های سیاه (با پس‌زمینه خاکستری روشن) */}
+                                <div className="flex justify-center gap-2 mb-5 w-full max-w-[440px]">
+                                    {['bQ', 'bR', 'bB', 'bN', 'bK', 'bP'].map(p => (
+                                        <button 
+                                            key={p} 
+                                            onClick={() => setActivePiece(p)} 
+                                            className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${activePiece === p ? 'bg-zinc-200 border-2 border-farzin-accent scale-110 z-10 shadow-lg' : 'bg-zinc-300 hover:bg-zinc-200 opacity-90 hover:opacity-100'}`}
+                                        >
+                                            <img 
+                                                src={getPieceImg(p)} 
+                                                alt={p} 
+                                                draggable 
+                                                onDragStart={(e) => { e.dataTransfer.setData('piece', p); setActivePiece(p); }} 
+                                                className="w-9 h-9 sm:w-11 sm:h-11 cursor-grab active:cursor-grabbing drop-shadow-sm" 
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* تخته شطرنج */}
+                                <div 
+                                    ref={boardRef}
+                                    onDragOver={e => e.preventDefault()}
+                                    onDrop={handleDrop}
+                                    className="w-full max-w-[440px] aspect-square rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border-4 border-[#262421] overflow-hidden bg-[#ebecd0]"
+                                >
+                                    <Chessboard 
+                                        position={position}
+                                        onSquareClick={handleSquareClick}
+                                        dropOffBoardAction="trash"
+                                        onPieceDrop={(source, target, piece) => {
+                                            setPosition(prev => {
+                                                const next = { ...prev };
+                                                delete next[source];
+                                                next[target] = piece;
+                                                return next;
+                                            });
+                                            return true;
+                                        }}
+                                        customDarkSquareStyle={{ backgroundColor: '#779556' }}
+                                        customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                                        animationDuration={150}
+                                    />
+                                </div>
+
+                                {/* پالت مهره‌های سفید و پاک‌کن */}
+                                <div className="flex justify-center items-center gap-2 mt-5 w-full max-w-[440px]">
+                                    {['wQ', 'wR', 'wB', 'wN', 'wK', 'wP'].map(p => (
+                                        <button 
+                                            key={p} 
+                                            onClick={() => setActivePiece(p)} 
+                                            className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${activePiece === p ? 'bg-zinc-200 border-2 border-farzin-accent scale-110 z-10 shadow-lg' : 'bg-[#262421] hover:bg-[#35332e] opacity-90 hover:opacity-100'}`}
+                                        >
+                                            <img 
+                                                src={getPieceImg(p)} 
+                                                alt={p} 
+                                                draggable 
+                                                onDragStart={(e) => { e.dataTransfer.setData('piece', p); setActivePiece(p); }} 
+                                                className="w-9 h-9 sm:w-11 sm:h-11 cursor-grab active:cursor-grabbing drop-shadow-md" 
+                                            />
+                                        </button>
+                                    ))}
+                                    <div className="w-[2px] h-10 bg-[#35332e] mx-1 sm:mx-2 rounded-full" />
+                                    <button 
+                                        onClick={() => setActivePiece('eraser')} 
+                                        draggable
+                                        onDragStart={(e) => { e.dataTransfer.setData('piece', 'eraser'); setActivePiece('eraser'); }}
+                                        className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all cursor-grab active:cursor-grabbing shadow-sm ${activePiece === 'eraser' ? 'bg-rose-500 text-white border-2 border-white scale-110 z-10 shadow-lg' : 'bg-[#262421] text-rose-500/60 hover:bg-rose-500/20 hover:text-rose-400'}`}
+                                    >
+                                        <Eraser size={24} />
+                                    </button>
+                                </div>
+
+                            </div>
+
+                            {/* 🌟 بخش تنظیمات (سمت راست تخته - RTL) */}
+                            <div className="w-full lg:w-[320px] bg-[#1a1916] p-6 lg:p-8 flex flex-col gap-8 shrink-0 overflow-y-auto custom-scrollbar" dir="rtl">
+                                
+                                <section>
+                                    <label className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3 block">نوبت حرکت</label>
+                                    <div className="flex bg-[#12110f] p-1.5 rounded-2xl border border-[#35332e]">
+                                        <button onClick={() => setTurn('w')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${turn === 'w' ? 'bg-white text-black shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}>سفید</button>
+                                        <button onClick={() => setTurn('b')} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${turn === 'b' ? 'bg-[#35332e] text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}>سیاه</button>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <label className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3 flex items-center gap-2"><ShieldCheck size={16} className="text-sky-400" /> حقوق قلعه</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { label: 'سفید (کوتاه)', key: 'K' }, { label: 'سفید (بلند)', key: 'Q' },
+                                            { label: 'سیاه (کوتاه)', key: 'k' }, { label: 'سیاه (بلند)', key: 'q' }
+                                        ].map(opt => (
+                                            <button key={opt.key} onClick={() => setCastling(prev => ({ ...prev, [opt.key]: !prev[opt.key as keyof typeof castling] }))} 
+                                                className={`py-3 px-2 rounded-xl text-[11px] font-bold border transition-all shadow-sm ${castling[opt.key as keyof typeof castling] ? 'bg-sky-500/10 border-sky-500/40 text-sky-400' : 'bg-[#12110f] border-[#35332e] text-zinc-500 hover:bg-[#262421] hover:text-zinc-300'}`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <label className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Footprints size={16} className="text-amber-400" /> خانه‌ی آن‌پاسان</label>
+                                    <select value={enPassant} onChange={e => setEnPassant(e.target.value)} className="w-full bg-[#12110f] border border-[#35332e] rounded-xl p-3.5 text-sm font-bold text-zinc-300 outline-none focus:border-amber-500 transition-colors cursor-pointer appearance-none shadow-inner">
+                                        {validEpSquares.map(sq => (
+                                            <option key={sq} value={sq}>{sq === '-' ? 'غیرفعال (-)' : sq}</option>
+                                        ))}
+                                    </select>
+                                </section>
+
+                                <div className="flex gap-3 mt-auto pt-6 border-t border-[#35332e]">
+                                    <button onClick={() => setPosition({})} className="flex-1 flex flex-col items-center gap-2 bg-[#12110f] hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 border border-[#35332e] hover:border-rose-500/30 p-3 rounded-2xl transition-all shadow-sm" title="خالی کردن تخته">
+                                        <Trash2 size={20} />
+                                        <span className="text-[10px] font-bold">خالی</span>
+                                    </button>
+                                    <button onClick={() => setPosition(fenToObj(INITIAL_FEN))} className="flex-1 flex flex-col items-center gap-2 bg-[#12110f] hover:bg-[#262421] text-zinc-400 hover:text-white border border-[#35332e] p-3 rounded-2xl transition-all shadow-sm" title="چیدمان اولیه">
+                                        <RotateCcw size={20} />
+                                        <span className="text-[10px] font-bold">اولیه</span>
+                                    </button>
+                                </div>
+
+                                {!isValid && (
+                                    <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl flex items-center gap-3 shadow-inner">
+                                        <AlertTriangle size={18} className="text-rose-500 shrink-0" />
+                                        <span className="text-xs font-bold text-rose-200 leading-relaxed">هر دو شاه باید روی صفحه باشند.</span>
+                                    </div>
+                                )}
+
+                                <button onClick={() => onConfirm(generateFinalFen())} disabled={!isValid}
+                                    className={`w-full py-4 rounded-[1.25rem] font-black text-sm flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-farzin-accent hover:bg-[#68824b] shadow-[0_5px_20px_rgba(119,149,86,0.4)] text-white active:scale-95' : 'bg-[#262421] text-zinc-600 border border-[#35332e] cursor-not-allowed'}`}
+                                >
+                                    <Zap size={20} /> شروع آنالیز
+                                </button>
+                            </div>
+
+                        </div>
                     </motion.div>
                 </div>
             )}
