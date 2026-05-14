@@ -10,7 +10,7 @@ import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue } from '../utils/analysisConfig';
 
-// 🌟 ریاضیات خالص و اثبات شده Lichess
+// 🌟 ریاضیات خالص Lichess
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
@@ -26,6 +26,7 @@ const standardDeviation = (arr: number[]) => {
     return Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
 };
 
+// 🌟 محاسبه‌گر اصلی (میانگین همساز + وزنی)
 const calculateGameAccuracy = (accuracies: {acc: number, weight: number}[]) => {
     if (accuracies.length === 0) return 100;
     const sumWeights = accuracies.reduce((s, a) => s + a.weight, 0);
@@ -128,9 +129,18 @@ export default function GameReport() {
             if (!engineResults[i] || !engineResults[i][0]) return null; 
         }
         
+        // 🌟 آپدیت مهم: حالا فازها هم به جای اعداد خام، آبجکت وزن و دقت می‌گیرند
         const data = {
-            white: { accs: [] as {acc: number, weight: number}[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } },
-            black: { accs: [] as {acc: number, weight: number}[], counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, phases: { op:[] as number[], mid:[] as number[], end:[] as number[] } }
+            white: { 
+                accs: [] as {acc: number, weight: number}[], 
+                counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, 
+                phases: { op:[] as {acc: number, weight: number}[], mid:[] as {acc: number, weight: number}[], end:[] as {acc: number, weight: number}[] } 
+            },
+            black: { 
+                accs: [] as {acc: number, weight: number}[], 
+                counts: { brilliant:0, great:0, best:0, book:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0, miss:0 }, 
+                phases: { op:[] as {acc: number, weight: number}[], mid:[] as {acc: number, weight: number}[], end:[] as {acc: number, weight: number}[] } 
+            }
         };
 
         const graphPoints: any[] = [];
@@ -150,7 +160,6 @@ export default function GameReport() {
             const moveInfo = movesData[i];
             if (!moveInfo || !moveInfo.move) continue;
             
-            // 🌟 اصلاح متغیر به isWhiteTurn برای استفاده در کل محدوده حلقه
             const isWhiteTurn = (i - 1) % 2 === 0; 
             const side = isWhiteTurn ? data.white : data.black;
 
@@ -229,18 +238,20 @@ export default function GameReport() {
             const window = winPercentsWhitePOV.slice(Math.max(0, i - windowSize), i + 1);
             const weight = Math.max(0.5, Math.min(12, standardDeviation(window)));
             
-            side.accs.push({ acc, weight });
+            const accObj = { acc, weight };
+            side.accs.push(accObj);
             side.counts[cls as keyof typeof side.counts]++;
             
-            if (moveInfo.phase === 'opening') side.phases.op.push(acc);
-            else if (moveInfo.phase === 'middlegame') side.phases.mid.push(acc);
-            else if (moveInfo.phase === 'endgame') side.phases.end.push(acc);
+            // 🌟 آپدیت مهم: پوش کردن وزن حرکت به فاز مربوطه
+            if (moveInfo.phase === 'opening') side.phases.op.push(accObj);
+            else if (moveInfo.phase === 'middlegame') side.phases.mid.push(accObj);
+            else if (moveInfo.phase === 'endgame') side.phases.end.push(accObj);
 
-            // 🌟 استفاده‌ی ایمن از متغیر isWhiteTurn
             graphPoints.push({ index: i, winPercent: winPercentsWhitePOV[i], cls, isWhiteTurn, san: moveInfo.san });
         }
 
-        const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+        // 🌟 محاسبه فازها با فرمول دقیق و سخت‌گیرانه‌ی لیچس
+        const calcPhaseAcc = (arr: {acc: number, weight: number}[]) => arr.length > 0 ? calculateGameAccuracy(arr) : null;
 
         const GRAPH_WIDTH = 1000; const GRAPH_HEIGHT = 200; const MID_Y = GRAPH_HEIGHT / 2;
         let linePath = `M 0,${GRAPH_HEIGHT - (winPercentsWhitePOV[0] / 100) * GRAPH_HEIGHT} `;
@@ -254,8 +265,16 @@ export default function GameReport() {
         const areaBlack = `${linePath} L ${GRAPH_WIDTH},${MID_Y} L 0,${MID_Y} Z`;
 
         return {
-            white: { total: calculateGameAccuracy(data.white.accs), counts: data.white.counts, phases: { op: avg(data.white.phases.op), mid: avg(data.white.phases.mid), end: avg(data.white.phases.end) } },
-            black: { total: calculateGameAccuracy(data.black.accs), counts: data.black.counts, phases: { op: avg(data.black.phases.op), mid: avg(data.black.phases.mid), end: avg(data.black.phases.end) } },
+            white: { 
+                total: calculateGameAccuracy(data.white.accs), 
+                counts: data.white.counts, 
+                phases: { op: calcPhaseAcc(data.white.phases.op), mid: calcPhaseAcc(data.white.phases.mid), end: calcPhaseAcc(data.white.phases.end) } 
+            },
+            black: { 
+                total: calculateGameAccuracy(data.black.accs), 
+                counts: data.black.counts, 
+                phases: { op: calcPhaseAcc(data.black.phases.op), mid: calcPhaseAcc(data.black.phases.mid), end: calcPhaseAcc(data.black.phases.end) } 
+            },
             graph: { points: graphPoints, linePath, areaWhite, areaBlack, width: GRAPH_WIDTH, height: GRAPH_HEIGHT }
         };
     }, [engineResults, isAnalyzing, movesData]);
