@@ -89,8 +89,7 @@ export default function AnalysisSetup() {
     reader.readAsText(file);
   };
 
-  // 🌟 منطق پردازش، اعتبارسنجی و دانلود PGN در صورت نیاز
-  // 🌟 منطق پردازش، اعتبارسنجی و دانلود PGN در صورت نیاز (با پشتیبانی کامل از Chess.com)
+  // 🔥 منطق پردازش، اعتبارسنجی و دانلود PGN در صورت نیاز
   const processAndNavigate = async (data: string, meta?: any, forcedType?: string) => {
     setIsChecking(true);
     setErrorMessage('فرمت ورودی صحیح نیست. لطفاً FEN یا PGN استاندارد وارد کنید.');
@@ -111,12 +110,20 @@ export default function AnalysisSetup() {
           finalData = await res.text(); // دانلود PGN
           finalType = 'PGN';
         } else if (urlLower.includes('chess.com')) {
-          // 🌟 استخراج PGN از سایت Chess.com با استفاده از پروکسی AllOrigins برای دور زدن CORS
+          // 🌟 استخراج PGN از سایت Chess.com با استفاده از پروکسی‌های مقاوم‌تر
           try {
-             const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(finalData)}`);
-             if (!res.ok) throw new Error('ارتباط با سرورهای Chess.com برقرار نشد.');
-             const htmlData = await res.json();
-             const html = htmlData.contents;
+             let html = '';
+             try {
+                 // تلاش اول: سرورهای corsproxy
+                 const res1 = await fetch(`https://corsproxy.io/?${encodeURIComponent(finalData)}`);
+                 if (!res1.ok) throw new Error();
+                 html = await res1.text();
+             } catch(err1) {
+                 // تلاش دوم: سرورهای codetabs (فال‌بک در صورت فیلتر بودن سرور اول)
+                 const res2 = await fetch(`https://api.codetabs.com/v1/proxy?quest=${finalData}`);
+                 if (!res2.ok) throw new Error();
+                 html = await res2.text();
+             }
              
              // الگوی جستجو برای پیدا کردن PGN مخفی در سورس HTML سایت
              const pgnMatch = html.match(/\[Event \\"[\s\S]*?(?:1\/2-1\/2|1-0|0-1|\*)/) || html.match(/"pgn":"(.*?(?:1-0|0-1|1\/2-1\/2|\*))"/);
@@ -129,7 +136,7 @@ export default function AnalysisSetup() {
                  throw new Error('متاسفانه امکان استخراج اتوماتیک PGN از این لینک وجود ندارد. لطفا متن PGN را کپی کنید.');
              }
           } catch (error: any) {
-              throw new Error(error.message || 'خطا در دریافت اطلاعات از سرورهای Chess.com');
+              throw new Error('ارتباط با سرورهای Chess.com برقرار نشد (احتمالاً به دلیل فیلترینگ یا قطعی شبکه). لطفاً PGN بازی را دستی کپی کنید.');
           }
         } else {
           throw new Error('لینک وارد شده نامعتبر است. لطفاً لینک یک بازی از Lichess یا Chess.com وارد کنید.');
