@@ -13,6 +13,7 @@ import Puzzles from './pages/Puzzles';
 import Education from './pages/Education';
 import AnalysisSetup from './pages/AnalysisSetup';
 import AnalysisBoard from './pages/AnalysisBoard';
+import GameReport from './pages/GameReport';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/education" element={<Education />} />
           <Route path="/analysis" element={<AnalysisSetup />} />
           <Route path="/analysis/board" element={<AnalysisBoard />} />
+          <Route path="/report" element={<GameReport />} />
         </Routes>
         
         <PaywallModal />
