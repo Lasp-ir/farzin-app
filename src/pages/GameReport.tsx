@@ -43,7 +43,6 @@ const getGamePhase = (fen: string, moveNumber: number) => {
     return weight < 14 ? 'endgame' : 'middlegame';
 };
 
-// 🔴 رفع باگ اساسی: تبدیل نمره انجین به دیدگاه ثابت (سفید)
 const getWhiteScore = (line: any, isWhiteTurn: boolean) => {
     const cp = line.isMate ? (line.mateIn > 0 ? 10000 : -10000) : line.score * 100;
     return isWhiteTurn ? cp : -cp;
@@ -90,10 +89,9 @@ export default function GameReport() {
 
     useEffect(() => {
         if (!isReady || movesData.length === 0 || currentIndex >= movesData.length) return;
-        if (setOption) setOption('MultiPV', 2); // برای تشخیص حرکات درخشان
+        if (setOption) setOption('MultiPV', 2); 
         setIsWaitingReset(true);
         startTimeRef.current = Date.now();
-        // 🔴 حرکات کتابی را هم به انجین می‌دهیم تا پیوستگی نمرات گراف حفظ شود
         analyze(movesData[currentIndex].fen, 24); 
     }, [isReady, currentIndex, movesData]);
 
@@ -105,7 +103,6 @@ export default function GameReport() {
             const currentDepth = lines[0].depth;
             const isMate = lines[0].isMate;
 
-            // زمان و عمق هیبریدی (اطمینان از کیفیت آنالیز)
             if ((timePassed >= 600 && currentDepth >= 16) || currentDepth >= 22 || (isMate && timePassed >= 200)) {
                 if (stop) stop(); 
                 setEngineResults(prev => {
@@ -139,10 +136,9 @@ export default function GameReport() {
         const graphPoints: any[] = [];
         const winPercentsWhitePOV: number[] = [];
 
-        // پیش‌تولید درصدهای شانس برد از دید سفید (برای گراف و نوسانات)
         for (let i = 0; i < movesData.length; i++) {
-            const isWhiteTurn = i % 2 === 0;
-            const wScore = getWhiteScore(engineResults[i][0], isWhiteTurn);
+            const isWhiteTurnForEval = i % 2 === 0;
+            const wScore = getWhiteScore(engineResults[i][0], isWhiteTurnForEval);
             winPercentsWhitePOV.push(calcWinPercent(wScore));
         }
 
@@ -154,19 +150,19 @@ export default function GameReport() {
             const moveInfo = movesData[i];
             if (!moveInfo || !moveInfo.move) continue;
             
-            const playerIsBlack = (i - 1) % 2 !== 0; 
-            const side = playerIsBlack ? data.black : data.white;
+            // 🌟 اصلاح متغیر به isWhiteTurn برای استفاده در کل محدوده حلقه
+            const isWhiteTurn = (i - 1) % 2 === 0; 
+            const side = isWhiteTurn ? data.white : data.black;
 
-            // 🔴 منطق بی‌نقص محاسبه CpLoss (کپی شده از AnalysisBoard)
             const wCpBefore = getWhiteScore(parentLines[0], (i - 1) % 2 === 0);
             const wCpAfter = getWhiteScore(currentLines[0], i % 2 === 0);
-            const cpLossRaw = playerIsBlack ? (wCpAfter - wCpBefore) : (wCpBefore - wCpAfter);
+            const cpLossRaw = !isWhiteTurn ? (wCpAfter - wCpBefore) : (wCpBefore - wCpAfter);
             const cpLoss = Math.max(0, cpLossRaw) / 100;
 
             const winBeforeGlobal = winPercentsWhitePOV[i-1];
             const winAfterGlobal = winPercentsWhitePOV[i];
-            const winBefore = playerIsBlack ? 100 - winBeforeGlobal : winBeforeGlobal;
-            const winAfter = playerIsBlack ? 100 - winAfterGlobal : winAfterGlobal;
+            const winBefore = !isWhiteTurn ? 100 - winBeforeGlobal : winBeforeGlobal;
+            const winAfter = !isWhiteTurn ? 100 - winAfterGlobal : winAfterGlobal;
             
             const epB = winBefore / 100;
             const epC = winAfter / 100;
@@ -181,7 +177,6 @@ export default function GameReport() {
             const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
             const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-            // 🔴 لیبل‌دهی دقیقِ فرزین مربی (کاملاً هماهنگ با AnalysisBoard)
             let cls = 'good';
             if (moveInfo.isBook) {
                 cls = 'book';
@@ -200,17 +195,17 @@ export default function GameReport() {
             if (['inaccuracy', 'mistake', 'blunder'].includes(cls) && i >= 2) {
                 const gpLines = engineResults[i-2];
                 const gpWCp = getWhiteScore(gpLines[0], (i - 2) % 2 === 0);
-                const epA = (playerIsBlack ? 100 - calcWinPercent(gpWCp) : calcWinPercent(gpWCp)) / 100;
+                const epA = (!isWhiteTurn ? 100 - calcWinPercent(gpWCp) : calcWinPercent(gpWCp)) / 100;
                 if (epA <= 0.60 && (epB - epA >= 0.15) && epC <= epA + 0.10 && epC >= epA - 0.20) cls = 'miss';
             }
 
             if (['best', 'excellent'].includes(cls) && parentLines.length > 1) {
                 const wCpSecond = getWhiteScore(parentLines[1], (i - 1) % 2 === 0);
-                const epSecond = (playerIsBlack ? 100 - calcWinPercent(wCpSecond) : calcWinPercent(wCpSecond)) / 100;
+                const epSecond = (!isWhiteTurn ? 100 - calcWinPercent(wCpSecond) : calcWinPercent(wCpSecond)) / 100;
                 if (epB < 0.95 && epSecond < 0.90 && ((epB - epSecond >= 0.20) || (epB >= 0.45 && epSecond <= 0.25) || (epB >= 0.75 && epSecond <= 0.55))) {
                     cls = 'great';
                     try {
-                        const tempG = new Chess(movesData[i].fen); // گرفتن مهره با بررسی پوزیشن فعلی
+                        const tempG = new Chess(movesData[i].fen);
                         const oppMoves = tempG.moves({ verbose: true });
                         let isSacrifice = false;
                         for (const oppMove of oppMoves) {
@@ -241,6 +236,7 @@ export default function GameReport() {
             else if (moveInfo.phase === 'middlegame') side.phases.mid.push(acc);
             else if (moveInfo.phase === 'endgame') side.phases.end.push(acc);
 
+            // 🌟 استفاده‌ی ایمن از متغیر isWhiteTurn
             graphPoints.push({ index: i, winPercent: winPercentsWhitePOV[i], cls, isWhiteTurn, san: moveInfo.san });
         }
 
@@ -362,7 +358,9 @@ export default function GameReport() {
                                         <span className="text-zinc-500 font-bold text-sm">%</span>
                                     </div>
                                 </div>
-                                <div className="bg-[#1e1c19] px-6 py-2 rounded-full border border-[#35332e] shadow-lg"><span className="text-xs font-black text-white uppercase tracking-widest">دقت {item.side}</span></div>
+                                <div className="bg-[#1e1c19] px-6 py-2 rounded-full border border-[#35332e] shadow-lg">
+                                    <span className="text-xs font-black text-white uppercase tracking-widest">دقت {item.side}</span>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -402,6 +400,7 @@ export default function GameReport() {
                             <path d={reportStats.graph.areaWhite} fill="#ffffff" fillOpacity="0.08" />
                             <path d={reportStats.graph.areaBlack} fill="#000000" fillOpacity="0.6" />
                             <path d={reportStats.graph.linePath} fill="none" stroke="#ffffff" strokeWidth="4" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))' }} />
+                            
                             {reportStats.graph.points.map((pt, i) => {
                                 if (['blunder', 'mistake', 'miss', 'brilliant', 'great'].includes(pt.cls)) {
                                     const color = getMarkerColor(pt.cls);
