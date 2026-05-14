@@ -26,7 +26,6 @@ const standardDeviation = (arr: number[]) => {
     return Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
 };
 
-// 🌟 محاسبه‌گر اصلی (میانگین همساز + وزنی)
 const calculateGameAccuracy = (accuracies: {acc: number, weight: number}[]) => {
     if (accuracies.length === 0) return 100;
     const sumWeights = accuracies.reduce((s, a) => s + a.weight, 0);
@@ -44,8 +43,28 @@ const getGamePhase = (fen: string, moveNumber: number) => {
     return weight < 14 ? 'endgame' : 'middlegame';
 };
 
+// 🔴 رفع باگ اساسی: گارد 3 لایه برای ارزیابی پوزیشن‌های ماتی
 const getWhiteScore = (line: any, isWhiteTurn: boolean) => {
-    const cp = line.isMate ? (line.mateIn > 0 ? 10000 : -10000) : line.score * 100;
+    let cp = (line.score || 0) * 100;
+    
+    // اگر انجین سیگنال مات فرستاد (چه قطعی، چه پیش‌بینی شده)
+    if (line.isMate || line.mateIn !== undefined || line.mate !== undefined) {
+        // استخراج عدد مات (از هر کلیدی که انجین تو هوک ست کرده باشه)
+        const mateVal = line.mateIn !== undefined ? line.mateIn : (line.mate !== undefined ? line.mate : line.score);
+        
+        if (mateVal === 0) {
+            cp = -10000; // مات قطعی روی تخته است (کسی که نوبتشه باخته)
+        } else if (mateVal > 0) {
+            cp = 10000;  // کسی که نوبتشه در حال مات کردن حریفه
+        } else {
+            cp = -10000; // کسی که نوبتشه داره مات میشه
+        }
+    }
+    
+    // کلمپ کردن برای جلوگیری از اعداد عجیب غریب
+    if (cp > 10000) cp = 10000;
+    if (cp < -10000) cp = -10000;
+    
     return isWhiteTurn ? cp : -cp;
 };
 
@@ -90,10 +109,37 @@ export default function GameReport() {
 
     useEffect(() => {
         if (!isReady || movesData.length === 0 || currentIndex >= movesData.length) return;
+        
+        const currentMove = movesData[currentIndex];
+        const tempG = new Chess(currentMove.fen);
+        const isOver = typeof tempG.isGameOver === 'function' ? tempG.isGameOver() : (tempG as any).game_over();
+        
+        if (isOver) {
+            if (stop) stop();
+            const isCheckmated = typeof tempG.isCheckmate === 'function' ? tempG.isCheckmate() : (tempG as any).in_checkmate();
+            
+            // 🔴 شبیه‌سازی دقیق و امن برای پوزیشن‌های پایان بازی
+            let mockLines = [{ depth: 24, isMate: false, mateIn: undefined as any, score: 0, pv: '' }];
+            if (isCheckmated) {
+                mockLines[0].isMate = true;
+                mockLines[0].mateIn = 0; 
+                mockLines[0].score = -10000; // نمره منفی قطعی برای کسی که مات شده
+            }
+            
+            setEngineResults(prev => {
+                const newRes = [...prev];
+                newRes[currentIndex] = mockLines;
+                return newRes;
+            });
+            setProgress(Math.round(((currentIndex + 1) / movesData.length) * 100));
+            setCurrentIndex(idx => idx + 1);
+            return;
+        }
+
         if (setOption) setOption('MultiPV', 2); 
         setIsWaitingReset(true);
         startTimeRef.current = Date.now();
-        analyze(movesData[currentIndex].fen, 24); 
+        analyze(currentMove.fen, 24); 
     }, [isReady, currentIndex, movesData]);
 
     useEffect(() => {
@@ -129,7 +175,6 @@ export default function GameReport() {
             if (!engineResults[i] || !engineResults[i][0]) return null; 
         }
         
-        // 🌟 آپدیت مهم: حالا فازها هم به جای اعداد خام، آبجکت وزن و دقت می‌گیرند
         const data = {
             white: { 
                 accs: [] as {acc: number, weight: number}[], 
@@ -242,7 +287,6 @@ export default function GameReport() {
             side.accs.push(accObj);
             side.counts[cls as keyof typeof side.counts]++;
             
-            // 🌟 آپدیت مهم: پوش کردن وزن حرکت به فاز مربوطه
             if (moveInfo.phase === 'opening') side.phases.op.push(accObj);
             else if (moveInfo.phase === 'middlegame') side.phases.mid.push(accObj);
             else if (moveInfo.phase === 'endgame') side.phases.end.push(accObj);
@@ -250,7 +294,6 @@ export default function GameReport() {
             graphPoints.push({ index: i, winPercent: winPercentsWhitePOV[i], cls, isWhiteTurn, san: moveInfo.san });
         }
 
-        // 🌟 محاسبه فازها با فرمول دقیق و سخت‌گیرانه‌ی لیچس
         const calcPhaseAcc = (arr: {acc: number, weight: number}[]) => arr.length > 0 ? calculateGameAccuracy(arr) : null;
 
         const GRAPH_WIDTH = 1000; const GRAPH_HEIGHT = 200; const MID_Y = GRAPH_HEIGHT / 2;
