@@ -5,7 +5,7 @@ import { Chessboard } from 'react-chessboard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Cpu, FastForward, Rewind, SkipBack, SkipForward,
-  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw, AlertOctagon
+  Share2, List, TrendingUp, BookOpen, Check, Activity, Settings, Loader2, RefreshCw, Zap, Copy, Save, Sliders, Database, Clock, Target, Route, Maximize2, RotateCcw, AlertOctagon, Pause, Play
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
@@ -47,6 +47,9 @@ export default function AnalysisBoard() {
   const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
 
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
+  
+  // 🌟 استیت توقف/اجرای موتور
+  const [isEnginePaused, setIsEnginePaused] = useState(false);
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
@@ -61,7 +64,6 @@ export default function AnalysisBoard() {
   const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
   const isBlackTurn = activeGame.turn() === 'b';
 
-  // 🌟 ماشین حسابِ پیشرفته‌ی ارزیابی اختلاف متریال (مهره‌های تصرف‌شده)
   const materialAdvantage = useMemo(() => {
       const fenBoard = currentPosition.split(' ')[0];
       const counts = { w: { p:0, n:0, b:0, r:0, q:0 }, b: { p:0, n:0, b:0, r:0, q:0 } };
@@ -74,7 +76,6 @@ export default function AnalysisBoard() {
       let whiteAdv = { score: 0, pieces: [] as string[] };
       let blackAdv = { score: 0, pieces: [] as string[] };
       
-      // ترتیب نمایش استاندارد: وزیر، رخ، فیل، اسب، پیاده
       ['q', 'r', 'b', 'n', 'p'].forEach(p => {
          const diff = counts.w[p as keyof typeof counts.w] - counts.b[p as keyof typeof counts.b];
          if (diff > 0) {
@@ -93,15 +94,20 @@ export default function AnalysisBoard() {
       return { white: whiteAdv, black: blackAdv };
   }, [currentPosition]);
 
+  // 🌟 هوکِ اجرا/توقف موتور (مدیریت Pause)
   useEffect(() => {
     if (isReady && currentPosition) {
-      analyze(currentPosition, engineSettings.maxDepth);
-      if (engineSettings.maxTime > 0 && stop) {
-        const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
-        return () => clearTimeout(timer);
+      if (isEnginePaused) {
+          if (stop) stop(); // توقف درجا در صورت تغییر وضعیت به Pause
+      } else {
+          analyze(currentPosition, engineSettings.maxDepth);
+          if (engineSettings.maxTime > 0 && stop) {
+            const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
+            return () => clearTimeout(timer);
+          }
       }
     }
-  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime]);
+  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused]);
 
   useEffect(() => {
     if (lines && lines.length > 0) {
@@ -754,11 +760,22 @@ export default function AnalysisBoard() {
       </div>
 
       <div className={`flex-none w-full px-3 py-2 bg-gradient-to-b from-[#1a1916] to-[#12110f] border-b border-[#35332e] shadow-[0_4px_15px_rgba(0,0,0,0.3)] relative z-20 transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+          {/* 🌟 هدرِ موتور با دکمه توقف اضافه شده */}
           <div className="flex items-center justify-between mb-1.5 px-1">
-              <div className="flex items-center gap-2 bg-[#262421] px-2 py-0.5 rounded-md border border-[#35332e]">
-                  {!isReady ? <Loader2 size={10} className="text-amber-500 animate-spin" /> : <Zap size={10} className={displayEngineStatus === 'reading books...' ? "text-sky-400 animate-pulse" : "text-amber-400 animate-pulse"} />}
-                  <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{displayEngineStatus}</span>
-                  {lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
+              <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2 bg-[#262421] px-2 py-0.5 rounded-md border border-[#35332e]">
+                      {!isReady ? <Loader2 size={10} className="text-amber-500 animate-spin" /> : 
+                       (isEnginePaused ? <Pause size={10} className="text-zinc-500" /> : <Zap size={10} className={displayEngineStatus === 'reading books...' ? "text-sky-400 animate-pulse" : "text-amber-400 animate-pulse"} />)}
+                      <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{isEnginePaused ? 'Paused' : displayEngineStatus}</span>
+                      {!isEnginePaused && lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
+                  </div>
+                  <button 
+                      onClick={() => setIsEnginePaused(!isEnginePaused)}
+                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors border ${isEnginePaused ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`}
+                      title={isEnginePaused ? "شروع محاسبه موتور" : "توقف موتور (صرفه‌جویی در باتری)"}
+                  >
+                      {isEnginePaused ? <Play size={12} className="ml-0.5" fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
+                  </button>
               </div>
               <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded border shadow-sm ${overallBadgeStyle}`} dir="ltr">{overallEvalText}</span>
           </div>
@@ -823,13 +840,7 @@ export default function AnalysisBoard() {
       <div className={`w-full flex-1 min-h-0 flex flex-col lg:flex-row transition-opacity duration-700 delay-100 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         
         <div className="flex-none lg:flex-1 lg:max-w-[45vw] flex flex-col px-3 py-1 justify-center relative z-0 shrink-0">
-            {/* 🌟 افزودن برتری متریال برای بازیکن بالا */}
-            <EditablePlayer 
-                color={boardOrientation === 'white' ? 'b' : 'w'} 
-                data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} 
-                material={boardOrientation === 'white' ? materialAdvantage.black : materialAdvantage.white}
-                onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} 
-            />
+            <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} material={boardOrientation === 'white' ? materialAdvantage.black : materialAdvantage.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
             
             <div className="w-full flex justify-center py-0.5">
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
@@ -889,13 +900,7 @@ export default function AnalysisBoard() {
                 </div>
             </div>
 
-            {/* 🌟 افزودن برتری متریال برای بازیکن پایین */}
-            <EditablePlayer 
-                color={boardOrientation === 'white' ? 'w' : 'b'} 
-                data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} 
-                material={boardOrientation === 'white' ? materialAdvantage.white : materialAdvantage.black}
-                onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} 
-            />
+            <EditablePlayer color={boardOrientation === 'white' ? 'w' : 'b'} data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} material={boardOrientation === 'white' ? materialAdvantage.white : materialAdvantage.black} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} />
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col bg-[#161512] border-t lg:border-t-0 lg:border-r border-[#35332e] relative z-10 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] lg:shadow-none rounded-t-2xl lg:rounded-none mt-2 lg:mt-0">
