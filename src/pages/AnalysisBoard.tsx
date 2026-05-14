@@ -12,6 +12,8 @@ import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
 import OpeningExplorer from '../components/OpeningExplorer';
 import OpeningDisplay from '../components/OpeningDisplay';
+// 🌟 ایمپورت تابع تشخص بوک موو
+import { isBookPosition } from '../utils/ecoParser';
 import type { MoveNode } from '../utils/analysisConfig';
 import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
 
@@ -170,7 +172,13 @@ export default function AnalysisBoard() {
     const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
     const mistakeLimit = isEndgame ? 2.0 : 2.5;
 
-    if (isMate || userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
+    // 🌟 منطق تشخیص حرکت تئوری (Book Move)
+    const fenIsBook = isBookPosition(node.fen);
+
+    if (fenIsBook) {
+        classificationKey = 'book';
+    }
+    else if (isMate || userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
     else if (epB < 0.10) classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
     else {
         if (cpLoss <= 0.20) classificationKey = 'excellent'; 
@@ -571,7 +579,11 @@ export default function AnalysisBoard() {
     const isWhite = mainChild.depth % 2 !== 0;
     
     let prefix = ''; if (isWhite) prefix = `${moveNum}. `; else if (forceShowMoveNumber) prefix = `${moveNum}... `;
-    result.push(<span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'text-zinc-300 hover:bg-[#262421]'}`}>{prefix}{mainChild.san}</span>);
+    
+    // 🌟 استایل‌دهی حرکت تئوری (بوک) روی نمودار درختی (اختیاری، اما زیباست)
+    const isBook = isBookPosition(mainChild.fen);
+    
+    result.push(<span key={mainChildId} onClick={() => setCurrentNodeId(mainChildId)} className={`cursor-pointer px-1 py-0.5 mx-[1px] rounded transition-all duration-200 ${currentNodeId === mainChildId ? (isBook ? 'bg-[#c27a3e] text-white font-black shadow-[0_0_8px_rgba(194,122,62,0.6)]' : 'bg-farzin-accent text-white font-black shadow-[0_0_8px_rgba(119,149,86,0.6)]') : (isBook ? 'text-[#c27a3e] font-bold hover:bg-[#262421]' : 'text-zinc-300 hover:bg-[#262421]')}`}>{prefix}{mainChild.san}</span>);
 
     if (node.childrenIds.length > 1) {
       for (let i = 1; i < node.childrenIds.length; i++) {
@@ -798,11 +810,11 @@ export default function AnalysisBoard() {
                                    حرکت <span className="font-mono font-black text-white px-1">{coachData.userSan}</span> <span className="font-bold" style={{color: coachData.color}}>{coachData.text}</span> بود.
                                 </span>
                             </div>
-                            { (['best', 'brilliant', 'great'].includes(coachData.key) || coachData.bestSan === '...') && (
+                            { (['best', 'brilliant', 'great', 'book'].includes(coachData.key) || coachData.bestSan === '...') && (
                                 <button onClick={()=>handleShowMe(false)} className="text-[9px] font-bold bg-[#262421] border border-[#35332e] px-2 py-1 rounded hover:bg-[#35332e] transition-colors shrink-0">نشونم بده</button>
                             )}
                          </div>
-                         { !['best', 'brilliant', 'great'].includes(coachData.key) && coachData.bestSan !== '...' && (
+                         { !['best', 'brilliant', 'great', 'book'].includes(coachData.key) && coachData.bestSan !== '...' && (
                              <div className="flex items-center justify-between border-t border-[#262421] pt-1.5 mt-0.5 opacity-80">
                                 <div className="flex items-center gap-2">
                                     <div className="w-5 h-5 ml-0.5 rounded-md flex items-center justify-center text-zinc-500">
@@ -845,7 +857,6 @@ export default function AnalysisBoard() {
         <div className="flex-none lg:flex-1 lg:max-w-[45vw] flex flex-col px-3 py-1 justify-center relative z-0 shrink-0">
             <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} material={boardOrientation === 'white' ? materialAdvantage.black : materialAdvantage.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
             
-            {/* 🌟 نوار گشایش‌ها به صورت ثابت و یکپارچه اینجا قرار گرفت */}
             <OpeningDisplay tree={tree} currentNodeId={currentNodeId} />
             
             <div className="w-full flex justify-center py-0.5">

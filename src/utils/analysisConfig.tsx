@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Edit2, Check, Sparkles, Award, Star, ThumbsUp, AlertTriangle, Loader2 } from 'lucide-react';
+// 🌟 ایمپورت Book اضافه شد
+import { User, Edit2, Check, Sparkles, Award, Star, ThumbsUp, AlertTriangle, Loader2, Book } from 'lucide-react';
 
 export interface MoveNode {
   id: string;
@@ -17,6 +18,8 @@ export const TextIcon = ({ text }: { text: string }) => (
 );
 
 export const COACH_COLORS = {
+  // 🌟 اضافه شدن حرکت تئوری (قهوه‌ای روشن/کتابی)
+  book: { color: '#c27a3e', text: 'تئوری گشایش', icon: Book }, 
   brilliant: { color: '#2dd4bf', text: 'درخشان', icon: Sparkles }, 
   great: { color: '#3b82f6', text: 'عالی', icon: Award }, 
   best: { color: '#22c55e', text: 'بهترین', icon: Star }, 
@@ -58,7 +61,6 @@ export const EditablePlayer = ({ color, data, onUpdate, material }: any) => {
   const [tempData, setTempData] = useState(data);
   const handleSave = () => { onUpdate(tempData); setIsEditing(false); };
 
-  // 🌟 آیکون‌های استاندارد مهره‌ها برای نمایش اختلاف متریال
   const PIECE_SYMBOLS: any = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 
   return (
@@ -84,8 +86,6 @@ export const EditablePlayer = ({ color, data, onUpdate, material }: any) => {
                     {data.title && data.title !== 'بدون تایتل' && (<span className={`text-[9px] font-black px-1.5 rounded ${color === 'w' ? 'text-sky-400 bg-sky-500/10' : 'text-rose-400 bg-rose-500/10'}`}>{data.title}</span>)}
                     <span className="text-[10px] font-mono text-zinc-500">{data.elo || '---'}</span>
                 </div>
-                
-                {/* 🌟 بخش رندر کردن اختلاف مهره‌ها */}
                 {material && material.pieces.length > 0 && (
                     <div className="flex items-center gap-1 shrink-0 bg-[#161512] px-1.5 rounded border border-[#35332e]/50" dir="ltr">
                         <div className="flex mr-1">

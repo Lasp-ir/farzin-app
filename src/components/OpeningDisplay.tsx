@@ -10,7 +10,6 @@ interface OpeningDisplayProps {
 
 export default function OpeningDisplay({ tree, currentNodeId }: OpeningDisplayProps) {
   
-  // لود کردن دیتابیس در بک‌گراند بدون ایجاد وقفه در رندر صفحه
   useEffect(() => {
     const timer = setTimeout(() => {
         initEcoDatabase();
@@ -18,7 +17,6 @@ export default function OpeningDisplay({ tree, currentNodeId }: OpeningDisplayPr
     return () => clearTimeout(timer);
   }, []);
 
-  // پردازش و پیدا کردن نام گشایش به صورت آنی
   const opening = useMemo(() => {
     if (!tree[currentNodeId]) return null;
     
@@ -33,14 +31,13 @@ export default function OpeningDisplay({ tree, currentNodeId }: OpeningDisplayPr
     return getDeepestOpening(fens);
   }, [tree, currentNodeId]);
 
-  // مقادیر پیش‌فرض برای جلوگیری از پرشِ صفحه در ابتدای بازی
   const eco = opening?.eco || '---';
   const name = opening?.name || 'Starting Position';
 
-  // 🌟 طراحی جدید: نوار ثابت، مینیمال و یکپارچه با تم فرزین
   return (
     <div className="w-full flex justify-center pt-1 pb-1.5 opacity-80 hover:opacity-100 transition-opacity">
-      <div className="flex items-center w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] px-1 gap-2 text-zinc-400" dir="ltr">
+      {/* 🌟 با اضافه شدن justify-center اینجا، محتوا کاملا در وسط بورد فیکس می‌شود */}
+      <div className="flex items-center justify-center w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] px-1 gap-2 text-zinc-400" dir="ltr">
         <BookOpen size={12} className="text-farzin-accent shrink-0" />
         <span className="font-mono text-[10px] font-black border-r border-[#35332e] pr-2 shrink-0">
            {eco}
