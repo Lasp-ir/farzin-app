@@ -8,9 +8,8 @@ import {
 } from 'lucide-react';
 import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
-import { getPieceValue } from '../utils/analysisConfig';
+import { getPieceValue, epFormula, getAbsScore } from '../utils/analysisConfig';
 
-// 🌟 هسته ریاضیات دقیق (دست‌نخورده)
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
     if (winAfter >= winBefore) return 100;
@@ -38,19 +37,7 @@ const getGamePhase = (fen: string, moveNumber: number) => {
     for(let char of nonPawns) weight += getPieceValue(char);
     return weight < 14 ? 'endgame' : 'middlegame';
 };
-const getWhiteScore = (line: any, isWhiteTurnForEval: boolean) => {
-    let cp = (line.score || 0) * 100;
-    if (line.mate !== undefined || line.mateIn !== undefined) {
-        let mVal = parseInt(line.mateIn !== undefined ? line.mateIn : line.mate, 10);
-        if (!isNaN(mVal)) {
-            if (mVal > 0) cp = 10000;
-            else if (mVal < 0) cp = -10000;
-        }
-    }
-    return isWhiteTurnForEval ? cp : -cp;
-};
 
-// 🌟 کامپوننت لودینگ فوق‌جذاب و رندوم (Dynamic Chess Loader)
 const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalMoves: number }) => {
     const [scenario, setScenario] = useState(0);
     const [loadingText, setLoadingText] = useState("در حال خواندن ذهن حریف...");
@@ -64,7 +51,7 @@ const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalM
 
     useEffect(() => {
         setScenario(Math.floor(Math.random() * SCENARIOS.length));
-        const texts = ["کشف تاکتیک‌های پنهان...", "محاسبه احتمالات بی‌نهایت...", "استخراج نقاط ضعف...", "ساخت گراف‌های استراتژیک..."];
+        const texts = ["کشف تاکتیک‌های پنهان...", "محاسبه احتمالات بی‌نهایت...", "استخراج نقاط ضعف...", "هماهنگی گراف با مربی..."];
         let idx = 0;
         const interval = setInterval(() => {
             idx = (idx + 1) % texts.length;
@@ -77,7 +64,6 @@ const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalM
 
     return (
         <div className="flex flex-col items-center justify-center w-full h-full relative z-20">
-            {/* صحنه نبرد مهره‌ها */}
             <div className="flex items-center justify-center gap-12 mb-12 h-32 relative">
                 <div className="absolute inset-0 bg-farzin-accent/20 blur-[60px] rounded-full"></div>
                 <motion.div animate={currentScenario.a1} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="text-7xl drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] text-white">
@@ -87,8 +73,6 @@ const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalM
                     {currentScenario.p2}
                 </motion.div>
             </div>
-
-            {/* پروگرس بار فضایی */}
             <div className="relative w-48 h-48 mb-8">
                 <div className="absolute inset-0 border-4 border-dashed border-[#35332e] rounded-full animate-[spin_10s_linear_infinite]"></div>
                 <div className="absolute inset-2 border-2 border-[#1e1c19] rounded-full"></div>
@@ -105,7 +89,6 @@ const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalM
                     <span className="text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">{progress}<span className="text-xl text-farzin-accent">%</span></span>
                 </div>
             </div>
-
             <h2 className="text-xl font-black text-white mb-2 flex items-center gap-2"><Cpu size={20} className="text-farzin-accent animate-pulse" /> موتور هوش مصنوعی فرزین</h2>
             <AnimatePresence mode="wait">
                 <motion.p key={loadingText} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-xs text-zinc-400 font-bold bg-[#1a1917] px-4 py-2 rounded-full border border-[#35332e] shadow-lg">
@@ -116,7 +99,6 @@ const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalM
     );
 };
 
-// 🌟 تنظیمات انیمیشن‌های صفحه
 const pageTransition = { initial: { opacity: 0, scale: 0.98, filter: 'blur(10px)' }, animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transition: { duration: 0.6, ease: "easeOut", staggerChildren: 0.1 } }, exit: { opacity: 0, scale: 1.02, filter: 'blur(10px)', transition: { duration: 0.4 } } };
 const itemFadeIn = { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } } };
 
@@ -189,7 +171,7 @@ export default function GameReport() {
     }, [lines, isAnalyzing, currentIndex, isWaitingReset]);
 
     useEffect(() => {
-        if (movesData.length > 0 && currentIndex >= movesData.length) setTimeout(() => setIsAnalyzing(false), 800); // زمان مکث زیباتر
+        if (movesData.length > 0 && currentIndex >= movesData.length) setTimeout(() => setIsAnalyzing(false), 800);
     }, [currentIndex, movesData]);
 
     const reportStats = useMemo(() => {
@@ -203,19 +185,32 @@ export default function GameReport() {
 
         const graphPoints: any[] = [];
         const winPercentsWhitePOV: number[] = [];
-        const wScoresGlobal: number[] = [];
+        const wScoresPawnsGlobal: number[] = [];
+        const epGlobalRaw: number[] = [];
 
         for (let i = 0; i < movesData.length; i++) {
+            const fenTurn = movesData[i].fen.split(' ')[1] as 'w' | 'b';
             const tempG = new Chess(movesData[i].fen);
             const isCheckmated = typeof tempG.isCheckmate === 'function' ? tempG.isCheckmate() : (tempG as any).in_checkmate();
-            let wScore = 0;
-            if (isCheckmated) wScore = (i % 2 === 0) ? -10000 : 10000;
-            else {
-                const isWhiteTurnForEval = i % 2 === 0;
-                wScore = getWhiteScore(engineResults[i][0], isWhiteTurnForEval);
+            const isDraw = typeof tempG.isDraw === 'function' ? tempG.isDraw() : (tempG as any).in_draw();
+            
+            let wScorePawns = 0;
+            let ep = 0.5;
+
+            if (isCheckmated) {
+                wScorePawns = fenTurn === 'b' ? 100 : -100;
+                ep = epFormula(wScorePawns);
+            } else if (isDraw) {
+                wScorePawns = 0;
+                ep = 0.5;
+            } else if (engineResults[i] && engineResults[i][0]) {
+                wScorePawns = getAbsScore(engineResults[i][0], fenTurn);
+                ep = epFormula(wScorePawns);
             }
-            wScoresGlobal.push(wScore);
-            winPercentsWhitePOV.push(calcWinPercent(wScore));
+
+            wScoresPawnsGlobal.push(wScorePawns);
+            epGlobalRaw.push(ep); 
+            winPercentsWhitePOV.push(calcWinPercent(wScorePawns * 100)); 
         }
 
         const windowSize = Math.max(2, Math.min(8, Math.floor(winPercentsWhitePOV.length / 10)));
@@ -224,21 +219,18 @@ export default function GameReport() {
             const moveInfo = movesData[i];
             if (!moveInfo || !moveInfo.move) continue;
             
-            const isWhiteTurn = (i - 1) % 2 === 0; 
-            const side = isWhiteTurn ? data.white : data.black;
+            const playerWhoMovedIsBlack = (i - 1) % 2 !== 0;
+            const side = playerWhoMovedIsBlack ? data.black : data.white;
 
-            const wCpBefore = wScoresGlobal[i-1];
-            const wCpAfter = wScoresGlobal[i];
-            const cpLossRaw = !isWhiteTurn ? (wCpAfter - wCpBefore) : (wCpBefore - wCpAfter);
-            const cpLoss = Math.max(0, cpLossRaw) / 100;
+            const absScoreB = wScoresPawnsGlobal[i-1];
+            const absScoreC = wScoresPawnsGlobal[i];
 
-            const winBeforeGlobal = winPercentsWhitePOV[i-1];
-            const winAfterGlobal = winPercentsWhitePOV[i];
-            const winBefore = !isWhiteTurn ? 100 - winBeforeGlobal : winBeforeGlobal;
-            const winAfter = !isWhiteTurn ? 100 - winAfterGlobal : winAfterGlobal;
-            
-            const epB = winBefore / 100;
-            const epC = winAfter / 100;
+            let cpLossRaw = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
+            let cpLoss = Math.max(0, cpLossRaw);
+
+            const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
+            const epB = getPlayerEP(absScoreB);
+            const epC = getPlayerEP(absScoreC);
 
             const parentLines = engineResults[i-1];
             let bestUciMove = '';
@@ -253,7 +245,7 @@ export default function GameReport() {
 
             let cls = 'good';
             if (moveInfo.isBook) cls = 'book';
-            else if (wCpAfter === 10000 || wCpAfter === -10000 || userUciMove === bestUciMove || cpLoss <= 0.05) cls = 'best';
+            else if (wScoresPawnsGlobal[i] === 100 || wScoresPawnsGlobal[i] === -100 || userUciMove === bestUciMove || cpLoss <= 0.05) cls = 'best';
             else if (epB < 0.10) cls = cpLoss <= 0.50 ? 'excellent' : 'good';
             else {
                 if (cpLoss <= 0.20) cls = 'excellent';
@@ -264,14 +256,13 @@ export default function GameReport() {
             }
 
             if (['inaccuracy', 'mistake', 'blunder'].includes(cls) && i >= 2) {
-                const gpWCp = wScoresGlobal[i-2];
-                const epA = (!isWhiteTurn ? 100 - calcWinPercent(gpWCp) : calcWinPercent(gpWCp)) / 100;
+                const epA = getPlayerEP(wScoresPawnsGlobal[i-2]);
                 if (epA <= 0.60 && (epB - epA >= 0.15) && epC <= epA + 0.10 && epC >= epA - 0.20) cls = 'miss';
             }
 
             if (['best', 'excellent'].includes(cls) && parentLines.length > 1) {
-                const wCpSecond = getWhiteScore(parentLines[1], (i - 1) % 2 === 0);
-                const epSecond = (!isWhiteTurn ? 100 - calcWinPercent(wCpSecond) : calcWinPercent(wCpSecond)) / 100;
+                const wCpSecond = getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'w' : 'b'); 
+                const epSecond = getPlayerEP(wCpSecond);
                 if (epB < 0.95 && epSecond < 0.90 && ((epB - epSecond >= 0.20) || (epB >= 0.45 && epSecond <= 0.25) || (epB >= 0.75 && epSecond <= 0.55))) {
                     cls = 'great';
                     try {
@@ -295,6 +286,11 @@ export default function GameReport() {
                 }
             }
 
+            const winBeforeGlobal = winPercentsWhitePOV[i-1];
+            const winAfterGlobal = winPercentsWhitePOV[i];
+            const winBefore = playerWhoMovedIsBlack ? 100 - winBeforeGlobal : winBeforeGlobal;
+            const winAfter = playerWhoMovedIsBlack ? 100 - winAfterGlobal : winAfterGlobal;
+            
             const acc = moveInfo.isBook ? 100 : calcMoveAccuracy(winBefore, winAfter);
             const window = winPercentsWhitePOV.slice(Math.max(0, i - windowSize), i + 1);
             const weight = Math.max(0.5, Math.min(12, standardDeviation(window)));
@@ -307,16 +303,16 @@ export default function GameReport() {
             else if (moveInfo.phase === 'middlegame') side.phases.mid.push(accObj);
             else if (moveInfo.phase === 'endgame') side.phases.end.push(accObj);
 
-            graphPoints.push({ index: i, winPercent: winPercentsWhitePOV[i], cls, isWhiteTurn, san: moveInfo.san });
+            graphPoints.push({ index: i, ep: epGlobalRaw[i], cls, isWhiteTurn: !playerWhoMovedIsBlack, san: moveInfo.san });
         }
 
         const calcPhaseAcc = (arr: {acc: number, weight: number}[]) => arr.length > 0 ? calculateGameAccuracy(arr) : null;
 
         const GRAPH_WIDTH = 1000; const GRAPH_HEIGHT = 200; const MID_Y = GRAPH_HEIGHT / 2;
-        let linePath = `M 0,${GRAPH_HEIGHT - (winPercentsWhitePOV[0] / 100) * GRAPH_HEIGHT} `;
+        let linePath = `M 0,${GRAPH_HEIGHT - (epGlobalRaw[0]) * GRAPH_HEIGHT} `;
         graphPoints.forEach(pt => {
             const x = (pt.index / graphPoints.length) * GRAPH_WIDTH;
-            const y = GRAPH_HEIGHT - (pt.winPercent / 100) * GRAPH_HEIGHT;
+            const y = GRAPH_HEIGHT - (pt.ep) * GRAPH_HEIGHT;
             linePath += `L ${x},${y} `; pt.x = x; pt.y = y; 
         });
 
@@ -333,10 +329,10 @@ export default function GameReport() {
     if (isAnalyzing) {
         return (
             <AnimatePresence>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-[100dvh] bg-[#050505] flex flex-col items-center justify-center p-6 relative overflow-hidden" dir="rtl">
-                    {/* ذرات درخشان پس‌زمینه */}
-                    <div className="absolute top-1/4 left-1/4 w-[50vw] h-[50vw] bg-farzin-accent/20 blur-[120px] rounded-full mix-blend-screen animate-pulse"></div>
-                    <div className="absolute bottom-1/4 right-1/4 w-[40vw] h-[40vw] bg-purple-600/10 blur-[100px] rounded-full mix-blend-screen"></div>
+                {/* 🔴 استفاده از fixed inset-0 برای حل مشکل اسکرول در لودینگ */}
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-[#050505] flex flex-col items-center justify-center p-6 overflow-hidden" dir="rtl">
+                    <div className="absolute top-1/4 left-1/4 w-[50vw] h-[50vw] bg-farzin-accent/20 blur-[120px] rounded-full mix-blend-screen animate-pulse pointer-events-none"></div>
+                    <div className="absolute bottom-1/4 right-1/4 w-[40vw] h-[40vw] bg-purple-600/10 blur-[100px] rounded-full mix-blend-screen pointer-events-none"></div>
                     
                     <div className="relative z-10 w-full max-w-md">
                         <DynamicChessLoader progress={progress} totalMoves={movesData.length} />
@@ -364,10 +360,10 @@ export default function GameReport() {
     const getMarkerColor = (cls: string) => ALL_CATEGORIES.find(c => c.key === cls)?.color || 'transparent';
 
     return (
-        <motion.div initial="initial" animate="animate" exit="exit" variants={pageTransition} className="min-h-screen bg-[#050505] pb-32 font-sans overflow-x-hidden" dir="rtl">
-            {/* بک‌گراند مش پریمیوم */}
-            <div className="fixed top-[-20%] right-[-10%] w-[80vw] h-[80vw] bg-farzin-accent/10 blur-[180px] rounded-full pointer-events-none"></div>
-            <div className="fixed bottom-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-[#5c8df7]/5 blur-[150px] rounded-full pointer-events-none"></div>
+        // 🔴 استفاده از fixed inset-0 و overflow-y-auto برای رفع قطعی اسکرول دوتایی
+        <motion.div initial="initial" animate="animate" exit="exit" variants={pageTransition} className="fixed inset-0 z-50 h-[100dvh] w-full bg-[#050505] pb-32 font-sans overflow-y-auto overflow-x-hidden custom-scrollbar" dir="rtl">
+            <div className="fixed top-[-20%] right-[-10%] w-[80vw] h-[80vw] bg-farzin-accent/10 blur-[180px] rounded-full pointer-events-none z-0"></div>
+            <div className="fixed bottom-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-[#5c8df7]/5 blur-[150px] rounded-full pointer-events-none z-0"></div>
 
             <motion.div variants={itemFadeIn} className="relative w-full pt-10 pb-6 px-4 z-10">
                 <button onClick={() => navigate(-1)} className="absolute top-8 right-4 sm:right-8 p-3 bg-[#1e1c19]/50 backdrop-blur-xl rounded-2xl border border-white/5 text-zinc-400 hover:text-white transition-all shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:scale-105 hover:bg-white/5 z-20"><ChevronRight size={24} /></button>
@@ -389,7 +385,6 @@ export default function GameReport() {
 
             <div className="max-w-4xl mx-auto px-4 sm:px-6 flex flex-col gap-6 sm:gap-8 relative z-10 mt-4">
                 
-                {/* 🎯 دقت کلی */}
                 <motion.div variants={itemFadeIn} className="bg-[#11100e]/60 backdrop-blur-3xl border border-white/5 rounded-[40px] sm:rounded-[56px] p-8 sm:p-12 shadow-[0_30px_80px_rgba(0,0,0,0.6)] relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-farzin-accent/60 to-transparent"></div>
                     <h3 className="text-center font-black text-zinc-500 tracking-[0.3em] uppercase text-xs mb-10 flex items-center justify-center gap-2"><Target size={16}/> Game Accuracy</h3>
@@ -416,7 +411,6 @@ export default function GameReport() {
                     </div>
                 </motion.div>
 
-                {/* 🌟 فازهای بازی */}
                 <motion.div variants={itemFadeIn} className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                     {[
                         { label: 'گشایش', en: 'Opening', w: reportStats.white.phases.op, b: reportStats.black.phases.op, icon: BookOpen, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20', glow: 'shadow-[0_0_30px_rgba(251,191,36,0.1)]' },
@@ -441,7 +435,6 @@ export default function GameReport() {
                     ))}
                 </motion.div>
 
-                {/* 📈 گراف ارزیابی */}
                 <motion.div variants={itemFadeIn} className="bg-[#11100e]/60 backdrop-blur-3xl border border-white/5 rounded-[40px] sm:rounded-[56px] overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.6)] p-6 sm:p-10">
                     <div className="flex items-center justify-between mb-8 px-2">
                         <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-3"><Activity size={22} className="text-farzin-accent" /> نبض استراتژیک بازی</h3>
@@ -471,7 +464,6 @@ export default function GameReport() {
                     </div>
                 </motion.div>
 
-                {/* 📊 کالبدشکافی حرکات */}
                 <motion.div variants={itemFadeIn} className="bg-[#11100e]/60 backdrop-blur-3xl border border-white/5 rounded-[40px] sm:rounded-[56px] overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
                     <div className="p-6 sm:p-10 bg-gradient-to-b from-[#1a1917]/80 to-transparent border-b border-[#35332e] flex items-center justify-between">
                         <div className="flex items-center gap-3"><Target size={24} className="text-purple-400 drop-shadow-[0_0_15px_rgba(192,132,252,0.5)]" /><span className="text-base font-black text-white">کالبدشکافی حرکات</span></div>
@@ -497,7 +489,6 @@ export default function GameReport() {
                     </div>
                 </motion.div>
 
-                {/* دکمه‌های اکشن */}
                 <motion.div variants={itemFadeIn} className="flex flex-col gap-4 mt-4">
                     <button onClick={() => navigate('/analysis/board', { state: location.state })} className="w-full relative overflow-hidden bg-gradient-to-r from-farzin-accent to-[#5c7a40] text-white py-7 rounded-[40px] font-black text-xl flex items-center justify-center gap-3 shadow-[0_20px_50px_rgba(119,149,86,0.4)] transition-all active:scale-95 hover:shadow-[0_20px_60px_rgba(119,149,86,0.6)] group border border-[#8eb069]/50">
                         <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)] -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000"></div>
