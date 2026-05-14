@@ -55,12 +55,11 @@ export default function AnalysisBoard() {
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
   const [isEnginePaused, setIsEnginePaused] = useState(false);
 
-  // 🌟 استیت کنترل ایستر اگ (حالت‌های: خاموش، درخواست، انفجار، نتیجه)
+  // 🌟 استیت کنترل ایستر اگ
   const [easterEggState, setEasterEggState] = useState<'idle' | 'prompt' | 'exploded' | 'resolved'>('idle');
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
-  // 🌟 منطق جدید و هوشمند برای لود کردن PGN یا FEN
   useEffect(() => {
     let rootFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     let initialTree: Record<string, MoveNode> = {
@@ -71,10 +70,8 @@ export default function AnalysisBoard() {
     if (initialData.type === 'PGN' && initialData.data) {
       try {
         const game = new Chess();
-        // خواندن اتوماتیک PGN توسط موتور
         game.loadPgn(initialData.data);
         
-        // ۱. استخراج اطلاعات بازیکنان از متادیتای فایل
         const headers = game.header();
         setPlayerMeta(prev => ({
           white: { 
@@ -89,9 +86,8 @@ export default function AnalysisBoard() {
           }
         }));
 
-        // ۲. بازسازی تاریخچه حرکات و ساخت درخت برای فرزین
         const history = game.history({ verbose: true });
-        const buildGame = new Chess(); // شروع از چیدمان اولیه
+        const buildGame = new Chess(); 
         
         for (const move of history) {
           buildGame.move(move);
@@ -112,8 +108,7 @@ export default function AnalysisBoard() {
           endNodeId = newId;
         }
       } catch (e) {
-        console.error("خطا در پردازش فایل PGN:", e);
-        // در صورت خرابی فایل، پوزیسیون اولیه لود می‌شود
+        console.error("PGN Parse Error:", e);
       }
     } else if (initialData.type === 'FEN' && initialData.data) {
       rootFen = initialData.data;
@@ -121,12 +116,23 @@ export default function AnalysisBoard() {
     }
 
     setTree(initialTree);
-    setCurrentNodeId(endNodeId); // ۳. پرش مستقیم به انتهای بازیِ لود شده
+    setCurrentNodeId(endNodeId); 
     setIsLoaded(true);
   }, []);
 
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-  const activeGame = useMemo(() => new Chess(currentPosition), [currentPosition]);
+  
+  // 🌟 محافظت از کرش شدن chess.js در صورت خراب شدن FEN
+  const activeGame = useMemo(() => {
+    try {
+        return new Chess(currentPosition);
+    } catch (e) {
+        const fallback = new Chess();
+        fallback.clear();
+        return fallback;
+    }
+  }, [currentPosition]);
+  
   const isBlackTurn = activeGame.turn() === 'b';
 
   const materialAdvantage = useMemo(() => {
@@ -159,31 +165,44 @@ export default function AnalysisBoard() {
       return { white: whiteAdv, black: blackAdv };
   }, [currentPosition]);
 
-  useEffect(() => {
-    if (isReady && currentPosition) {
+  // 🌟 ماشین حساب هوشمند تشخیص وضعیت‌های غیرقانونی (شاه زیر ضرب)
+  const isKingInDanger = useMemo(() => {
       try {
-          // 🌟 تلاش برای خواندن پوزیسیون؛ اگر نوبت ما باشد و شاه حریف زیر ضرب باشد، ارور می‌دهد!
-          new Chess(currentPosition);
-          
-          if (isEnginePaused) {
-              if (stop) stop(); 
-          } else {
-              analyze(currentPosition, engineSettings.maxDepth);
-              if (engineSettings.maxTime > 0 && stop) {
-                const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
-                return () => clearTimeout(timer);
-              }
-          }
-      } catch (error) {
-          // 😈 بوم! باگ تشخیص داده شد. فعال‌سازی خنده شیطانی
-          if (easterEggState === 'idle') {
-              setEasterEggState('prompt');
-              setIsEnginePaused(true);
-              if (stop) stop(); // خفه کردن موتور!
+          const parts = currentPosition.split(' ');
+          const turn = parts[1];
+          parts[1] = turn === 'w' ? 'b' : 'w'; // نوبت را عوض می‌کنیم تا ببینیم شاه حریف کیش است یا نه
+          parts[3] = '-'; // آن‌پاسان رو خاموش می‌کنیم که گیر نده
+          const temp = new Chess();
+          temp.load(parts.join(' ')); 
+          return temp.isCheck(); // اگر نوبت حریف باشه و کیش باشه، یعنی الان ما می‌تونیم بزنیمش!
+      } catch (e) {
+          return false;
+      }
+  }, [currentPosition]);
+
+  // 🌟 جلوگیری از ارسال FEN غیرقانونی به موتور و راه‌اندازی ایستر اگ
+  useEffect(() => {
+    if (isKingInDanger && easterEggState === 'idle') {
+        setEasterEggState('prompt');
+        setIsEnginePaused(true);
+        if (stop) stop(); // موتور رو خفه می‌کنیم که کرش نکنه!
+        return;
+    }
+
+    if (easterEggState !== 'idle') return; // تو ایستر اگ موتور باید بخوابه
+
+    if (isReady && currentPosition) {
+      if (isEnginePaused) {
+          if (stop) stop(); 
+      } else {
+          analyze(currentPosition, engineSettings.maxDepth);
+          if (engineSettings.maxTime > 0 && stop) {
+            const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
+            return () => clearTimeout(timer);
           }
       }
     }
-  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, easterEggState]);
+  }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, isKingInDanger, easterEggState]);
 
   useEffect(() => {
     if (lines && lines.length > 0) {
@@ -419,7 +438,7 @@ export default function AnalysisBoard() {
   }, [graphPoints, activeMainline, allPaths, maxX]);
 
   const engineArrows = useMemo(() => {
-    if (isEnginePaused || !arrowSettings.showArrows || !lines || lines.length === 0) return [];
+    if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !lines || lines.length === 0) return [];
     
     const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
@@ -460,7 +479,7 @@ export default function AnalysisBoard() {
         }
     });
     return Array.from(arrowMap.values());
-  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused]);
+  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused, easterEggState]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
   const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
@@ -559,10 +578,11 @@ export default function AnalysisBoard() {
     } catch (e) { return false; }
   };
 
-  const prevMove = () => { const pid = tree[currentNodeId]?.parentId; if (pid) setCurrentNodeId(pid); };
-  const nextMove = () => { const cids = tree[currentNodeId]?.childrenIds; if (cids && cids.length > 0) setCurrentNodeId(cids[0]); };
-  const goStart = () => setCurrentNodeId('root');
-  const goEnd = () => { let curr = currentNodeId; while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0]; setCurrentNodeId(curr); };
+  // 🌟 قفل کردن دکمه‌ها در حین اجرای ایستر اگ
+  const prevMove = () => { if (easterEggState !== 'idle') return; const pid = tree[currentNodeId]?.parentId; if (pid) setCurrentNodeId(pid); };
+  const nextMove = () => { if (easterEggState !== 'idle') return; const cids = tree[currentNodeId]?.childrenIds; if (cids && cids.length > 0) setCurrentNodeId(cids[0]); };
+  const goStart = () => { if (easterEggState !== 'idle') return; setCurrentNodeId('root'); };
+  const goEnd = () => { if (easterEggState !== 'idle') return; let curr = currentNodeId; while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0]; setCurrentNodeId(curr); };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -575,7 +595,7 @@ export default function AnalysisBoard() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentNodeId, tree]);
+  }, [currentNodeId, tree, easterEggState]);
 
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
@@ -592,49 +612,59 @@ export default function AnalysisBoard() {
     setOptionSquares(newSquares);
   };
 
-  const onPieceDragBegin = (piece: string, sourceSquare: string) => { if (piece[0] !== activeGame.turn()) return; setClickedSquare(sourceSquare); highlightLegalMoves(sourceSquare); };
+  const onPieceDragBegin = (piece: string, sourceSquare: string) => { 
+      if (easterEggState !== 'idle' && easterEggState !== 'prompt') return;
+      if (piece[0] !== activeGame.turn()) return; 
+      setClickedSquare(sourceSquare); 
+      if (easterEggState === 'idle') highlightLegalMoves(sourceSquare); 
+  };
+  
+  // 🌟 منطق انفجار بمب!
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { 
     setOptionSquares({}); setClickedSquare(null); 
     
-    // 🌟 منطق ایستر اگ در زمان رها کردن مهره
     if (easterEggState === 'prompt') {
-        // آیا مهره مقصد شاه است؟
         const targetPiece = activeGame.get(targetSquare as any);
-        // بهش اجازه می‌دیم فقط شاه رو بزنه
-        setEasterEggState('exploded');
-        
-        // 💥 انیمیشن انفجارِ جاوااسکریپتی خالص!
-        setTimeout(() => {
-            const pieces = document.querySelectorAll('[data-piece]');
-            pieces.forEach((p: any) => {
-                const x = (Math.random() - 0.5) * 3000;
-                const y = (Math.random() - 0.5) * 3000;
-                const rot = (Math.random() - 0.5) * 1080;
-                p.style.transition = 'transform 1.5s cubic-bezier(0.25, 1, 0.5, 1)';
-                p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${Math.random() * 3 + 1})`;
-            });
+        if (targetPiece && targetPiece.type === 'k' && targetPiece.color !== activeGame.turn()) {
+            setEasterEggState('exploded');
             
-            const board = document.getElementById('farzin-board-container');
-            if (board) {
-                board.style.transition = 'all 2s ease-out';
-                board.style.transform = 'rotate(15deg) scale(0.8) skew(10deg)';
-                board.style.filter = 'contrast(2) sepia(1) hue-rotate(90deg) drop-shadow(0 0 50px red)';
-            }
+            // 💥 انیمیشن سینمایی، نرم‌تر و زیباتر
+            setTimeout(() => {
+                const pieces = document.querySelectorAll('[data-piece]');
+                pieces.forEach((p: any) => {
+                    const x = (Math.random() - 0.5) * 2000;
+                    const y = (Math.random() - 0.5) * 2000 - 400; // تمایل به پرتاب رو به بالا
+                    const rot = (Math.random() - 0.5) * 720;
+                    // ترانزیشن 3 ثانیه‌ای و محو شدن نرم مهره‌ها
+                    p.style.transition = 'transform 3s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.5s ease-in-out';
+                    p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${Math.random() * 2 + 1})`;
+                    p.style.opacity = '0';
+                });
+                
+                const board = document.getElementById('farzin-board-container');
+                if (board) {
+                    board.style.transition = 'all 3s cubic-bezier(0.25, 1, 0.5, 1)';
+                    // لرزش، کج شدن ظریف‌تر و افکت بلور (Blur)
+                    board.style.transform = 'rotate(5deg) scale(0.85) translateY(30px)';
+                    board.style.filter = 'contrast(1.5) sepia(1) hue-rotate(-50deg) drop-shadow(0 0 80px rgba(225,29,72,0.8)) blur(2px)';
+                }
+                
+                // تاخیر بیشتر برای دیدن کامل انیمیشن
+                setTimeout(() => setEasterEggState('resolved'), 3500);
+            }, 100);
             
-            // نمایش پاپ‌آپ مرموز بعد از پایان انفجار
-            setTimeout(() => setEasterEggState('resolved'), 2500);
-        }, 100);
-        
-        return true; // فقط نمایشی قبول کن، اما تو درخت ثبت نکن
+            return true;
+        }
+        return false; 
     }
     
-    // اگر وسط انفجار هستیم، هیچ حرکتی مجاز نیست
     if (easterEggState !== 'idle') return false;
 
     return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' }); 
   };
   
   const handleSquareClick = (square: string) => {
+    if (easterEggState !== 'idle') { setClickedSquare(null); setOptionSquares({}); return; }
     if (clickedSquare === square) { setClickedSquare(null); setOptionSquares({}); return; }
     if (clickedSquare) {
       if (activeGame.moves({ square: clickedSquare as any, verbose: true }).find(m => m.to === square)) {
@@ -769,10 +799,11 @@ export default function AnalysisBoard() {
       {/* 😈 پاپ‌آپ‌های ایستر اگ */}
       <AnimatePresence>
         {easterEggState === 'prompt' && (
-          <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] pointer-events-none">
-            <div className="bg-[#12110f]/90 border border-rose-500/50 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_50px_rgba(225,29,72,0.4)] flex flex-col items-center gap-4 text-center min-w-[280px]">
-              <span className="text-6xl drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] animate-pulse">😈</span>
-              <h2 className="text-white font-black text-xl tracking-tight">تعارف نکن. بزن تو شاه!</h2>
+          // 🌟 پوزیشن به بالا (top-10) تغییر کرد تا روی تخته را نپوشاند
+          <motion.div initial={{ y: -50, scale: 0.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-8 left-1/2 -translate-x-1/2 z-[200] pointer-events-none">
+            <div className="bg-[#12110f]/90 border border-rose-500/50 backdrop-blur-xl p-4 lg:p-6 rounded-3xl shadow-[0_10px_50px_rgba(225,29,72,0.6)] flex flex-row lg:flex-col items-center gap-4 text-center min-w-[300px]">
+              <span className="text-4xl lg:text-6xl drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] animate-pulse">😈</span>
+              <h2 className="text-white font-black text-lg lg:text-xl tracking-tight">تعارف نکن. بزن تو شاه!</h2>
             </div>
           </motion.div>
         )}
@@ -788,7 +819,7 @@ export default function AnalysisBoard() {
               <button 
                 onClick={() => {
                     setEasterEggState('idle');
-                    navigate('/setup'); // بازگشت به صفحه ستاپ
+                    navigate('/analysis'); // 🌟 تغییر آدرس بازگشت
                 }} 
                 className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] active:scale-95 text-lg"
               >
@@ -798,7 +829,6 @@ export default function AnalysisBoard() {
           </motion.div>
         )}
       </AnimatePresence>
-
 
       <div className="fixed top-6 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
@@ -846,7 +876,7 @@ export default function AnalysisBoard() {
           </div>
           
           <div className="mt-2 h-[88px] flex flex-col justify-start overflow-hidden">
-             {isEnginePaused ? (
+             {isEnginePaused && easterEggState === 'idle' ? (
                  <div className="flex flex-col items-center justify-center h-full bg-[#161512] rounded-xl border border-[#35332e] shadow-inner opacity-80">
                      <Pause size={18} className="text-zinc-500 mb-1.5" />
                      <span className="text-[10px] font-sans text-zinc-400">آنالیز متوقف شده است</span>
@@ -917,7 +947,7 @@ export default function AnalysisBoard() {
             <div className="w-full flex justify-center py-0.5">
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative flex flex-col justify-center">
-                        <div className="w-full aspect-square rounded-md relative z-10 flex">
+                        <div id="farzin-board-container" className="w-full aspect-square rounded-md relative z-10 flex">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
                               customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
@@ -1050,7 +1080,6 @@ export default function AnalysisBoard() {
                   <button onClick={() => setIsArrowModalOpen(true)} className={`p-2 border rounded-lg transition-colors active:scale-95 ${arrowSettings.showArrows ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title="تنظیمات راهنمای بصری"><Route size={16} /></button>
                 </div>
                 
-                {/* 🌟 دکمه گزارش و کنترل‌ها */}
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => navigate('/report')} 
@@ -1058,7 +1087,6 @@ export default function AnalysisBoard() {
                     >
                         <PieChart size={14} className="group-hover:scale-110 transition-transform" /> 
                         گزارش بازی
-                        {/* 🌟 پالس ظریف‌تر و تنظیم‌شده */}
                         <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
