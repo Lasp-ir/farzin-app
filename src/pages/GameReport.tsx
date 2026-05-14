@@ -11,10 +11,8 @@ import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue } from '../utils/analysisConfig';
 
-// 🌟 تنظیمات موتور (دقت و عمق بالا برای گزارش حرفه‌ای)
 const TARGET_DEPTH = 18; 
 
-// فرمول‌های استاندارد Lichess
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
@@ -24,20 +22,13 @@ const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
     return Math.max(0, Math.min(100, raw + 1)); 
 };
 
-// 🧠 موتور طبقه‌بندی عمیق حرکات بر اساس Win%
 const classifyMoveDetailed = (winBefore: number, winAfter: number, isBook: boolean, isSacrifice: boolean) => {
     if (isBook) return 'book';
     const diff = winBefore - winAfter;
 
-    // تشخیص Miss (از دست رفتن شانس قطعی برد)
     if (winBefore > 80 && winAfter < 50) return 'miss';
-
-    // تشخیص Brilliant (قربانی با حفظ برتری قاطع)
     if (isSacrifice && winAfter > 60 && diff <= 2) return 'brilliant';
-
-    // تشخیص Great (پیدا کردن تنها حرکت برنده یا سخت)
     if (diff < 1 && winAfter > 70 && !isSacrifice) return 'great';
-
     if (diff <= 1.5) return 'best';
     if (diff <= 3) return 'excellent';
     if (diff <= 6) return 'good';
@@ -84,7 +75,6 @@ export default function GameReport() {
     const { isReady, lines, analyze, stop } = useStockfish() as any;
     const [currentIndex, setCurrentIndex] = useState(0);
 
-    // ۱. استخراج اطلاعات حرکات
     useEffect(() => {
         if (!initialData) { navigate('/analysis'); return; }
         try {
@@ -111,7 +101,6 @@ export default function GameReport() {
         } catch (e) { navigate('/analysis'); }
     }, [initialData]);
 
-    // ۲. اجرای موتور با عمق بالا
     useEffect(() => {
         if (!isReady || movesData.length === 0 || currentIndex >= movesData.length) return;
         const currentMove = movesData[currentIndex];
@@ -126,7 +115,6 @@ export default function GameReport() {
         }
     }, [isReady, currentIndex, movesData]);
 
-    // ۳. ثبت نتیجه پس از رسیدن به عمق هدف
     useEffect(() => {
         if (lines && lines.length > 0 && lines[0].depth < TARGET_DEPTH) setIsWaitingReset(false);
         if (isAnalyzing && !isWaitingReset && lines && lines.length > 0 && lines[0].depth >= TARGET_DEPTH) {
@@ -138,16 +126,14 @@ export default function GameReport() {
         }
     }, [lines, isAnalyzing, currentIndex, isWaitingReset]);
 
-    // ۴. پایان آنالیز
     useEffect(() => {
         if (movesData.length > 0 && currentIndex >= movesData.length) {
             setTimeout(() => setIsAnalyzing(false), 800);
         }
     }, [currentIndex, movesData]);
 
-    // ۵. محاسبه آمار و تولید دیتای گراف
     const reportStats = useMemo(() => {
-        if (cpHistory.length < 2) return null;
+        if (cpHistory.length < 2 || movesData.length < 2) return null;
         
         const globalWinPercents = cpHistory.map(cp => calcWinPercent(cp));
         const graphPoints: any[] = [];
@@ -158,15 +144,20 @@ export default function GameReport() {
         };
 
         const windowSize = Math.max(2, Math.min(8, Math.floor(globalWinPercents.length / 10)));
+        
+        // 🌟 فیلتر امنیتی: انتخاب مینیمم طول آرایه‌ها برای جلوگیری از خطای undefined
+        const loopLength = Math.min(globalWinPercents.length, movesData.length);
 
-        for (let i = 0; i < globalWinPercents.length - 1; i++) {
+        for (let i = 0; i < loopLength - 1; i++) {
+            const moveInfo = movesData[i+1];
+            if (!moveInfo) continue; // گارد امنیتی اضافه
+
             const isWhiteTurn = (i % 2 === 0);
             const side = isWhiteTurn ? data.white : data.black;
             
             const winBefore = isWhiteTurn ? globalWinPercents[i] : 100 - globalWinPercents[i];
             const winAfter = isWhiteTurn ? globalWinPercents[i+1] : 100 - globalWinPercents[i+1];
             
-            const moveInfo = movesData[i+1];
             const isSacrifice = moveInfo.move?.captured && ['n','b','r','q'].includes(moveInfo.move.captured);
             
             const acc = moveInfo.isBook ? 100 : calcMoveAccuracy(winBefore, winAfter);
@@ -182,7 +173,6 @@ export default function GameReport() {
             else if (moveInfo.phase === 'middlegame') side.phases.mid.push(acc);
             else if (moveInfo.phase === 'endgame') side.phases.end.push(acc);
 
-            // استخراج دیتا برای کشیدن گراف
             graphPoints.push({
                 index: i + 1,
                 winPercent: globalWinPercents[i+1],
@@ -194,7 +184,6 @@ export default function GameReport() {
 
         const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
 
-        // تولید بردارهای SVG برای گراف
         const GRAPH_WIDTH = 1000;
         const GRAPH_HEIGHT = 200;
         const MID_Y = GRAPH_HEIGHT / 2;
@@ -204,7 +193,7 @@ export default function GameReport() {
             const x = (pt.index / graphPoints.length) * GRAPH_WIDTH;
             const y = GRAPH_HEIGHT - (pt.winPercent / 100) * GRAPH_HEIGHT;
             linePath += `L ${x},${y} `;
-            pt.x = x; pt.y = y; // ذخیره مختصات برای رندر آیکون‌ها
+            pt.x = x; pt.y = y; 
         });
 
         const areaWhite = `${linePath} L ${GRAPH_WIDTH},${MID_Y} L 0,${MID_Y} Z`;
@@ -279,7 +268,6 @@ export default function GameReport() {
 
             <div className="max-w-3xl mx-auto px-4 mt-6 flex flex-col gap-6">
                 
-                {/* 🎯 دقت کلی */}
                 <div className="bg-[#1a1917]/60 backdrop-blur-md border border-[#35332e] rounded-[40px] p-8 shadow-2xl">
                     <div className="flex justify-around items-center">
                         {[ {side: 'سفید', acc: reportStats.white.total, color: '#fff'}, {side: 'سیاه', acc: reportStats.black.total, color: '#71717a'} ].map((item, i) => (
@@ -297,18 +285,14 @@ export default function GameReport() {
                     </div>
                 </div>
 
-                {/* 📈 گراف ارزیابی با مارکرهای حرکات */}
                 <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] overflow-hidden shadow-2xl p-5">
                     <h3 className="text-xs font-black text-white mb-4 flex items-center gap-2"><Activity size={16} className="text-sky-400" /> روند بازی و حرکات سرنوشت‌ساز</h3>
                     <div className="relative w-full aspect-[3/1] bg-[#12110f] rounded-[24px] border border-[#262421] overflow-hidden">
                         <svg viewBox={`0 0 ${reportStats.graph.width} ${reportStats.graph.height}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
-                            {/* پس‌زمینه‌های سفید و سیاه */}
                             <path d={reportStats.graph.areaWhite} fill="#ffffff" fillOpacity="0.1" />
                             <path d={reportStats.graph.areaBlack} fill="#000000" fillOpacity="0.4" />
-                            {/* خط اصلی ارزیابی */}
                             <path d={reportStats.graph.linePath} fill="none" stroke="#ffffff" strokeWidth="3" strokeOpacity="0.8" />
                             
-                            {/* 🌟 مارک کردن حرکات خاص روی گراف */}
                             {reportStats.graph.points.map((pt, i) => {
                                 if (['blunder', 'mistake', 'miss', 'brilliant', 'great'].includes(pt.cls)) {
                                     const color = getMarkerColor(pt.cls);
@@ -327,7 +311,6 @@ export default function GameReport() {
                     </div>
                 </div>
 
-                {/* 📊 جدول کامل دسته‌بندی حرکات */}
                 <div className="bg-[#1a1917]/60 border border-[#35332e] rounded-[40px] overflow-hidden shadow-2xl">
                     <div className="p-5 bg-[#211f1c] border-b border-[#35332e] flex items-center justify-between">
                         <div className="flex items-center gap-2"><Target size={18} className="text-farzin-accent" /><span className="text-xs font-black text-white">کالبدشکافی حرکات</span></div>
@@ -337,7 +320,7 @@ export default function GameReport() {
                         {ALL_CATEGORIES.map((cat, i) => {
                             const wCount = reportStats.white.counts[cat.key as keyof typeof reportStats.white.counts];
                             const bCount = reportStats.black.counts[cat.key as keyof typeof reportStats.black.counts];
-                            if (wCount === 0 && bCount === 0 && ['brilliant', 'great', 'miss'].includes(cat.key)) return null; // مخفی کردن دسته‌های خالیِ خاص
+                            if (wCount === 0 && bCount === 0 && ['brilliant', 'great', 'miss'].includes(cat.key)) return null; 
                             
                             return (
                                 <div key={i} className="flex items-center justify-between p-3.5 border-b border-[#262421] last:border-0 hover:bg-white/5 transition-colors rounded-2xl">
