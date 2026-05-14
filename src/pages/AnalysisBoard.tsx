@@ -403,6 +403,26 @@ export default function AnalysisBoard() {
   const goStart = () => setCurrentNodeId('root');
   const goEnd = () => { let curr = currentNodeId; while (tree[curr]?.childrenIds?.length > 0) curr = tree[curr].childrenIds[0]; setCurrentNodeId(curr); };
 
+  // 🌟 اتصال ناوبری کیبورد به برنامه‌
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // اگر کاربر در حال تایپ درون یک فرم یا ورودی است، کیبورد کار نکند
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+          e.preventDefault(); // جلوگیری از اسکرول خوردن مزاحمِ صفحه
+      }
+
+      if (e.key === 'ArrowLeft') prevMove();
+      else if (e.key === 'ArrowRight') nextMove();
+      else if (e.key === 'ArrowUp') goStart();
+      else if (e.key === 'ArrowDown') goEnd();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentNodeId, tree]);
+
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
   const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
 
@@ -849,7 +869,6 @@ export default function AnalysisBoard() {
                 <button onClick={() => setActiveTab('explorer')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'explorer' ? 'border-purple-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><BookOpen size={14} /> دیتابیس (گشایش)</button>
             </div>
 
-            {/* محتوای تب‌ها (وسط) */}
             <div className="flex-1 min-h-0 p-2.5 lg:p-3 flex flex-col bg-[#12110f]">
                 {activeTab === 'notation' && (
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -868,7 +887,6 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* 🌟 تب گراف (طراحی افقی و جمع‌وجور) */}
                 {activeTab === 'graph' && (
                     <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex items-center p-3">
                         <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
@@ -898,7 +916,6 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* تب دیتابیس */}
                 {activeTab === 'explorer' && (
                     <div className="flex-1 flex flex-col min-h-0">
                         <OpeningExplorer 
@@ -910,7 +927,7 @@ export default function AnalysisBoard() {
                     </div>
                 )}
             </div>
-            
+
             <div className="flex-none px-3 py-2 border-t border-[#35332e] flex items-center justify-between bg-[#1a1916]">
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')} className="p-2 bg-[#262421] border border-[#35332e] rounded-lg text-zinc-400 hover:text-white transition-colors active:scale-95" title="چرخش تخته"><RefreshCw size={16} /></button>
