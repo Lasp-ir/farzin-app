@@ -90,15 +90,16 @@ export default function AnalysisSetup() {
   };
 
   // 🌟 منطق پردازش، اعتبارسنجی و دانلود PGN در صورت نیاز
+  // 🌟 منطق پردازش، اعتبارسنجی و دانلود PGN در صورت نیاز (با پشتیبانی کامل از Chess.com)
   const processAndNavigate = async (data: string, meta?: any, forcedType?: string) => {
     setIsChecking(true);
-    setErrorMessage('فرمت ورودی صحیح نیست. لطفاً FEN یا PGN استاندارد وارد کنید.'); // پیام خطای پیش‌فرض
+    setErrorMessage('فرمت ورودی صحیح نیست. لطفاً FEN یا PGN استاندارد وارد کنید.');
 
     try {
       let finalData = data.trim();
       let finalType = forcedType || '';
 
-      // 🌟 فاز ۴: هندل کردن لینک‌های بازی
+      // 🌟 هندل کردن لینک‌های بازی
       if (forcedType === 'LINK') {
         const urlLower = finalData.toLowerCase();
         const lichessMatch = finalData.match(/lichess\.org\/([a-zA-Z0-9]{8,12})/);
@@ -110,13 +111,32 @@ export default function AnalysisSetup() {
           finalData = await res.text(); // دانلود PGN
           finalType = 'PGN';
         } else if (urlLower.includes('chess.com')) {
-          throw new Error('برای بازی‌های Chess.com فعلاً باید متن PGN بازی را مستقیماً کپی کنید.');
+          // 🌟 استخراج PGN از سایت Chess.com با استفاده از پروکسی AllOrigins برای دور زدن CORS
+          try {
+             const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(finalData)}`);
+             if (!res.ok) throw new Error('ارتباط با سرورهای Chess.com برقرار نشد.');
+             const htmlData = await res.json();
+             const html = htmlData.contents;
+             
+             // الگوی جستجو برای پیدا کردن PGN مخفی در سورس HTML سایت
+             const pgnMatch = html.match(/\[Event \\"[\s\S]*?(?:1\/2-1\/2|1-0|0-1|\*)/) || html.match(/"pgn":"(.*?(?:1-0|0-1|1\/2-1\/2|\*))"/);
+             
+             if (pgnMatch) {
+                 finalData = pgnMatch[0].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/"pgn":"/, '');
+                 if (finalData.endsWith('"')) finalData = finalData.slice(0, -1);
+                 finalType = 'PGN';
+             } else {
+                 throw new Error('متاسفانه امکان استخراج اتوماتیک PGN از این لینک وجود ندارد. لطفا متن PGN را کپی کنید.');
+             }
+          } catch (error: any) {
+              throw new Error(error.message || 'خطا در دریافت اطلاعات از سرورهای Chess.com');
+          }
         } else {
-          throw new Error('لینک وارد شده نامعتبر است. لطفاً لینک یک بازی از Lichess.org وارد کنید.');
+          throw new Error('لینک وارد شده نامعتبر است. لطفاً لینک یک بازی از Lichess یا Chess.com وارد کنید.');
         }
       }
 
-      // 🌟 فاز ۳: اعتبارسنجی قطعی متن، آرشیو و فایل با موتور
+      // 🌟 اعتبارسنجی قطعی متن، آرشیو و فایل با موتور
       const chess = new Chess();
       if (finalType !== 'PGN') {
         try {
@@ -142,7 +162,7 @@ export default function AnalysisSetup() {
       setIsChecking(false);
       setIsInputModalOpen(false); setIsArchiveModalOpen(false); setIsUploadModalOpen(false); setIsLinkModalOpen(false);
       
-      // 🌟 فاز ۲: ارسال پکیج استاندارد به آزمایشگاه
+      // ارسال پکیج استاندارد به آزمایشگاه
       navigate('/analysis/board', { state: { data: finalData, type: finalType, meta } });
 
     } catch (err: any) {
