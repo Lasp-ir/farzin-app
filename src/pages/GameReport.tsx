@@ -10,7 +10,7 @@ import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue } from '../utils/analysisConfig';
 
-// 🌟 ۱. ریاضیات خالص و اورجینال Lichess 
+// 🌟 ریاضیات خالص Lichess (دست‌نخورده و دقیق)
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
@@ -43,26 +43,16 @@ const getGamePhase = (fen: string, moveNumber: number) => {
     return weight < 14 ? 'endgame' : 'middlegame';
 };
 
-// 🔴 رفع باگ سقوط گراف: گارد امنیتی ضدگلوله برای استخراج پوزیشن‌های مات
+// 🔴 امن‌ترین روش استخراج نمره انجین (با فیلتر مقادیر نامعتبر)
 const getWhiteScore = (line: any, isWhiteTurnForEval: boolean) => {
     let cp = (line.score || 0) * 100;
-
-    const hasMate = line.isMate || line.mateIn !== undefined || line.mate !== undefined;
-    
-    if (hasMate) {
-        const mVal = line.mateIn !== undefined ? line.mateIn : line.mate;
-        
-        if (mVal === 0) {
-            cp = -10000; // بازی تمام شده و بازیکنی که نوبتشه مات شده است (پوزیشن پایانی)
-        } else if (mVal > 0) {
-            cp = 10000;  // بازیکنی که نوبتشه داره حریف رو مات میکنه
-        } else if (mVal < 0) {
-            cp = -10000; // بازیکنی که نوبتشه داره مات میشه
-        } else {
-            cp = 10000;  // حالت پشتیبان برای فرمت‌های پیش‌بینی نشده
+    if (line.mate !== undefined || line.mateIn !== undefined) {
+        let mVal = parseInt(line.mateIn !== undefined ? line.mateIn : line.mate, 10);
+        if (!isNaN(mVal)) {
+            if (mVal > 0) cp = 10000;
+            else if (mVal < 0) cp = -10000;
         }
     }
-
     return isWhiteTurnForEval ? cp : -cp;
 };
 
@@ -112,17 +102,13 @@ export default function GameReport() {
         const tempG = new Chess(currentMove.fen);
         const isOver = typeof tempG.isGameOver === 'function' ? tempG.isGameOver() : (tempG as any).game_over();
         
-        // 🌟 شبیه‌ساز امنِ پایان بازی
+        // بای‌پس موتور در پوزیشن‌های پایانی (توقف انتظار)
         if (isOver) {
             if (stop) stop();
-            const isCheckmated = typeof tempG.isCheckmate === 'function' ? tempG.isCheckmate() : (tempG as any).in_checkmate();
-            
-            // mateIn بصورت صریح 0 ست می‌شود تا در getWhiteScore افت فاجعه‌بار حریف ثبت شود
-            let mockLines = [{ depth: 24, isMate: isCheckmated, mateIn: isCheckmated ? 0 : undefined, score: 0, pv: '' }];
-            
+            // نیازی به لاین واقعی نیست، چون ما مقادیر را دستی تزریق می‌کنیم
             setEngineResults(prev => {
                 const newRes = [...prev];
-                newRes[currentIndex] = mockLines;
+                newRes[currentIndex] = [{ depth: 24, score: 0 }];
                 return newRes;
             });
             setProgress(Math.round(((currentIndex + 1) / movesData.length) * 100));
@@ -184,26 +170,38 @@ export default function GameReport() {
 
         const graphPoints: any[] = [];
         const winPercentsWhitePOV: number[] = [];
+        const wScoresGlobal: number[] = [];
 
+        // 🔴 معماری ایزوله: پیش‌تولید امنِ امتیازها با اولویت دادن به قوانین قطعیِ بازی
         for (let i = 0; i < movesData.length; i++) {
-            const isWhiteTurnForEval = i % 2 === 0;
-            const wScore = getWhiteScore(engineResults[i][0], isWhiteTurnForEval);
+            const tempG = new Chess(movesData[i].fen);
+            const isCheckmated = typeof tempG.isCheckmate === 'function' ? tempG.isCheckmate() : (tempG as any).in_checkmate();
+            
+            let wScore = 0;
+            if (isCheckmated) {
+                // اگر در این پوزیشن، بازیکنی مات شده است، یعنی بازیکن قبلی مات کرده!
+                // i % 2 === 0 به این معنی است که نوبت سفید است (یعنی سفید مات شده).
+                wScore = (i % 2 === 0) ? -10000 : 10000;
+            } else {
+                const isWhiteTurnForEval = i % 2 === 0;
+                wScore = getWhiteScore(engineResults[i][0], isWhiteTurnForEval);
+            }
+            wScoresGlobal.push(wScore);
             winPercentsWhitePOV.push(calcWinPercent(wScore));
         }
 
         const windowSize = Math.max(2, Math.min(8, Math.floor(winPercentsWhitePOV.length / 10)));
 
         for (let i = 1; i < movesData.length; i++) {
-            const parentLines = engineResults[i-1];
-            const currentLines = engineResults[i];
             const moveInfo = movesData[i];
             if (!moveInfo || !moveInfo.move) continue;
             
             const isWhiteTurn = (i - 1) % 2 === 0; 
             const side = isWhiteTurn ? data.white : data.black;
 
-            const wCpBefore = getWhiteScore(parentLines[0], (i - 1) % 2 === 0);
-            const wCpAfter = getWhiteScore(currentLines[0], i % 2 === 0);
+            // استفاده از امتیازهای ایزوله و مطمئن
+            const wCpBefore = wScoresGlobal[i-1];
+            const wCpAfter = wScoresGlobal[i];
             const cpLossRaw = !isWhiteTurn ? (wCpAfter - wCpBefore) : (wCpBefore - wCpAfter);
             const cpLoss = Math.max(0, cpLossRaw) / 100;
 
@@ -215,6 +213,7 @@ export default function GameReport() {
             const epB = winBefore / 100;
             const epC = winAfter / 100;
 
+            const parentLines = engineResults[i-1];
             let bestUciMove = '';
             const rawPv = parentLines[0].pv || '';
             const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
@@ -228,7 +227,8 @@ export default function GameReport() {
             let cls = 'good';
             if (moveInfo.isBook) {
                 cls = 'book';
-            } else if (currentLines[0].isMate || userUciMove === bestUciMove || cpLoss <= 0.05) {
+            } else if (wCpAfter === 10000 || wCpAfter === -10000 || userUciMove === bestUciMove || cpLoss <= 0.05) {
+                // اگر حرکت باعث مات شدن یا برنده شدن قطعی شد، بهترین حرکت است.
                 cls = 'best';
             } else if (epB < 0.10) {
                 cls = cpLoss <= 0.50 ? 'excellent' : 'good';
@@ -241,8 +241,7 @@ export default function GameReport() {
             }
 
             if (['inaccuracy', 'mistake', 'blunder'].includes(cls) && i >= 2) {
-                const gpLines = engineResults[i-2];
-                const gpWCp = getWhiteScore(gpLines[0], (i - 2) % 2 === 0);
+                const gpWCp = wScoresGlobal[i-2];
                 const epA = (!isWhiteTurn ? 100 - calcWinPercent(gpWCp) : calcWinPercent(gpWCp)) / 100;
                 if (epA <= 0.60 && (epB - epA >= 0.15) && epC <= epA + 0.10 && epC >= epA - 0.20) cls = 'miss';
             }
