@@ -12,6 +12,7 @@ import { useStockfish } from '../hooks/useStockfish';
 import EvaluationGraph from '../components/EvaluationGraph';
 import OpeningExplorer from '../components/OpeningExplorer';
 import type { MoveNode } from '../utils/analysisConfig';
+import OpeningDisplay from '../components/OpeningDisplay';
 import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, ToggleSwitch, EditablePlayer } from '../utils/analysisConfig';
 
 export default function AnalysisBoard() {
@@ -47,8 +48,6 @@ export default function AnalysisBoard() {
   const [isArrowModalOpen, setIsArrowModalOpen] = useState(false);
 
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
-  
-  // 🌟 استیت توقف/اجرای موتور
   const [isEnginePaused, setIsEnginePaused] = useState(false);
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
@@ -94,11 +93,10 @@ export default function AnalysisBoard() {
       return { white: whiteAdv, black: blackAdv };
   }, [currentPosition]);
 
-  // 🌟 هوکِ اجرا/توقف موتور (مدیریت Pause)
   useEffect(() => {
     if (isReady && currentPosition) {
       if (isEnginePaused) {
-          if (stop) stop(); // توقف درجا در صورت تغییر وضعیت به Pause
+          if (stop) stop(); 
       } else {
           analyze(currentPosition, engineSettings.maxDepth);
           if (engineSettings.maxTime > 0 && stop) {
@@ -337,8 +335,10 @@ export default function AnalysisBoard() {
     return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
   }, [graphPoints, activeMainline, allPaths, maxX]);
 
+  // 🌟 جلوگیری از رسم فلش در زمان توقف موتور
   const engineArrows = useMemo(() => {
-    if (!arrowSettings.showArrows || !lines || lines.length === 0) return [];
+    if (isEnginePaused || !arrowSettings.showArrows || !lines || lines.length === 0) return [];
+    
     const arrowMap = new Map<string, any>();
     const bestScore = lines[0].score;
     const bestIsMate = lines[0].isMate;
@@ -378,7 +378,7 @@ export default function AnalysisBoard() {
         }
     });
     return Array.from(arrowMap.values());
-  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors]);
+  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
   const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
@@ -760,7 +760,6 @@ export default function AnalysisBoard() {
       </div>
 
       <div className={`flex-none w-full px-3 py-2 bg-gradient-to-b from-[#1a1916] to-[#12110f] border-b border-[#35332e] shadow-[0_4px_15px_rgba(0,0,0,0.3)] relative z-20 transition-opacity duration-700 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
-          {/* 🌟 هدرِ موتور با دکمه توقف اضافه شده */}
           <div className="flex items-center justify-between mb-1.5 px-1">
               <div className="flex items-center gap-1.5">
                   <div className="flex items-center gap-2 bg-[#262421] px-2 py-0.5 rounded-md border border-[#35332e]">
@@ -769,6 +768,7 @@ export default function AnalysisBoard() {
                       <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{isEnginePaused ? 'Paused' : displayEngineStatus}</span>
                       {!isEnginePaused && lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
                   </div>
+                  {/* 🌟 دکمه‌ی اختصاصی توقف/اجرای موتور */}
                   <button 
                       onClick={() => setIsEnginePaused(!isEnginePaused)}
                       className={`w-6 h-6 rounded flex items-center justify-center transition-colors border ${isEnginePaused ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`}
@@ -781,7 +781,13 @@ export default function AnalysisBoard() {
           </div>
           
           <div className="mt-2 h-[88px] flex flex-col justify-start overflow-hidden">
-             {engineSettings.coachMode && coachData ? (
+             {/* 🌟 نمایش حالت خاموش در باکس آنالیز */}
+             {isEnginePaused ? (
+                 <div className="flex flex-col items-center justify-center h-full bg-[#161512] rounded-xl border border-[#35332e] shadow-inner opacity-80">
+                     <Pause size={18} className="text-zinc-500 mb-1.5" />
+                     <span className="text-[10px] font-sans text-zinc-400">آنالیز متوقف شده است</span>
+                 </div>
+             ) : engineSettings.coachMode && coachData ? (
                  coachData.key === 'loading' ? (
                      <div className="flex flex-col items-center justify-center py-2 opacity-50"><Loader2 size={18} className="animate-spin text-farzin-accent mb-1"/><span className="text-[10px] font-sans">در حال بررسی دقیق حرکت...</span></div>
                  ) : (
@@ -846,6 +852,7 @@ export default function AnalysisBoard() {
                 <div className="flex w-full max-w-[min(100vw-1.5rem,55vh)] lg:max-w-[600px] gap-1.5 relative" dir="ltr">
                     <div className="flex-1 bg-[#262421] p-1.5 rounded-xl border border-[#35332e] shadow-2xl relative flex flex-col justify-center">
                         <div className="w-full aspect-square rounded-md relative z-10 flex">
+                          <OpeningDisplay tree={tree} currentNodeId={currentNodeId} />
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
                               customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
@@ -856,7 +863,8 @@ export default function AnalysisBoard() {
                               customArrows={engineArrows} animationDuration={200}
                           />
 
-                          {engineSettings.coachMode && coachData && tree[currentNodeId] && tree[currentNodeId].id !== 'root' && (
+                          {/* 🌟 مخفی شدن آیکون روی تخته در صورت توقف موتور */}
+                          {!isEnginePaused && engineSettings.coachMode && coachData && tree[currentNodeId] && tree[currentNodeId].id !== 'root' && (
                             <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8">
                                 {Array.from({ length: 64 }).map((_, i) => {
                                     const x = i % 8;
