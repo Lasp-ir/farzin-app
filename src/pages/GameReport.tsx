@@ -10,7 +10,7 @@ import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue } from '../utils/analysisConfig';
 
-// 🌟 ریاضیات خالص Lichess
+// 🌟 ۱. ریاضیات خالص و اورجینال Lichess 
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
@@ -43,29 +43,27 @@ const getGamePhase = (fen: string, moveNumber: number) => {
     return weight < 14 ? 'endgame' : 'middlegame';
 };
 
-// 🔴 رفع باگ اساسی: گارد 3 لایه برای ارزیابی پوزیشن‌های ماتی
-const getWhiteScore = (line: any, isWhiteTurn: boolean) => {
+// 🔴 رفع باگ سقوط گراف: گارد امنیتی ضدگلوله برای استخراج پوزیشن‌های مات
+const getWhiteScore = (line: any, isWhiteTurnForEval: boolean) => {
     let cp = (line.score || 0) * 100;
+
+    const hasMate = line.isMate || line.mateIn !== undefined || line.mate !== undefined;
     
-    // اگر انجین سیگنال مات فرستاد (چه قطعی، چه پیش‌بینی شده)
-    if (line.isMate || line.mateIn !== undefined || line.mate !== undefined) {
-        // استخراج عدد مات (از هر کلیدی که انجین تو هوک ست کرده باشه)
-        const mateVal = line.mateIn !== undefined ? line.mateIn : (line.mate !== undefined ? line.mate : line.score);
+    if (hasMate) {
+        const mVal = line.mateIn !== undefined ? line.mateIn : line.mate;
         
-        if (mateVal === 0) {
-            cp = -10000; // مات قطعی روی تخته است (کسی که نوبتشه باخته)
-        } else if (mateVal > 0) {
-            cp = 10000;  // کسی که نوبتشه در حال مات کردن حریفه
+        if (mVal === 0) {
+            cp = -10000; // بازی تمام شده و بازیکنی که نوبتشه مات شده است (پوزیشن پایانی)
+        } else if (mVal > 0) {
+            cp = 10000;  // بازیکنی که نوبتشه داره حریف رو مات میکنه
+        } else if (mVal < 0) {
+            cp = -10000; // بازیکنی که نوبتشه داره مات میشه
         } else {
-            cp = -10000; // کسی که نوبتشه داره مات میشه
+            cp = 10000;  // حالت پشتیبان برای فرمت‌های پیش‌بینی نشده
         }
     }
-    
-    // کلمپ کردن برای جلوگیری از اعداد عجیب غریب
-    if (cp > 10000) cp = 10000;
-    if (cp < -10000) cp = -10000;
-    
-    return isWhiteTurn ? cp : -cp;
+
+    return isWhiteTurnForEval ? cp : -cp;
 };
 
 const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } } };
@@ -114,17 +112,13 @@ export default function GameReport() {
         const tempG = new Chess(currentMove.fen);
         const isOver = typeof tempG.isGameOver === 'function' ? tempG.isGameOver() : (tempG as any).game_over();
         
+        // 🌟 شبیه‌ساز امنِ پایان بازی
         if (isOver) {
             if (stop) stop();
             const isCheckmated = typeof tempG.isCheckmate === 'function' ? tempG.isCheckmate() : (tempG as any).in_checkmate();
             
-            // 🔴 شبیه‌سازی دقیق و امن برای پوزیشن‌های پایان بازی
-            let mockLines = [{ depth: 24, isMate: false, mateIn: undefined as any, score: 0, pv: '' }];
-            if (isCheckmated) {
-                mockLines[0].isMate = true;
-                mockLines[0].mateIn = 0; 
-                mockLines[0].score = -10000; // نمره منفی قطعی برای کسی که مات شده
-            }
+            // mateIn بصورت صریح 0 ست می‌شود تا در getWhiteScore افت فاجعه‌بار حریف ثبت شود
+            let mockLines = [{ depth: 24, isMate: isCheckmated, mateIn: isCheckmated ? 0 : undefined, score: 0, pv: '' }];
             
             setEngineResults(prev => {
                 const newRes = [...prev];
