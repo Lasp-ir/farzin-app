@@ -3,48 +3,203 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Search, Filter, Target, Clock, Calendar, 
-  Trophy, XCircle, MinusCircle, User, Bot, Swords, X, Check
+  Trophy, XCircle, MinusCircle, User, Bot, Swords, X, Check,
+  Loader2, Globe
 } from 'lucide-react';
 
-// دیتای تستی با اضافه شدن پلتفرم‌ها
-const mockGames = [
-  { id: '1', opponent: 'فرزین (کابوس)', rating: 2800, type: 'ai', platform: 'farzin', result: 'loss', playerColor: 'black', accuracy: 72.4, moves: 45, timeControl: '10 دقیقه', date: 'امروز' },
-  { id: '2', opponent: 'Hikaru', rating: 3100, type: 'online', platform: 'chessDotCom', result: 'draw', playerColor: 'white', accuracy: 94.1, moves: 82, timeControl: '3 | 2', date: 'دیروز' },
-  { id: '3', opponent: 'DrNykterstein', rating: 2850, type: 'online', platform: 'lichess', result: 'win', playerColor: 'black', accuracy: 89.5, moves: 41, timeControl: '5 دقیقه', date: '۲ روز پیش' },
-  { id: '4', opponent: 'سارا', rating: 400, type: 'ai', platform: 'farzin', result: 'win', playerColor: 'white', accuracy: 95.2, moves: 18, timeControl: 'نامحدود', date: '۳ روز پیش' },
-  { id: '5', opponent: 'Daniel_N', rating: 3000, type: 'online', platform: 'chessDotCom', result: 'win', playerColor: 'black', accuracy: 88.0, moves: 56, timeControl: '1 | 1', date: 'هفته پیش' },
-  { id: '6', opponent: 'PenguinGM', rating: 2900, type: 'online', platform: 'lichess', result: 'loss', playerColor: 'white', accuracy: 75.8, moves: 34, timeControl: '3 | 0', date: 'هفته پیش' },
-  { id: '7', opponent: 'علی', rating: 700, type: 'ai', platform: 'farzin', result: 'win', playerColor: 'black', accuracy: 81.2, moves: 22, timeControl: '10 دقیقه', date: '۲ هفته پیش' },
+interface GameRecord {
+  id: string;
+  opponent: string;
+  rating: number | string;
+  type: 'ai' | 'online';
+  platform: 'farzin' | 'chessDotCom' | 'lichess';
+  result: 'win' | 'loss' | 'draw';
+  playerColor: 'white' | 'black';
+  accuracy: number | string;
+  moves: number;
+  timeControl: string;
+  date: string;
+  pgn: string;
+  timestamp: number;
+}
+
+// تابع تبدیل تاریخ به "چند وقت پیش"
+const timeAgo = (timestamp: number) => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " سال پیش";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " ماه پیش";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " روز پیش";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " ساعت پیش";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " دقیقه پیش";
+    return "همین الان";
+};
+
+// بازی‌های پیش‌فرض موتور فرزین (چون اینها در لوکال استوریج ذخیره میشن)
+const mockFarzinGames: GameRecord[] = [
+  { id: 'f1', opponent: 'فرزین (کابوس)', rating: 2800, type: 'ai', platform: 'farzin', result: 'loss', playerColor: 'black', accuracy: 72.4, moves: 45, timeControl: '10+0', date: 'امروز', pgn: '', timestamp: Date.now() - 3600000 },
+  { id: 'f2', opponent: 'فرزین (سارا)', rating: 400, type: 'ai', platform: 'farzin', result: 'win', playerColor: 'white', accuracy: 95.2, moves: 18, timeControl: '∞', date: '۳ روز پیش', pgn: '', timestamp: Date.now() - 259200000 },
 ];
 
 export default function Archive() {
   const navigate = useNavigate();
   const [activePlatform, setActivePlatform] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoaded, setIsLoaded] = useState(false);
   
+  // استیت‌های دیتای واقعی
+  const [games, setGames] = useState<GameRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // استیت مربوط به Chess.com
+  const [chesscomUsername, setChesscomUsername] = useState(localStorage.getItem('chesscom_username') || '');
+  const [tempChesscomInput, setTempChesscomInput] = useState('');
+
   // استیت‌های مربوط به مودال فیلتر پیشرفته
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [resultFilter, setResultFilter] = useState('all'); // all, win, loss, draw
 
+  const fetchGames = async () => {
+    setIsLoading(true);
+    let allGames: GameRecord[] = [...mockFarzinGames];
+
+    // 🌟 1. دریافت دیتای واقعی از Lichess API
+    const lichessToken = localStorage.getItem('lichess_token');
+    if (lichessToken) {
+        try {
+            const profileRes = await fetch('https://lichess.org/api/account', { headers: { Authorization: `Bearer ${lichessToken}` } });
+            if (profileRes.ok) {
+                const profile = await profileRes.json();
+                const username = profile.username;
+                
+                // درخواست دریافت آخرین بازی‌ها با PGN
+                const gamesRes = await fetch(`https://lichess.org/api/games/user/${username}?max=15&pgnInJson=true&clocks=true&evals=true&accuracy=true`, {
+                    headers: { Accept: 'application/x-ndjson' }
+                });
+                
+                if (gamesRes.ok) {
+                    const text = await gamesRes.text();
+                    const lines = text.split('\n').filter(Boolean);
+                    
+                    const lichessGames: GameRecord[] = lines.map(line => {
+                        const g = JSON.parse(line);
+                        const isWhite = g.players.white.user?.name === username;
+                        const opponentObj = isWhite ? g.players.black : g.players.white;
+                        const playerObj = isWhite ? g.players.white : g.players.black;
+                        
+                        let result: 'win' | 'loss' | 'draw' = 'draw';
+                        if (g.winner === 'white' && isWhite) result = 'win';
+                        else if (g.winner === 'black' && !isWhite) result = 'win';
+                        else if (g.winner) result = 'loss';
+
+                        return {
+                            id: g.id,
+                            opponent: opponentObj.user?.name || 'Anonymous',
+                            rating: opponentObj.rating || '?',
+                            type: 'online',
+                            platform: 'lichess',
+                            result,
+                            playerColor: isWhite ? 'white' : 'black',
+                            accuracy: playerObj.analysis?.accuracy ? Math.round(playerObj.analysis.accuracy) : '؟',
+                            moves: g.moves ? Math.ceil(g.moves.split(' ').length / 2) : 0,
+                            timeControl: g.clock ? `${g.clock.initial/60}+${g.clock.increment}` : '؟',
+                            timestamp: g.createdAt,
+                            date: timeAgo(g.createdAt),
+                            pgn: g.pgn || ''
+                        };
+                    });
+                    allGames = [...allGames, ...lichessGames];
+                }
+            }
+        } catch(e) { console.error("Lichess fetch error", e); }
+    }
+
+    // 🌟 2. دریافت دیتای واقعی از Chess.com API
+    if (chesscomUsername) {
+        try {
+            const archivesRes = await fetch(`https://api.chess.com/pub/player/${chesscomUsername}/games/archives`);
+            if (archivesRes.ok) {
+                const archivesData = await archivesRes.json();
+                if (archivesData.archives && archivesData.archives.length > 0) {
+                    const lastArchiveUrl = archivesData.archives[archivesData.archives.length - 1];
+                    const gamesRes = await fetch(lastArchiveUrl);
+                    if (gamesRes.ok) {
+                        const gamesData = await gamesRes.json();
+                        const latestGames = gamesData.games.slice(-15).reverse();
+
+                        const chesscomGames: GameRecord[] = latestGames.map((g: any) => {
+                            const isWhite = g.white.username.toLowerCase() === chesscomUsername.toLowerCase();
+                            const opponentObj = isWhite ? g.black : g.white;
+                            const playerObj = isWhite ? g.white : g.black;
+                            
+                            let result: 'win' | 'loss' | 'draw' = 'draw';
+                            if (playerObj.result === 'win') result = 'win';
+                            else if (['checkmated', 'timeout', 'resigned', 'abandoned'].includes(playerObj.result)) result = 'loss';
+
+                            // محاسبه حدودی تعداد حرکات از PGN
+                            const movesCount = g.pgn ? (g.pgn.match(/\d+\./g)?.length || 0) : 0;
+
+                            return {
+                                id: g.url,
+                                opponent: opponentObj.username,
+                                rating: opponentObj.rating,
+                                type: 'online',
+                                platform: 'chessDotCom',
+                                result,
+                                playerColor: isWhite ? 'white' : 'black',
+                                accuracy: playerObj.accuracy ? Math.round(playerObj.accuracy) : '؟',
+                                moves: movesCount,
+                                timeControl: g.time_control,
+                                timestamp: g.end_time * 1000,
+                                date: timeAgo(g.end_time * 1000),
+                                pgn: g.pgn || ''
+                            };
+                        });
+                        allGames = [...allGames, ...chesscomGames];
+                    }
+                }
+            }
+        } catch(e) { console.error("Chess.com fetch error", e); }
+    }
+
+    // مرتب‌سازی بر اساس زمان (جدیدترین به قدیمی‌ترین)
+    allGames.sort((a, b) => b.timestamp - a.timestamp);
+    setGames(allGames);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    setIsLoaded(true);
-  }, []);
+    fetchGames();
+  }, [chesscomUsername]);
+
+  const handleSaveChesscomUsername = () => {
+      if(tempChesscomInput.trim()) {
+          localStorage.setItem('chesscom_username', tempChesscomInput.trim());
+          setChesscomUsername(tempChesscomInput.trim());
+      }
+  };
 
   // اعمال ترکیبیِ فیلترها (پلتفرم + نتیجه + جستجو)
-  const filteredGames = mockGames.filter(game => {
+  const filteredGames = games.filter(game => {
     const matchesPlatform = activePlatform === 'all' || game.platform === activePlatform;
     const matchesResult = resultFilter === 'all' || game.result === resultFilter;
     const matchesSearch = game.opponent.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesPlatform && matchesResult && matchesSearch;
   });
 
-  // محاسبه آمار زنده بر اساس بازی‌های فیلتر شده
   const totalGames = filteredGames.length;
   const totalWins = filteredGames.filter(g => g.result === 'win').length;
   const totalLosses = filteredGames.filter(g => g.result === 'loss').length;
   const totalDraws = filteredGames.filter(g => g.result === 'draw').length;
-  const avgAccuracy = totalGames > 0 ? (filteredGames.reduce((acc, g) => acc + g.accuracy, 0) / totalGames).toFixed(1) : '0.0';
+  
+  // محاسبه دقت میانگین (با صرف نظر از بازی‌هایی که ؟ دارند)
+  const accuracyGames = filteredGames.filter(g => typeof g.accuracy === 'number');
+  const avgAccuracy = accuracyGames.length > 0 
+      ? (accuracyGames.reduce((acc, g) => acc + (g.accuracy as number), 0) / accuracyGames.length).toFixed(1) 
+      : '0.0';
 
   const platformTabs = [
     { id: 'all', title: 'همه پلتفرم‌ها', icon: <Swords size={16} /> },
@@ -53,7 +208,6 @@ export default function Archive() {
     { id: 'lichess', title: 'Lichess', icon: <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-4 h-4" alt="lichess" /> }
   ];
 
-  // تشخیص استایل‌های پلتفرم و نتیجه برای رندر کارت
   const getPlatformStyle = (platform: string) => {
     switch(platform) {
       case 'chessDotCom': return { border: 'border-[#81b64c]/40', bgHover: 'hover:bg-[#81b64c]/5', glow: 'bg-[#81b64c]' };
@@ -72,6 +226,23 @@ export default function Archive() {
     }
   };
 
+  // 🌟 انتقال هوشمند بازی به صفحه آنالیز با ارسال PGN
+  const openGameAnalysis = (game: GameRecord) => {
+      if (!game.pgn) return;
+      navigate('/analysis', {
+          state: {
+              type: 'PGN',
+              data: game.pgn,
+              meta: {
+                  whiteName: game.playerColor === 'white' ? 'شما' : game.opponent,
+                  whiteElo: game.playerColor === 'white' ? '1500' : game.rating,
+                  blackName: game.playerColor === 'black' ? 'شما' : game.opponent,
+                  blackElo: game.playerColor === 'black' ? '1500' : game.rating,
+              }
+          }
+      });
+  };
+
   return (
     <>
       <motion.div 
@@ -82,30 +253,25 @@ export default function Archive() {
         className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-24 overflow-x-hidden" 
         dir="rtl"
       >
-        {/* هدر */}
-        <div className="w-full max-w-2xl px-5 py-6 flex items-center justify-between z-10 sticky top-0 bg-[#161512]/90 backdrop-blur-md border-b border-white/5">
+        <div className="w-full max-w-2xl px-5 py-6 flex items-center justify-between z-10 sticky top-0 bg-[#161512]/90 backdrop-blur-md border-b border-white/5 shadow-sm">
           <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white transition-transform active:scale-90 bg-[#1e1c19] p-2 rounded-xl border border-[#35332e]">
             <ChevronRight size={24} />
           </button>
           <div className="flex flex-col items-center">
               <h1 className="text-lg font-black tracking-tight text-white uppercase drop-shadow-md">آرشیو بازی‌ها</h1>
-              <span className="text-[10px] text-farzin-accent font-bold tracking-widest uppercase mt-0.5">Game History</span>
+              <span className="text-[10px] text-farzin-accent font-bold tracking-widest uppercase mt-0.5">Live Sync</span>
           </div>
           <button 
             onClick={() => setIsFilterOpen(true)}
             className="relative p-2.5 bg-[#1e1c19] border border-[#35332e] rounded-xl hover:bg-[#262421] text-zinc-400 hover:text-white transition-all active:scale-95"
           >
               <Filter size={20} />
-              {/* نشانگر فعال بودن فیلتر نتیجه */}
-              {resultFilter !== 'all' && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-farzin-accent rounded-full border-2 border-[#161512]"></span>
-              )}
+              {resultFilter !== 'all' && <span className="absolute -top-1 -right-1 w-3 h-3 bg-farzin-accent rounded-full border-2 border-[#161512]"></span>}
           </button>
         </div>
 
-        <div className={`w-full max-w-2xl px-4 mt-4 flex flex-col gap-6 transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="w-full max-w-2xl px-4 mt-4 flex flex-col gap-6">
           
-          {/* 🔥 منوی تب‌های شناور پلتفرم‌ها (کپی شده از Setting) */}
           <div className="relative flex overflow-x-auto gap-2 pb-4 no-scrollbar px-1">
             {platformTabs.map(tab => {
               const isActive = activePlatform === tab.id;
@@ -131,14 +297,13 @@ export default function Archive() {
             })}
           </div>
 
-          {/* 🔥 داشبورد آماری زنده (Live Stats) */}
           <div className="bg-[#1e1c19] rounded-[28px] border border-[#35332e] shadow-2xl p-5 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-farzin-accent/5 rounded-full blur-[40px] -mr-10 -mt-10"></div>
               
               <div className="flex items-center justify-between mb-5 relative z-10">
                   <div className="flex items-center gap-2 text-zinc-300">
                       <Swords size={18} className="text-farzin-accent" />
-                      <span className="font-black text-sm">آمار بازی‌های فیلتر شده</span>
+                      <span className="font-black text-sm">آمار زنده بازی‌ها</span>
                   </div>
                   <div className="px-3 py-1 rounded-lg bg-[#161512] border border-[#35332e] flex items-center gap-1.5 shadow-inner">
                       <Target size={14} className="text-amber-400" />
@@ -146,7 +311,6 @@ export default function Archive() {
                   </div>
               </div>
 
-              {/* نوار گرافیکی وضعیت (با انیمیشن عرض) */}
               <div className="flex w-full h-3 rounded-full overflow-hidden mb-5 bg-[#161512] shadow-inner relative z-10">
                   <motion.div animate={{ width: totalGames ? `${(totalWins/totalGames)*100}%` : '0%' }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-emerald-500 h-full"></motion.div>
                   <motion.div animate={{ width: totalGames ? `${(totalDraws/totalGames)*100}%` : '0%' }} transition={{ duration: 0.8, ease: "easeOut" }} className="bg-zinc-500 h-full"></motion.div>
@@ -169,7 +333,6 @@ export default function Archive() {
               </div>
           </div>
 
-          {/* نوار جستجو */}
           <div className="relative">
               <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
                   <Search size={18} className="text-zinc-500" />
@@ -183,10 +346,55 @@ export default function Archive() {
               />
           </div>
 
-          {/* 🔥 لیست کارت‌های بازی با تفکیک پلتفرم */}
-          <div className="flex flex-col gap-4">
+          {/* 🔥 فرم اتصال به Chess.com اگر یوزرنیم ثبت نشده باشد */}
+          {activePlatform === 'chessDotCom' && !chesscomUsername && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1a2315] to-[#161512] border border-[#81b64c]/40 rounded-[24px] p-6 shadow-[0_10px_30px_rgba(129,182,76,0.1)]">
+                  <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-[#81b64c]/20 rounded-xl flex items-center justify-center border border-[#81b64c]/40 shadow-inner">
+                          <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-6 h-6 rounded-md" alt="chess.com" />
+                      </div>
+                      <div className="flex flex-col">
+                          <h3 className="font-black text-white">اتصال به Chess.com</h3>
+                          <span className="text-xs text-zinc-400">برای دریافت خودکار بازی‌ها</span>
+                      </div>
+                  </div>
+                  <div className="flex gap-2">
+                      <input 
+                          type="text" 
+                          dir="ltr"
+                          placeholder="نام کاربری شما..." 
+                          value={tempChesscomInput}
+                          onChange={(e) => setTempChesscomInput(e.target.value)}
+                          className="flex-1 bg-[#161512] border border-[#35332e] text-white text-sm rounded-xl px-4 focus:outline-none focus:border-[#81b64c] transition-colors"
+                      />
+                      <button onClick={handleSaveChesscomUsername} className="bg-[#81b64c] hover:bg-[#6c9c3e] text-white px-5 py-3 rounded-xl font-black text-sm transition-colors active:scale-95 shadow-lg">
+                          اتصال
+                      </button>
+                  </div>
+              </motion.div>
+          )}
+
+          {/* لیست کارت‌های بازی */}
+          <div className="flex flex-col gap-4 min-h-[300px]">
               <AnimatePresence mode="popLayout">
-                  {filteredGames.length > 0 ? filteredGames.map((game, index) => {
+                  {isLoading ? (
+                      // اسکلتون لودینگ حرفه‌ای
+                      Array.from({ length: 4 }).map((_, i) => (
+                          <motion.div key={`skel-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-[#1e1c19] rounded-[24px] border border-[#35332e] p-5 flex flex-col gap-4 animate-pulse">
+                              <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                      <div className="w-12 h-12 rounded-[14px] bg-[#262421]"></div>
+                                      <div className="flex flex-col gap-2"><div className="w-24 h-4 bg-[#262421] rounded"></div><div className="w-16 h-3 bg-[#262421] rounded"></div></div>
+                                  </div>
+                                  <div className="w-16 h-6 bg-[#262421] rounded-xl"></div>
+                              </div>
+                              <div className="flex justify-between border-t border-[#35332e]/50 pt-3">
+                                  <div className="w-20 h-4 bg-[#262421] rounded"></div>
+                                  <div className="w-12 h-4 bg-[#262421] rounded"></div>
+                              </div>
+                          </motion.div>
+                      ))
+                  ) : filteredGames.length > 0 ? filteredGames.map((game, index) => {
                       const info = getResultInfo(game.result);
                       const platformStyle = getPlatformStyle(game.platform);
                       
@@ -198,22 +406,18 @@ export default function Archive() {
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, scale: 0.9 }}
                               transition={{ duration: 0.25, delay: index * 0.05 }}
-                              onClick={() => navigate('/analysis')} 
+                              onClick={() => openGameAnalysis(game)} 
                               className={`relative bg-[#1e1c19] rounded-[24px] border ${platformStyle.border} shadow-lg overflow-hidden flex cursor-pointer ${platformStyle.bgHover} transition-all duration-300 group active:scale-[0.98]`}
                           >
-                              {/* نوار وضعیت (برد/باخت) سمت راست */}
                               <div className={`w-2 shrink-0 ${info.line} shadow-[0_0_10px_rgba(0,0,0,0.5)] z-10 relative`}></div>
-                              
-                              {/* هاله رنگی پلتفرم در پس‌زمینه کارت */}
                               <div className={`absolute -top-10 -left-10 w-24 h-24 rounded-full blur-[40px] opacity-10 ${platformStyle.glow} pointer-events-none`}></div>
 
                               <div className="flex-1 p-5 relative z-10">
                                   <div className="flex items-start justify-between mb-4">
                                       <div className="flex items-center gap-3">
-                                          {/* آواتار حریف */}
                                           <div className="relative">
                                               <div className="w-12 h-12 rounded-[14px] bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner group-hover:scale-105 transition-transform duration-300">
-                                                  {game.type === 'ai' ? <Bot size={22} className="text-zinc-300" /> : <User size={22} className="text-zinc-300" />}
+                                                  {game.type === 'ai' ? <Bot size={22} className="text-zinc-300" /> : <Globe size={22} className="text-zinc-300" />}
                                               </div>
                                               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#262421] rounded-full border-2 border-[#1e1c19] flex items-center justify-center shadow-sm">
                                                   <div className={`w-2.5 h-2.5 rounded-[3px] ${game.playerColor === 'white' ? 'bg-zinc-200' : 'bg-zinc-800 border border-zinc-600'}`}></div>
@@ -223,7 +427,6 @@ export default function Archive() {
                                               <span className="font-black text-[15px] text-white tracking-wide">{game.opponent}</span>
                                               <div className="flex items-center gap-1.5 mt-0.5">
                                                   <span className="text-[10px] font-mono font-bold text-zinc-500 bg-[#161512] px-1.5 py-0.5 rounded border border-[#35332e]">{game.rating}</span>
-                                                  {/* آیکون پلتفرم */}
                                                   {game.platform === 'chessDotCom' && <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-3.5 h-3.5 rounded-[3px]" alt="chess.com" />}
                                                   {game.platform === 'lichess' && <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-3.5 h-3.5" alt="lichess" />}
                                                   {game.platform === 'farzin' && <Bot size={13} className="text-farzin-accent" />}
@@ -238,7 +441,7 @@ export default function Archive() {
                                   </div>
 
                                   <div className="flex items-center justify-between pt-3 border-t border-[#35332e]/50">
-                                      <div className="flex items-center gap-4 text-[11px] font-bold text-zinc-400">
+                                      <div className="flex items-center gap-3 text-[11px] font-bold text-zinc-400">
                                           <div className="flex items-center gap-1.5 bg-[#161512] px-2 py-1 rounded-lg border border-[#35332e]">
                                               <Calendar size={13} className="text-zinc-500" />
                                               <span>{game.date}</span>
@@ -266,7 +469,7 @@ export default function Archive() {
                             <Swords size={32} className="text-zinc-600" />
                           </div>
                           <span className="text-white font-black text-lg mb-1">بازی‌ای پیدا نشد!</span>
-                          <span className="text-zinc-500 text-xs">فیلترها رو تغییر بده یا یه بازی جدید شروع کن.</span>
+                          <span className="text-zinc-500 text-xs">اکانت‌های خود را متصل کنید یا در لیچس و فرزین بازی کنید.</span>
                       </motion.div>
                   )}
               </AnimatePresence>
@@ -274,56 +477,28 @@ export default function Archive() {
         </div>
       </motion.div>
 
-      {/* 🔥 پاپ‌آپ فیلتر پیشرفته (Modal) */}
       <AnimatePresence>
         {isFilterOpen && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:px-4"
-            dir="rtl"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:px-4" dir="rtl"
           >
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="w-full sm:max-w-md bg-[#1e1c19] border-t sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col pb-safe"
             >
-              {/* خط تزیینی بالای مودال در موبایل */}
-              <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
-                  <div className="w-12 h-1.5 bg-[#35332e] rounded-full"></div>
-              </div>
-
+              <div className="w-full flex justify-center pt-3 pb-1 sm:hidden"><div className="w-12 h-1.5 bg-[#35332e] rounded-full"></div></div>
               <div className="flex items-center justify-between px-6 py-4 border-b border-[#35332e]">
-                <h3 className="font-black text-white flex items-center gap-2 text-lg">
-                  <Filter size={18} className="text-farzin-accent" />
-                  فیلتر پیشرفته
-                </h3>
-                <button 
-                  onClick={() => setIsFilterOpen(false)}
-                  className="p-2 bg-[#161512] rounded-full text-zinc-400 hover:text-white transition-colors"
-                >
-                  <X size={18} />
-                </button>
+                <h3 className="font-black text-white flex items-center gap-2 text-lg"><Filter size={18} className="text-farzin-accent" />فیلتر پیشرفته</h3>
+                <button onClick={() => setIsFilterOpen(false)} className="p-2 bg-[#161512] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button>
               </div>
-
               <div className="p-6 flex flex-col gap-6">
-                
-                {/* فیلتر نتیجه بازی */}
                 <div className="flex flex-col gap-3">
                     <span className="text-[11px] font-black text-zinc-500 uppercase tracking-widest">نتیجه بازی</span>
                     <div className="grid grid-cols-4 gap-2">
-                        {[
-                            { id: 'all', label: 'همه' },
-                            { id: 'win', label: 'برد' },
-                            { id: 'draw', label: 'مساوی' },
-                            { id: 'loss', label: 'باخت' }
-                        ].map(res => (
+                        {[ { id: 'all', label: 'همه' }, { id: 'win', label: 'برد' }, { id: 'draw', label: 'مساوی' }, { id: 'loss', label: 'باخت' } ].map(res => (
                             <button
-                                key={res.id}
-                                onClick={() => setResultFilter(res.id)}
+                                key={res.id} onClick={() => setResultFilter(res.id)}
                                 className={`py-3 rounded-xl text-xs font-black transition-all border ${resultFilter === res.id ? 'bg-farzin-accent text-white border-farzin-accent shadow-[0_4px_15px_rgba(119,149,86,0.3)]' : 'bg-[#161512] text-zinc-400 border-[#35332e] hover:bg-[#262421]'}`}
                             >
                                 {res.label}
@@ -331,15 +506,9 @@ export default function Archive() {
                         ))}
                     </div>
                 </div>
-
-                <button 
-                  onClick={() => setIsFilterOpen(false)}
-                  className="mt-4 w-full py-4 rounded-[18px] font-black text-sm transition-all flex items-center justify-center gap-2 bg-white text-black active:scale-[0.98] shadow-[0_4px_20px_rgba(255,255,255,0.2)]"
-                >
-                  <Check size={18} />
-                  اعمال فیلتر و مشاهده نتایج
+                <button onClick={() => setIsFilterOpen(false)} className="mt-4 w-full py-4 rounded-[18px] font-black text-sm transition-all flex items-center justify-center gap-2 bg-white text-black active:scale-[0.98] shadow-[0_4px_20px_rgba(255,255,255,0.2)]">
+                  <Check size={18} /> اعمال فیلتر و مشاهده نتایج
                 </button>
-
               </div>
             </motion.div>
           </motion.div>
