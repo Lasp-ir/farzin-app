@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot } from 'lucide-react';
+import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot, Info } from 'lucide-react';
 
 export default function LichessLobby() {
     const navigate = useNavigate();
@@ -43,15 +43,22 @@ export default function LichessLobby() {
         setToken(null);
     };
 
-    // 🌟 درخواست هوشمند بازی از لیچس با گارد قدرتمند برای پردازش ارور
     const handleSeek = async (timeControl: string) => {
         if (!token) return;
-        setIsSearching(true);
+        setIsSearching(false);
         setError(null);
 
         const [minStr, incStr] = timeControl.split('+');
         const minutes = parseInt(minStr, 10);
         const increment = parseInt(incStr, 10);
+
+        // 🔴 بررسی امنیتی قبل از ارسال: جلوگیری از ارور 400 لیچس
+        if (minutes < 10) {
+            setError("قوانین ضد-تقلب لیچس (Anti-Cheat API): لیچس به کلاینت‌های شخص ثالث اجازه نمی‌دهد در بازی‌های سرعتی (Bullet/Blitz) حریف تصادفی پیدا کنند. لطفاً برای مچ‌میکینگ از زمان‌های Rapid (مثل 10+0) یا کلاسیک استفاده کنید.");
+            return;
+        }
+
+        setIsSearching(true);
 
         try {
             const formData = new URLSearchParams();
@@ -76,16 +83,15 @@ export default function LichessLobby() {
                     exactError = errJson.error || errJson.message || errText;
                 } catch(e) {}
 
-                // 🔴 گارد تبدیل به رشته: مهم نیست لیچس آبجکت بده یا آرایه، ما به استرینگ تبدیلش میکنیم
                 const errorString = typeof exactError === 'string' ? exactError : JSON.stringify(exactError);
 
                 if (response.status === 400) {
                     if (errorString.toLowerCase().includes('already seeking')) {
                         throw new Error("شما در حال حاضر یک جستجوی فعال در لیچس دارید. لطفاً جستجوی قبلی را در سایت لیچس لغو کنید.");
                     }
-                    throw new Error(`خطای 400 (Bad Request): لیچس این کنترل زمانی را رد کرد. دلیل: ${errorString}`);
+                    throw new Error(`خطای لیچس: ${errorString}`);
                 } else if (response.status === 403) {
-                    throw new Error("دسترسی غیرمجاز (403): توکن شما دسترسی Board API ندارد یا اکانت شما مسدود/ربات است.");
+                    throw new Error("دسترسی غیرمجاز (403): توکن شما دسترسی Board API ندارد یا اکانت شما مسدود است.");
                 } else if (response.status === 401) {
                     throw new Error("توکن منقضی شده یا نامعتبر است.");
                 } else if (response.status === 429) {
@@ -137,7 +143,7 @@ export default function LichessLobby() {
         try {
             const formData = new URLSearchParams();
             formData.append('rated', 'false');
-            formData.append('clock.limit', '180');
+            formData.append('clock.limit', '180'); // 3 دقیقه (چالش مستقیم اجازه میده)
             formData.append('clock.increment', '2');
 
             const response = await fetch('https://lichess.org/api/challenge/maia1', {
@@ -252,25 +258,38 @@ export default function LichessLobby() {
                                 </div>
                             </div>
 
-                            {error && <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-bold rounded-xl text-center leading-loose">{error}</div>}
+                            {/* با این نوار راهنما به کاربر اطلاع می‌دیم */}
+                            <div className="mb-6 p-4 bg-sky-500/10 border border-sky-500/20 rounded-2xl flex items-start gap-3 shadow-inner">
+                                <Info size={20} className="text-sky-400 shrink-0 mt-0.5" />
+                                <p className="text-xs text-sky-100/90 leading-relaxed font-medium">
+                                   قوانین API لیچس: مچ‌میکینگ عمومی تنها برای حالت‌های <b className="text-white">سریع (Rapid) و کلاسیک</b> مجاز است. برای تست می‌توانید روی دکمه‌ی بازی با ربات در پایین صفحه کلیک کنید.
+                                </p>
+                            </div>
+
+                            {error && <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold rounded-xl leading-relaxed flex items-center gap-2 shadow-inner"><AlertCircle size={20} className="shrink-0"/> {error}</div>}
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                                {timeControls.map((tc) => (
+                                {timeControls.map((tc) => {
+                                    const min = parseInt(tc.id.split('+')[0]);
+                                    const isSpeedGame = min < 10;
+                                    
+                                    return (
                                     <button 
                                         key={tc.id} 
                                         onClick={() => handleSeek(tc.id)}
-                                        className="bg-[#11100e]/80 backdrop-blur-xl border border-white/5 hover:border-farzin-accent/50 p-6 rounded-3xl flex flex-col items-center gap-3 transition-all hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(119,149,86,0.15)] group active:scale-95"
+                                        className={`backdrop-blur-xl border border-white/5 p-6 rounded-3xl flex flex-col items-center gap-3 transition-all group active:scale-95 ${isSpeedGame ? 'bg-[#11100e]/40 opacity-50 cursor-not-allowed hover:bg-red-500/5 hover:border-red-500/30' : 'bg-[#11100e]/80 hover:border-farzin-accent/50 hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(119,149,86,0.15)]'}`}
+                                        title={isSpeedGame ? "API اجازه ساخت بازی سرعتی عمومی را نمی‌دهد" : ""}
                                     >
-                                        <div className={`p-3 rounded-2xl ${tc.bg} ${tc.color} ${tc.border} border transition-transform group-hover:scale-110`}><tc.icon size={24} /></div>
+                                        <div className={`p-3 rounded-2xl ${tc.bg} ${tc.color} ${tc.border} border transition-transform ${!isSpeedGame && 'group-hover:scale-110'}`}><tc.icon size={24} /></div>
                                         <div className="flex flex-col items-center gap-0.5">
                                             <span className="font-black text-xl text-white" dir="ltr">{tc.id}</span>
                                             <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{tc.name}</span>
                                         </div>
                                     </button>
-                                ))}
+                                )})}
                             </div>
 
-                            <button onClick={handleChallengeMaia} className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95">
+                            <button onClick={handleChallengeMaia} className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95 shadow-inner">
                                 <Bot size={20} /> بازی تستی فوری با ربات Maia (سطح 1500)
                             </button>
                         </motion.div>
