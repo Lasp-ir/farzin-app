@@ -22,11 +22,7 @@ import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, Ed
 export default function AnalysisBoard() {
   const location = useLocation();
   const navigate = useNavigate();
-  
-  // ایمن‌سازی initialData برای جلوگیری از رندر لوپ
-  const initialData = useMemo(() => {
-      return location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
-  }, [location.state]);
+  const initialData = location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<'white'|'black'>('white');
@@ -63,30 +59,10 @@ export default function AnalysisBoard() {
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
-  // 🌟 بازیابی و راه‌اندازی اولیه
-  useEffect(() => {
-    // 1. بررسی کش (Session Storage) برای بازیابی دقیق وضعیت خروج
-    const savedState = sessionStorage.getItem('farzin_analysis_state');
-    if (savedState && !location.state?.forceNew) {
-        try {
-            const parsed = JSON.parse(savedState);
-            // اگر کاربر از جای دیگه (مثل صفحه ریپورت) برگشته باشه، دیتای اولیه تغییر نکرده
-            if (!location.state?.data || location.state.data === parsed.initialData.data) {
-                setTree(parsed.tree);
-                setCurrentNodeId(parsed.currentNodeId);
-                setPlayerMeta(parsed.playerMeta);
-                if (parsed.cache) {
-                    engineCache.current = parsed.cache;
-                }
-                setIsLoaded(true);
-                return; // پایان موفقیت‌آمیز بازیابی
-            }
-        } catch (e) {
-            console.error("State restore failed:", e);
-        }
-    }
+  // 🌟 مکانیزم خطوط پایدار (Evaluation Smoother)
+  const [stableLines, setStableLines] = useState<any[]>([]);
 
-    // 2. در غیر این صورت، راه‌اندازی نرمال از روی دیتای ورودی
+  useEffect(() => {
     let rootFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     let initialTree: Record<string, MoveNode> = {
       'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 }
@@ -144,26 +120,7 @@ export default function AnalysisBoard() {
     setTree(initialTree);
     setCurrentNodeId(endNodeId); 
     setIsLoaded(true);
-  }, [initialData, location.state]);
-
-  // 🌟 ذخیره پیوسته وضعیت (State Persistence) در سشن مرورگر
-  useEffect(() => {
-    if (isLoaded) {
-        try {
-            sessionStorage.setItem('farzin_analysis_state', JSON.stringify({
-                tree, currentNodeId, playerMeta, initialData,
-                cache: engineCache.current
-            }));
-        } catch(e) {
-            // در صورت پر شدن حافظه (حجم زیاد انجین)، فقط ساختار رو ذخیره کن
-            try {
-                sessionStorage.setItem('farzin_analysis_state', JSON.stringify({
-                    tree, currentNodeId, playerMeta, initialData
-                }));
-            } catch(e2) {}
-        }
-    }
-  }, [tree, currentNodeId, playerMeta, isLoaded, initialData]);
+  }, [initialData]);
 
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   
@@ -246,11 +203,25 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, isKingInDanger, easterEggState]);
 
+  // 🌟 پاک کردن استیبل لاین با هر تغییر نود تا نوسان قبلی نمایش داده نشود
+  useEffect(() => {
+    setStableLines([]);
+  }, [currentNodeId]);
+
+  // 🌟 ذخیره لاین‌های پایدار و معتبر (جلوگیری از Horizon Effect در عمق‌های پایین)
   useEffect(() => {
     if (lines && lines.length > 0) {
       engineCache.current[currentNodeId] = lines;
+      
+      const depth = lines[0].depth || 0;
+      const isMateVal = lines[0].isMate || lines[0].score === 10000 || lines[0].score === -10000;
+      
+      // آپدیت UI فقط در صورت رسیدن به عمق پایدار (6) یا تشخیص قطعی مات
+      if (depth >= Math.min(6, engineSettings.maxDepth) || isMateVal) {
+          setStableLines(lines);
+      }
     }
-  }, [lines, currentNodeId]);
+  }, [lines, currentNodeId, engineSettings.maxDepth]);
 
   const calculateNodeCoachData = useCallback((nodeId: string, currentLines: any[], t: Record<string, MoveNode>) => {
     if (!engineSettings.coachMode || nodeId === 'root') return null;
@@ -275,7 +246,8 @@ export default function AnalysisBoard() {
     const parentIsDraw = pg.isDraw() || pg.isStalemate() || pg.isThreefoldRepetition() || pg.isInsufficientMaterial();
 
     if (!parentIsMate && !parentIsDraw && (!parentLines || !parentLines[0])) return COACH_COLORS.loading;
-    if (!isMate && !isDraw && (!currentLines || !currentLines[0])) return COACH_COLORS.loading;
+    // 🌟 مربی تا زمانی که عمق به 6 نرسیده نظر قطعی نمی‌دهد تا فلیکر نکند
+    if (!isMate && !isDraw && (!currentLines || !currentLines[0] || currentLines[0].depth < Math.min(6, engineSettings.maxDepth))) return COACH_COLORS.loading;
 
     let absScoreB = 0;
     if (parentIsMate) absScoreB = playerWhoMovedIsBlack ? 100 : -100;
@@ -367,7 +339,7 @@ export default function AnalysisBoard() {
     } catch(e) {}
 
     return { ...COACH_COLORS[classificationKey], key: classificationKey, bestSan: bestSanMove, userSan: node.san };
-  }, [engineSettings.coachMode]);
+  }, [engineSettings.coachMode, engineSettings.maxDepth]);
 
   const coachData = useMemo(() => calculateNodeCoachData(currentNodeId, lines, tree), [currentNodeId, lines, tree, calculateNodeCoachData]);
 
@@ -479,14 +451,15 @@ export default function AnalysisBoard() {
     return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
   }, [graphPoints, activeMainline, allPaths, maxX]);
 
+  // 🌟 استفاده از stableLines برای کشیدن دقیق‌تر فلش‌ها
   const engineArrows = useMemo(() => {
-    if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !lines || lines.length === 0) return [];
+    if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !stableLines || stableLines.length === 0) return [];
     
     const arrowMap = new Map<string, any>();
-    const bestScore = lines[0].score;
-    const bestIsMate = lines[0].isMate;
+    const bestScore = stableLines[0].score;
+    const bestIsMate = stableLines[0].isMate;
 
-    lines.slice(0, engineSettings.multiPv).forEach((line, index) => {
+    stableLines.slice(0, engineSettings.multiPv).forEach((line, index) => {
         const rawPv = line.pv || '';
         let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
         const match = actualPv.match(/[a-h][1-8][a-h][1-8]/);
@@ -521,7 +494,7 @@ export default function AnalysisBoard() {
         }
     });
     return Array.from(arrowMap.values());
-  }, [lines, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused, easterEggState]);
+  }, [stableLines, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused, easterEggState]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
   const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
@@ -777,12 +750,20 @@ export default function AnalysisBoard() {
     return customSq;
   }, [tree, currentNodeId]);
 
+  // 🌟 محاسبه نرم شده برای Eval Text
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
-      if (!lines || lines.length === 0 || !lines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
-      const main = lines[0]; const aScore = isBlackTurn ? -main.score : main.score; const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
-      let text = '0.00'; if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`; else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+      if (!stableLines || stableLines.length === 0 || !stableLines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '...', isMate: false };
+      
+      const main = stableLines[0]; 
+      const aScore = isBlackTurn ? -main.score : main.score; 
+      const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
+      
+      let text = '0.00'; 
+      if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`; 
+      else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+      
       return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: main.isMate };
-  }, [lines, isBlackTurn]);
+  }, [stableLines, isBlackTurn]);
 
   const evalPercentage = useMemo(() => { if (isMate) return absoluteMate > 0 ? 95 : 5; return Math.max(5, Math.min(95, 50 + (absoluteScore * 10))); }, [absoluteScore, isMate, absoluteMate]);
   
@@ -792,6 +773,8 @@ export default function AnalysisBoard() {
   };
   const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
   const isOpeningPhase = currentNodeId === 'root' || (Object.keys(tree).length < 15);
+  
+  // استفاده از lines (خام) برای استاتوس بار انجین تا سرعت جستجو دیده شود
   const displayEngineStatus = (isOpeningPhase && activeTab === 'explorer') ? 'reading books...' : (isReady ? `Farzin 1.0 (NNUE)` : engineStatus);
 
   const renderTreeNodes = useCallback((nodeId: string, forceShowMoveNumber: boolean = false): React.ReactNode[] => {
@@ -836,7 +819,6 @@ export default function AnalysisBoard() {
       <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} tempSettings={tempSettings} setTempSettings={setTempSettings} onApply={handleApplySettings} />
       <ArrowSettingsModal isOpen={isArrowModalOpen} onClose={() => setIsArrowModalOpen(false)} arrowSettings={arrowSettings} setArrowSettings={setArrowSettings} arrowColors={arrowColors} setArrowColors={setArrowColors} multiPv={engineSettings.multiPv} />
       
-      {/* 😈 پاپ‌آپ‌های ایستر اگ */}
       <AnimatePresence>
         {easterEggState === 'prompt' && (
           <motion.div initial={{ y: -50, scale: 0.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-10 inset-x-0 flex justify-center z-[200] pointer-events-none px-4">
@@ -955,7 +937,7 @@ export default function AnalysisBoard() {
                  )
              ) : (
                 <div className="flex flex-col gap-0.5" dir="ltr" style={{ fontFamily: "'JetBrains Mono', Consolas, monospace" }}>
-                  {lines.length > 0 ? lines.slice(0, engineSettings.multiPv).map((line, idx) => {
+                  {stableLines.length > 0 ? stableLines.slice(0, engineSettings.multiPv).map((line, idx) => {
                       const rawPv = line.pv || ''; let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv; const match = actualPv.match(/[a-h][1-8][a-h][1-8]/); if (match && !rawPv.includes(' pv ')) actualPv = actualPv.substring(actualPv.indexOf(match[0]));
                       const uciMoves = actualPv.trim().split(' ').slice(0, 15); const sanMoves: string[] = [];
                       try { const tempGame = new Chess(currentPosition); for (const uci of uciMoves) { if (!uci || uci.length < 4) break; const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) }; if (uci.length > 4) moveParams.promotion = uci[4]; const result = tempGame.move(moveParams); if (result) sanMoves.push(result.san); else { sanMoves.push(uci); break; } } } catch (e) {}
@@ -970,7 +952,7 @@ export default function AnalysisBoard() {
                               <span className="text-zinc-500 truncate opacity-80">{restMoves}</span>
                           </div>
                       );
-                  }) : (<div className="text-[10px] text-zinc-500 pl-2">آماده به کار...</div>)}
+                  }) : (<div className="text-[10px] text-zinc-500 pl-2">در حال ارزیابی دقیق...</div>)}
                 </div>
              )}
           </div>
@@ -1070,22 +1052,30 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
-                {/* 🌟 تب گراف شفاف، تمیز و همراه با دکمه تمام صفحه شناور */}
                 {activeTab === 'graph' && (
-                    <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex flex-col p-0">
-                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-90 pointer-events-none">
-                            <path d={areaWhite} fill="#ffffff" fillOpacity="0.15" />
-                            <path d={areaBlack} fill="#000000" fillOpacity="0.6" />
-                            <path d={linePath} fill="none" stroke="#ffffff" strokeWidth="4" style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.4))' }} />
+                    <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex items-center p-3">
+                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
+                            <path d={areaWhite} fill="#fff" />
+                            <path d={areaBlack} fill="#000" />
+                            <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
                         </svg>
+                        <div className="absolute inset-0 backdrop-blur-[2px] bg-black/40 z-10" />
                         
-                        <div className="absolute bottom-3 right-3 z-20">
+                        <div className="relative z-20 flex items-center justify-between w-full gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.3)] shrink-0">
+                                    <TrendingUp size={20} />
+                                </div>
+                                <div className="flex flex-col text-right">
+                                    <span className="text-xs font-bold text-white">تحلیل گرافیکی</span>
+                                    <span className="text-[9px] text-zinc-400">سیگموئید و فازها</span>
+                                </div>
+                            </div>
                             <button 
                                 onClick={() => setGraphMode('fullscreen')} 
-                                className="p-2 bg-[#1e1c19]/80 backdrop-blur border border-[#35332e] hover:bg-[#262421] text-zinc-300 hover:text-white rounded-lg transition-colors shadow-lg active:scale-95"
-                                title="تمام‌صفحه"
+                                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg font-bold text-[10px] transition-colors shadow-lg active:scale-95 shrink-0"
                             >
-                                <Maximize2 size={16} />
+                                باز کردن <Maximize2 size={12} />
                             </button>
                         </div>
                     </div>
@@ -1113,7 +1103,13 @@ export default function AnalysisBoard() {
                 
                 <div className="flex items-center gap-2">
                     <button 
-                        onClick={() => navigate('/report', { state: { data: getPgnString(), meta: playerMeta } })} 
+                        onClick={() => {
+                            if (Object.keys(tree).length <= 1) {
+                                showToast('اول یه حرکتی روی تخته بزن! 😅♟️');
+                                return;
+                            }
+                            navigate('/report', { state: { data: getPgnString(), meta: playerMeta } });
+                        }} 
                         className="relative flex items-center h-[34px] gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 rounded-lg text-[11px] font-black transition-all shadow-[0_0_10px_rgba(119,149,86,0.5)] hover:shadow-[0_0_15px_rgba(119,149,86,0.8)] active:scale-95 group"
                     >
                         <PieChart size={14} className="group-hover:scale-110 transition-transform" /> 
