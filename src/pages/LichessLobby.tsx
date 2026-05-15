@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot, Info, ShieldAlert, PlayCircle } from 'lucide-react';
+// 🌟 مشکل اینجا بود: Trophy به لیست ایمپورت‌ها اضافه شد
+import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot, Info, ShieldAlert, PlayCircle, Trophy } from 'lucide-react';
 
 export default function LichessLobby() {
     const navigate = useNavigate();
@@ -319,7 +320,7 @@ export default function LichessLobby() {
                                 </div>
                             </div>
 
-                            {/* 🌟 بخش رادار بازی‌های در جریان (اگر کاربر بازی نصفه داره) */}
+                            {/* 🌟 بخش رادار بازی‌های در جریان */}
                             {ongoingGames.length > 0 && (
                                 <motion.div initial={{opacity:0, y:-10}} animate={{opacity:1, y:0}} className="mb-6 bg-emerald-500/10 border border-emerald-500/30 rounded-3xl p-5 shadow-lg flex flex-col gap-4">
                                     <div className="flex items-center gap-2 text-emerald-400">
