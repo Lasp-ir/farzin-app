@@ -4,18 +4,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Search, Filter, Target, Clock, Calendar, 
   Trophy, XCircle, MinusCircle, User, Bot, Swords, X, Check,
-  Loader2, Globe, Users, PlusCircle, Trash2
+  Globe, Users, PlusCircle, Trash2, ArrowLeft, ArrowDownCircle
 } from 'lucide-react';
 
 interface GameRecord {
   id: string;
   opponent: string;
+  playedBy: string; // 🌟 اضافه شدن آیدی بازی کننده
   rating: number | string;
   type: 'ai' | 'online';
   platform: 'farzin' | 'chessDotCom' | 'lichess';
   result: 'win' | 'loss' | 'draw';
   playerColor: 'white' | 'black';
-  accuracy: number | string;
   moves: number;
   timeControl: string;
   date: string;
@@ -39,8 +39,8 @@ const timeAgo = (timestamp: number) => {
 };
 
 const mockFarzinGames: GameRecord[] = [
-  { id: 'f1', opponent: 'فرزین (کابوس)', rating: 2800, type: 'ai', platform: 'farzin', result: 'loss', playerColor: 'black', accuracy: 72.4, moves: 45, timeControl: '10+0', date: 'امروز', pgn: '', timestamp: Date.now() - 3600000 },
-  { id: 'f2', opponent: 'فرزین (سارا)', rating: 400, type: 'ai', platform: 'farzin', result: 'win', playerColor: 'white', accuracy: 95.2, moves: 18, timeControl: '∞', date: '۳ روز پیش', pgn: '', timestamp: Date.now() - 259200000 },
+  { id: 'f1', opponent: 'فرزین (کابوس)', playedBy: 'شما', rating: 2800, type: 'ai', platform: 'farzin', result: 'loss', playerColor: 'black', moves: 45, timeControl: '10+0', date: 'امروز', pgn: '', timestamp: Date.now() - 3600000 },
+  { id: 'f2', opponent: 'فرزین (سارا)', playedBy: 'شما', rating: 400, type: 'ai', platform: 'farzin', result: 'win', playerColor: 'white', moves: 18, timeControl: '∞', date: '۳ روز پیش', pgn: '', timestamp: Date.now() - 259200000 },
 ];
 
 export default function Archive() {
@@ -51,24 +51,28 @@ export default function Archive() {
   const [games, setGames] = useState<GameRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🌟 استیت‌های سیستم مولتی‌اکانت
-  const [lichessAccounts, setLichessAccounts] = useState<string[]>(() => JSON.parse(localStorage.getItem('farzin_lichess_accounts') || '[]'));
-  const [chesscomAccounts, setChesscomAccounts] = useState<string[]>(() => JSON.parse(localStorage.getItem('farzin_chesscom_accounts') || '[]'));
+  // 🌟 استیت مربوط به صفحه‌بندی (Pagination)
+  const [visibleCount, setVisibleCount] = useState(5);
+
+  const [lichessAccounts, setLichessAccounts] = useState<string[]>(() => {
+      const saved = JSON.parse(localStorage.getItem('farzin_lichess_accounts') || '[]');
+      return saved; // نگه داشتن وضعیت واقعی، اما تو مدال هندل میکنیم
+  });
+  const [chesscomAccounts, setChesscomAccounts] = useState<string[]>(() => {
+      const saved = JSON.parse(localStorage.getItem('farzin_chesscom_accounts') || '[]');
+      return saved;
+  });
   
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [tempLichess, setTempLichess] = useState<string[]>([]);
   const [tempChesscom, setTempChesscom] = useState<string[]>([]);
 
-  // استیت‌های مربوط به مودال فیلتر پیشرفته
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [resultFilter, setResultFilter] = useState('all');
 
   const openAccountModal = () => {
-      // پر کردن استیت‌های موقت با ۴ جایگاه
-      const l = [...lichessAccounts]; while(l.length < 4) l.push('');
-      const c = [...chesscomAccounts]; while(c.length < 4) c.push('');
-      setTempLichess(l);
-      setTempChesscom(c);
+      setTempLichess(lichessAccounts.length > 0 ? [...lichessAccounts] : ['']);
+      setTempChesscom(chesscomAccounts.length > 0 ? [...chesscomAccounts] : ['']);
       setIsAccountModalOpen(true);
   };
 
@@ -88,11 +92,11 @@ export default function Archive() {
     setIsLoading(true);
     let allGames: GameRecord[] = [...mockFarzinGames];
 
-    // 🌟 دریافت همزمان دیتای تمام اکانت‌های لیچس
     if (lichessAccounts.length > 0) {
         const lichessPromises = lichessAccounts.map(async (username) => {
             try {
-                const gamesRes = await fetch(`https://lichess.org/api/games/user/${username}?max=10&pgnInJson=true&clocks=true&evals=true&accuracy=true`, {
+                // 🌟 دانلود 50 بازی برای جستجوی جامع
+                const gamesRes = await fetch(`https://lichess.org/api/games/user/${username}?max=50&pgnInJson=true&clocks=true&evals=true`, {
                     headers: { Accept: 'application/x-ndjson' }
                 });
                 if (gamesRes.ok) {
@@ -102,7 +106,6 @@ export default function Archive() {
                         const g = JSON.parse(line);
                         const isWhite = g.players.white.user?.name?.toLowerCase() === username.toLowerCase();
                         const opponentObj = isWhite ? g.players.black : g.players.white;
-                        const playerObj = isWhite ? g.players.white : g.players.black;
                         
                         let result: 'win' | 'loss' | 'draw' = 'draw';
                         if (g.winner === 'white' && isWhite) result = 'win';
@@ -110,10 +113,12 @@ export default function Archive() {
                         else if (g.winner) result = 'loss';
 
                         return {
-                            id: g.id, opponent: opponentObj.user?.name || 'Anonymous', rating: opponentObj.rating || '?',
+                            id: g.id, 
+                            opponent: opponentObj.user?.name || 'Anonymous', 
+                            playedBy: username, // 🌟 ذخیره آیدی بازی کننده
+                            rating: opponentObj.rating || '?',
                             type: 'online' as 'online', platform: 'lichess' as 'lichess', result,
                             playerColor: isWhite ? 'white' as 'white' : 'black' as 'black',
-                            accuracy: playerObj.analysis?.accuracy ? Math.round(playerObj.analysis.accuracy) : '؟',
                             moves: g.moves ? Math.ceil(g.moves.split(' ').length / 2) : 0,
                             timeControl: g.clock ? `${g.clock.initial/60}+${g.clock.increment}` : '؟',
                             timestamp: g.createdAt, date: timeAgo(g.createdAt), pgn: g.pgn || ''
@@ -128,7 +133,6 @@ export default function Archive() {
         lichessResults.forEach(gamesArray => { allGames = [...allGames, ...gamesArray]; });
     }
 
-    // 🌟 دریافت همزمان دیتای تمام اکانت‌های چس‌دات‌کام
     if (chesscomAccounts.length > 0) {
         const chesscomPromises = chesscomAccounts.map(async (username) => {
             try {
@@ -140,7 +144,7 @@ export default function Archive() {
                         const gamesRes = await fetch(lastArchiveUrl);
                         if (gamesRes.ok) {
                             const gamesData = await gamesRes.json();
-                            const latestGames = gamesData.games.slice(-10).reverse();
+                            const latestGames = gamesData.games.slice(-50).reverse(); // استخراج 50 بازی آخر ماه
 
                             return latestGames.map((g: any) => {
                                 const isWhite = g.white.username.toLowerCase() === username.toLowerCase();
@@ -154,10 +158,12 @@ export default function Archive() {
                                 const movesCount = g.pgn ? (g.pgn.match(/\d+\./g)?.length || 0) : 0;
 
                                 return {
-                                    id: g.url, opponent: opponentObj.username, rating: opponentObj.rating,
+                                    id: g.url, 
+                                    opponent: opponentObj.username, 
+                                    playedBy: username, // 🌟 ذخیره آیدی بازی کننده
+                                    rating: opponentObj.rating,
                                     type: 'online' as 'online', platform: 'chessDotCom' as 'chessDotCom', result,
                                     playerColor: isWhite ? 'white' as 'white' : 'black' as 'black',
-                                    accuracy: playerObj.accuracy ? Math.round(playerObj.accuracy) : '؟',
                                     moves: movesCount, timeControl: g.time_control,
                                     timestamp: g.end_time * 1000, date: timeAgo(g.end_time * 1000), pgn: g.pgn || ''
                                 };
@@ -182,20 +188,25 @@ export default function Archive() {
     fetchGames();
   }, [lichessAccounts, chesscomAccounts]);
 
+  // 🌟 ریست کردن صفحه‌بندی هنگام تغییر فیلتر
+  useEffect(() => {
+    setVisibleCount(5);
+  }, [activePlatform, resultFilter, searchQuery]);
+
+  // 🌟 اعمال ترکیبیِ فیلترها (روی تمام داده‌های کش شده اعمال می‌شود)
   const filteredGames = games.filter(game => {
     const matchesPlatform = activePlatform === 'all' || game.platform === activePlatform;
     const matchesResult = resultFilter === 'all' || game.result === resultFilter;
-    const matchesSearch = game.opponent.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = game.opponent.toLowerCase().includes(searchQuery.toLowerCase()) || game.playedBy.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesPlatform && matchesResult && matchesSearch;
   });
+
+  const displayedGames = filteredGames.slice(0, visibleCount);
 
   const totalGames = filteredGames.length;
   const totalWins = filteredGames.filter(g => g.result === 'win').length;
   const totalLosses = filteredGames.filter(g => g.result === 'loss').length;
   const totalDraws = filteredGames.filter(g => g.result === 'draw').length;
-  
-  const accuracyGames = filteredGames.filter(g => typeof g.accuracy === 'number');
-  const avgAccuracy = accuracyGames.length > 0 ? (accuracyGames.reduce((acc, g) => acc + (g.accuracy as number), 0) / accuracyGames.length).toFixed(1) : '0.0';
 
   const platformTabs = [
     { id: 'all', title: 'همه پلتفرم‌ها', icon: <Swords size={16} /> },
@@ -206,9 +217,9 @@ export default function Archive() {
 
   const getPlatformStyle = (platform: string) => {
     switch(platform) {
-      case 'chessDotCom': return { border: 'border-[#81b64c]/40', bgHover: 'hover:bg-[#81b64c]/5', glow: 'bg-[#81b64c]' };
-      case 'lichess': return { border: 'border-zinc-300/30', bgHover: 'hover:bg-zinc-300/5', glow: 'bg-zinc-300' };
-      case 'farzin': return { border: 'border-farzin-accent/40', bgHover: 'hover:bg-farzin-accent/5', glow: 'bg-farzin-accent' };
+      case 'chessDotCom': return { border: 'border-[#81b64c]/40', bgHover: 'hover:bg-[#81b64c]/10', glow: 'bg-[#81b64c]' };
+      case 'lichess': return { border: 'border-zinc-300/30', bgHover: 'hover:bg-zinc-300/10', glow: 'bg-zinc-300' };
+      case 'farzin': return { border: 'border-farzin-accent/40', bgHover: 'hover:bg-farzin-accent/10', glow: 'bg-farzin-accent' };
       default: return { border: 'border-[#35332e]', bgHover: 'hover:bg-[#22201d]', glow: 'bg-transparent' };
     }
   };
@@ -229,10 +240,10 @@ export default function Archive() {
               type: 'PGN',
               data: game.pgn,
               meta: {
-                  whiteName: game.playerColor === 'white' ? 'شما' : game.opponent,
-                  whiteElo: game.playerColor === 'white' ? '1500' : game.rating,
-                  blackName: game.playerColor === 'black' ? 'شما' : game.opponent,
-                  blackElo: game.playerColor === 'black' ? '1500' : game.rating,
+                  whiteName: game.playerColor === 'white' ? game.playedBy : game.opponent,
+                  whiteElo: game.playerColor === 'white' ? 'شما' : game.rating,
+                  blackName: game.playerColor === 'black' ? game.playedBy : game.opponent,
+                  blackElo: game.playerColor === 'black' ? 'شما' : game.rating,
               }
           }
       });
@@ -265,8 +276,7 @@ export default function Archive() {
               const isActive = activePlatform === tab.id;
               return (
                 <button
-                  key={tab.id}
-                  onClick={() => setActivePlatform(tab.id)}
+                  key={tab.id} onClick={() => setActivePlatform(tab.id)}
                   className={`relative flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-[13px] whitespace-nowrap transition-colors duration-300 outline-none ${isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   {isActive && <motion.div layoutId="activePlatformPill" className="absolute inset-0 bg-[#262421] border border-[#403e3a] rounded-2xl shadow-lg" transition={{ type: "spring", stiffness: 400, damping: 35 }} />}
@@ -276,7 +286,6 @@ export default function Archive() {
             })}
           </div>
 
-          {/* 🌟 نوار نمایش اکانت‌های متصل */}
           <div className="bg-[#1e1c19] border border-[#35332e] rounded-2xl p-4 flex items-center justify-between shadow-sm">
              <div className="flex flex-col">
                  <span className="text-xs font-bold text-white flex items-center gap-2"><Users size={14} className="text-farzin-accent"/> اکانت‌های متصل</span>
@@ -293,8 +302,8 @@ export default function Archive() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-farzin-accent/5 rounded-full blur-[40px] -mr-10 -mt-10"></div>
               
               <div className="flex items-center justify-between mb-5 relative z-10">
-                  <div className="flex items-center gap-2 text-zinc-300"><Swords size={18} className="text-farzin-accent" /><span className="font-black text-sm">آمار زنده بازی‌ها</span></div>
-                  <div className="px-3 py-1 rounded-lg bg-[#161512] border border-[#35332e] flex items-center gap-1.5 shadow-inner"><Target size={14} className="text-amber-400" /><span className="font-mono text-xs font-bold text-white">{avgAccuracy}٪</span></div>
+                  <div className="flex items-center gap-2 text-zinc-300"><Swords size={18} className="text-farzin-accent" /><span className="font-black text-sm">آمار بازی‌های یافته شده</span></div>
+                  <div className="px-3 py-1 rounded-lg bg-[#161512] border border-[#35332e] flex items-center gap-1.5 shadow-inner"><Target size={14} className="text-amber-400" /><span className="font-mono text-xs font-bold text-white">{totalGames} بازی</span></div>
               </div>
 
               <div className="flex w-full h-3 rounded-full overflow-hidden mb-5 bg-[#161512] shadow-inner relative z-10">
@@ -312,10 +321,10 @@ export default function Archive() {
 
           <div className="relative">
               <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none"><Search size={18} className="text-zinc-500" /></div>
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="جستجوی نام حریف..." className="w-full bg-[#1e1c19] border border-[#35332e] text-white text-sm rounded-2xl py-4 pr-12 pl-4 focus:outline-none focus:border-farzin-accent transition-colors shadow-inner placeholder-zinc-600 font-bold" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="جستجوی در تمام بازی‌ها..." className="w-full bg-[#1e1c19] border border-[#35332e] text-white text-sm rounded-2xl py-4 pr-12 pl-4 focus:outline-none focus:border-farzin-accent transition-colors shadow-inner placeholder-zinc-600 font-bold" />
           </div>
 
-          <div className="flex flex-col gap-4 min-h-[300px]">
+          <div className="flex flex-col gap-5 min-h-[300px]">
               <AnimatePresence mode="popLayout">
                   {isLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
@@ -324,41 +333,53 @@ export default function Archive() {
                               <div className="flex justify-between border-t border-[#35332e]/50 pt-3"><div className="w-20 h-4 bg-[#262421] rounded"></div><div className="w-12 h-4 bg-[#262421] rounded"></div></div>
                           </motion.div>
                       ))
-                  ) : filteredGames.length > 0 ? filteredGames.map((game, index) => {
+                  ) : displayedGames.length > 0 ? displayedGames.map((game, index) => {
                       const info = getResultInfo(game.result);
                       const platformStyle = getPlatformStyle(game.platform);
                       return (
-                          <motion.div layout key={game.id} initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.25, delay: index * 0.05 }} onClick={() => openGameAnalysis(game)} className={`relative bg-[#1e1c19] rounded-[24px] border ${platformStyle.border} shadow-lg overflow-hidden flex cursor-pointer ${platformStyle.bgHover} transition-all duration-300 group active:scale-[0.98]`}>
-                              <div className={`w-2 shrink-0 ${info.line} shadow-[0_0_10px_rgba(0,0,0,0.5)] z-10 relative`}></div>
+                          <motion.div layout key={game.id} initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.25, delay: index * 0.05 }} onClick={() => openGameAnalysis(game)} className={`relative bg-[#1e1c19] rounded-[24px] border ${platformStyle.border} shadow-lg overflow-hidden flex flex-col cursor-pointer ${platformStyle.bgHover} transition-all duration-300 group active:scale-[0.98]`}>
+                              
+                              <div className={`absolute right-0 top-0 bottom-0 w-1.5 ${info.line} shadow-[0_0_10px_rgba(0,0,0,0.5)] z-10`}></div>
                               <div className={`absolute -top-10 -left-10 w-24 h-24 rounded-full blur-[40px] opacity-10 ${platformStyle.glow} pointer-events-none`}></div>
-                              <div className="flex-1 p-5 relative z-10">
+
+                              <div className="p-5 pb-4 relative z-10">
                                   <div className="flex items-start justify-between mb-4">
-                                      <div className="flex items-center gap-3">
+                                      <div className="flex items-center gap-3 pl-2">
                                           <div className="relative">
                                               <div className="w-12 h-12 rounded-[14px] bg-[#161512] flex items-center justify-center border border-[#35332e] shadow-inner group-hover:scale-105 transition-transform duration-300">
                                                   {game.type === 'ai' ? <Bot size={22} className="text-zinc-300" /> : <Globe size={22} className="text-zinc-300" />}
                                               </div>
                                               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#262421] rounded-full border-2 border-[#1e1c19] flex items-center justify-center shadow-sm"><div className={`w-2.5 h-2.5 rounded-[3px] ${game.playerColor === 'white' ? 'bg-zinc-200' : 'bg-zinc-800 border border-zinc-600'}`}></div></div>
                                           </div>
-                                          <div className="flex flex-col">
-                                              <span className="font-black text-[15px] text-white tracking-wide">{game.opponent}</span>
-                                              <div className="flex items-center gap-1.5 mt-0.5">
-                                                  <span className="text-[10px] font-mono font-bold text-zinc-500 bg-[#161512] px-1.5 py-0.5 rounded border border-[#35332e]">{game.rating}</span>
+                                          <div className="flex flex-col gap-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                  <span className="font-bold text-[13px] text-zinc-300">{game.playedBy}</span>
+                                                  <span className="text-[10px] text-zinc-500">⚔️</span>
+                                                  <span className="font-black text-[15px] text-white tracking-wide truncate max-w-[100px] sm:max-w-none">{game.opponent}</span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                  <span className="text-[10px] font-mono font-bold text-zinc-500 bg-[#161512] px-1.5 py-0.5 rounded border border-[#35332e]">Elo: {game.rating}</span>
                                                   {game.platform === 'chessDotCom' && <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-3.5 h-3.5 rounded-[3px]" alt="chess.com" />}
                                                   {game.platform === 'lichess' && <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-3.5 h-3.5" alt="lichess" />}
-                                                  {game.platform === 'farzin' && <Bot size={13} className="text-farzin-accent" />}
                                               </div>
                                           </div>
                                       </div>
+                                      
                                       <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${info.bg} ${info.border} shadow-sm`}>{info.icon}<span className={`text-[10px] font-black tracking-widest uppercase ${info.color}`}>{info.text}</span></div>
                                   </div>
+
                                   <div className="flex items-center justify-between pt-3 border-t border-[#35332e]/50">
                                       <div className="flex items-center gap-3 text-[11px] font-bold text-zinc-400">
                                           <div className="flex items-center gap-1.5 bg-[#161512] px-2 py-1 rounded-lg border border-[#35332e]"><Calendar size={13} className="text-zinc-500" /><span>{game.date}</span></div>
                                           <div className="flex items-center gap-1.5 bg-[#161512] px-2 py-1 rounded-lg border border-[#35332e]"><Clock size={13} className="text-zinc-500" /><span dir="ltr" className="font-mono">{game.timeControl}</span></div>
                                       </div>
-                                      <div className="flex items-center gap-1.5"><span className="text-[10px] text-zinc-500 font-bold uppercase">دقت:</span><span className="text-sm font-mono font-black text-white">{game.accuracy}٪</span></div>
                                   </div>
+                              </div>
+
+                              {/* 🌟 دکمه دعوت به آنالیز */}
+                              <div className="w-full bg-farzin-accent/10 border-t border-farzin-accent/20 px-5 py-2.5 flex items-center justify-between text-farzin-accent group-hover:bg-farzin-accent/20 transition-colors">
+                                  <span className="font-black text-xs">تحلیل تخصصی این بازی</span>
+                                  <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
                               </div>
                           </motion.div>
                       )
@@ -371,21 +392,26 @@ export default function Archive() {
                       </motion.div>
                   )}
               </AnimatePresence>
+
+              {/* دکمه بارگذاری بیشتر */}
+              {displayedGames.length < filteredGames.length && (
+                  <button 
+                      onClick={() => setVisibleCount(p => p + 5)}
+                      className="mt-2 py-4 bg-[#1e1c19] border border-[#35332e] rounded-[24px] text-zinc-300 font-bold hover:bg-[#262421] hover:text-white transition-colors flex items-center justify-center gap-2"
+                  >
+                      <ArrowDownCircle size={18} />
+                      بارگذاری ۵ بازی بعدی
+                  </button>
+              )}
           </div>
         </div>
       </motion.div>
 
-      {/* 🌟 پاپ‌آپ قدرتمند مدیریت مولتی‌اکانت */}
+      {/* 🌟 پاپ‌آپ مدیریت اکانت‌ها داینامیک */}
       <AnimatePresence>
         {isAccountModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:px-4" dir="rtl"
-          >
-            <motion.div 
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="w-full sm:max-w-md bg-[#1e1c19] border-t sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col pb-safe max-h-[90vh]"
-            >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:px-4" dir="rtl">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full sm:max-w-md bg-[#1e1c19] border-t sm:border border-[#35332e] rounded-t-[32px] sm:rounded-[28px] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col pb-safe max-h-[90vh]">
               <div className="w-full flex justify-center pt-3 pb-1 sm:hidden"><div className="w-12 h-1.5 bg-[#35332e] rounded-full"></div></div>
               <div className="flex items-center justify-between px-6 py-4 border-b border-[#35332e]">
                 <h3 className="font-black text-white flex items-center gap-2 text-lg"><Users size={18} className="text-farzin-accent" />مدیریت اکانت‌ها</h3>
@@ -396,9 +422,16 @@ export default function Archive() {
                 
                 {/* بخش Lichess */}
                 <div className="flex flex-col gap-3 border border-white/5 bg-[#161512] rounded-2xl p-4 shadow-inner">
-                    <div className="flex items-center gap-2 mb-2">
-                        <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-5 h-5" alt="lichess" />
-                        <span className="font-bold text-white text-sm">اکانت‌های Lichess</span>
+                    <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                            <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-5 h-5" alt="lichess" />
+                            <span className="font-bold text-white text-sm">اکانت‌های Lichess</span>
+                        </div>
+                        {tempLichess.length < 4 && (
+                            <button onClick={() => setTempLichess([...tempLichess, ''])} className="text-xs text-sky-400 font-bold flex items-center gap-1">
+                                <PlusCircle size={14}/> افزودن
+                            </button>
+                        )}
                     </div>
                     {tempLichess.map((acc, index) => (
                         <div key={`li-${index}`} className="relative group">
@@ -407,16 +440,23 @@ export default function Archive() {
                                 onChange={(e) => { const n = [...tempLichess]; n[index] = e.target.value; setTempLichess(n); }}
                                 className="w-full bg-[#1e1c19] border border-[#35332e] focus:border-farzin-accent rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors" 
                             />
-                            {acc && <button onClick={() => { const n = [...tempLichess]; n[index] = ''; setTempLichess(n); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400"><Trash2 size={16}/></button>}
+                            <button onClick={() => { const n = tempLichess.filter((_, i) => i !== index); setTempLichess(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400"><Trash2 size={16}/></button>
                         </div>
                     ))}
                 </div>
 
                 {/* بخش Chess.com */}
                 <div className="flex flex-col gap-3 border border-[#81b64c]/20 bg-[#161512] rounded-2xl p-4 shadow-inner">
-                    <div className="flex items-center gap-2 mb-2">
-                        <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-5 h-5 rounded-sm" alt="chesscom" />
-                        <span className="font-bold text-white text-sm">اکانت‌های Chess.com</span>
+                    <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                            <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-5 h-5 rounded-sm" alt="chesscom" />
+                            <span className="font-bold text-white text-sm">اکانت‌های Chess.com</span>
+                        </div>
+                        {tempChesscom.length < 4 && (
+                            <button onClick={() => setTempChesscom([...tempChesscom, ''])} className="text-xs text-[#81b64c] font-bold flex items-center gap-1">
+                                <PlusCircle size={14}/> افزودن
+                            </button>
+                        )}
                     </div>
                     {tempChesscom.map((acc, index) => (
                         <div key={`ch-${index}`} className="relative group">
@@ -425,7 +465,7 @@ export default function Archive() {
                                 onChange={(e) => { const n = [...tempChesscom]; n[index] = e.target.value; setTempChesscom(n); }}
                                 className="w-full bg-[#1e1c19] border border-[#35332e] focus:border-[#81b64c] rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors" 
                             />
-                            {acc && <button onClick={() => { const n = [...tempChesscom]; n[index] = ''; setTempChesscom(n); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400"><Trash2 size={16}/></button>}
+                            <button onClick={() => { const n = tempChesscom.filter((_, i) => i !== index); setTempChesscom(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400"><Trash2 size={16}/></button>
                         </div>
                     ))}
                 </div>
@@ -433,7 +473,6 @@ export default function Archive() {
                 <button onClick={saveAccounts} className="w-full py-4 rounded-[18px] font-black text-sm transition-all flex items-center justify-center gap-2 bg-farzin-accent text-white active:scale-[0.98] shadow-[0_4px_20px_rgba(119,149,86,0.4)] mt-2">
                   <Check size={18} /> ذخیره آیدی‌ها و استخراج بازی‌ها
                 </button>
-
               </div>
             </motion.div>
           </motion.div>

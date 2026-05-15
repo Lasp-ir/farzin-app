@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Volume2, MousePointer2, Palette, Cpu, Globe, 
   Activity, BrainCircuit, Link2, RefreshCw, ShieldCheck,
-  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, Crown, Users, Trash2, Check
+  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, Crown, Users, Trash2, Check, PlusCircle
 } from 'lucide-react';
 
 const defaultSettings = {
@@ -55,16 +55,14 @@ export default function Settings() {
   const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [feedbackData, setFeedbackData] = useState({ text: '', name: '', phone: '', email: '' });
 
-  // 🌟 استیت‌های سیستم مولتی‌اکانت (سینک با آرشیو)
+  // 🌟 استیت‌های سیستم مولتی‌اکانت داینامیک
   const [lichessAccounts, setLichessAccounts] = useState<string[]>(() => {
       const saved = JSON.parse(localStorage.getItem('farzin_lichess_accounts') || '[]');
-      while(saved.length < 4) saved.push('');
-      return saved;
+      return saved.length > 0 ? saved : [''];
   });
   const [chesscomAccounts, setChesscomAccounts] = useState<string[]>(() => {
       const saved = JSON.parse(localStorage.getItem('farzin_chesscom_accounts') || '[]');
-      while(saved.length < 4) saved.push('');
-      return saved;
+      return saved.length > 0 ? saved : [''];
   });
   const [isSavingAccounts, setIsSavingAccounts] = useState(false);
 
@@ -97,7 +95,11 @@ export default function Settings() {
       localStorage.setItem('farzin_lichess_accounts', JSON.stringify(finalL));
       localStorage.setItem('farzin_chesscom_accounts', JSON.stringify(finalC));
       
-      setTimeout(() => { setIsSavingAccounts(false); }, 1000); // فقط برای انیمیشن ذخیره
+      // حفظ حداقل یک فیلد خالی اگر کاربر همه را پاک کرد
+      setLichessAccounts(finalL.length > 0 ? finalL : ['']);
+      setChesscomAccounts(finalC.length > 0 ? finalC : ['']);
+      
+      setTimeout(() => { setIsSavingAccounts(false); }, 1000);
   };
 
   const handleSendFeedback = () => {
@@ -166,7 +168,6 @@ export default function Settings() {
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.25, ease: "easeOut" }}>
                 
-                {/* 🌟 تب اکانت‌ها (مدیریت مولتی‌اکانت) */}
                 {activeTab === 'accounts' && (
                   <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-farzin-accent/30 to-transparent"></div>
@@ -178,19 +179,28 @@ export default function Settings() {
                     <div className="flex flex-col gap-6">
                         {/* Lichess */}
                         <div className="flex flex-col gap-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-6 h-6" alt="Lichess" />
-                                <span className="font-bold text-white text-sm">اکانت‌های Lichess.org</span>
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                    <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-6 h-6" alt="Lichess" />
+                                    <span className="font-bold text-white text-sm">اکانت‌های Lichess.org</span>
+                                </div>
+                                {lichessAccounts.length < 4 && (
+                                    <button onClick={() => setLichessAccounts([...lichessAccounts, ''])} className="text-xs text-sky-400 font-bold flex items-center gap-1 hover:text-sky-300">
+                                        <PlusCircle size={14}/> افزودن
+                                    </button>
+                                )}
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3">
                                 {lichessAccounts.map((acc, index) => (
                                     <div key={`li-${index}`} className="relative group">
                                         <input 
-                                            type="text" dir="ltr" placeholder={`آیدی ${index + 1}...`} value={acc}
+                                            type="text" dir="ltr" placeholder={`Lichess ID ${index + 1}...`} value={acc}
                                             onChange={(e) => { const n = [...lichessAccounts]; n[index] = e.target.value; setLichessAccounts(n); }}
                                             className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors shadow-inner" 
                                         />
-                                        {acc && <button onClick={() => { const n = [...lichessAccounts]; n[index] = ''; setLichessAccounts(n); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400"><Trash2 size={16}/></button>}
+                                        <button onClick={() => { const n = lichessAccounts.filter((_, i) => i !== index); setLichessAccounts(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-red-400 transition-colors">
+                                            <Trash2 size={16}/>
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -198,19 +208,28 @@ export default function Settings() {
 
                         {/* Chess.com */}
                         <div className="flex flex-col gap-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-6 h-6 rounded-md" alt="Chess.com" />
-                                <span className="font-bold text-white text-sm">اکانت‌های Chess.com</span>
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                    <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-6 h-6 rounded-md" alt="Chess.com" />
+                                    <span className="font-bold text-white text-sm">اکانت‌های Chess.com</span>
+                                </div>
+                                {chesscomAccounts.length < 4 && (
+                                    <button onClick={() => setChesscomAccounts([...chesscomAccounts, ''])} className="text-xs text-[#81b64c] font-bold flex items-center gap-1 hover:text-[#95cc5c]">
+                                        <PlusCircle size={14}/> افزودن
+                                    </button>
+                                )}
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3">
                                 {chesscomAccounts.map((acc, index) => (
                                     <div key={`ch-${index}`} className="relative group">
                                         <input 
-                                            type="text" dir="ltr" placeholder={`آیدی ${index + 1}...`} value={acc}
+                                            type="text" dir="ltr" placeholder={`Chess.com ID ${index + 1}...`} value={acc}
                                             onChange={(e) => { const n = [...chesscomAccounts]; n[index] = e.target.value; setChesscomAccounts(n); }}
                                             className="w-full bg-[#161512] border border-[#35332e] focus:border-[#81b64c] rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors shadow-inner" 
                                         />
-                                        {acc && <button onClick={() => { const n = [...chesscomAccounts]; n[index] = ''; setChesscomAccounts(n); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-400"><Trash2 size={16}/></button>}
+                                        <button onClick={() => { const n = chesscomAccounts.filter((_, i) => i !== index); setChesscomAccounts(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-red-400 transition-colors">
+                                            <Trash2 size={16}/>
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -226,7 +245,7 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* بقیه تب‌ها بدون تغییر (گیم‌پلی، ظاهر، موتور، عمومی) ... */}
+                {/* بقیه تب‌ها (گیم‌پلی، تم‌ها و ...) */}
                 {activeTab === 'gameplay' && (
                   <div className="flex flex-col gap-4">
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
