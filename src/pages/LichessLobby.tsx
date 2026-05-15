@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot, Info } from 'lucide-react';
+import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot, Info, ShieldAlert } from 'lucide-react';
 
 export default function LichessLobby() {
     const navigate = useNavigate();
@@ -11,23 +11,12 @@ export default function LichessLobby() {
     const [searchTime, setSearchTime] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
-    // 🌟 رفرنس برای کنترل و لغو کردن استریم‌های شبکه
-    const controllersRef = useRef<{ seek?: AbortController, event?: AbortController }>({});
-
     useEffect(() => {
         let interval: any;
         if (isSearching) interval = setInterval(() => setSearchTime(p => p + 1), 1000);
         else setSearchTime(0);
         return () => clearInterval(interval);
     }, [isSearching]);
-
-    // پاکسازی اتصالات در صورت خروج از صفحه
-    useEffect(() => {
-        return () => {
-            controllersRef.current.seek?.abort();
-            controllersRef.current.event?.abort();
-        };
-    }, []);
 
     const handleLogin = () => {
         if (!inputToken.trim()) {
@@ -55,13 +44,8 @@ export default function LichessLobby() {
 
     const handleSeek = async (timeControl: string) => {
         if (!token) return;
-        
         setIsSearching(false);
         setError(null);
-        
-        // قطع اتصالات قبلی در صورت وجود
-        controllersRef.current.seek?.abort();
-        controllersRef.current.event?.abort();
 
         const [minStr, incStr] = timeControl.split('+');
         const minutes = parseInt(minStr, 10);
@@ -74,55 +58,7 @@ export default function LichessLobby() {
 
         setIsSearching(true);
 
-        const eventController = new AbortController();
-        const seekController = new AbortController();
-        controllersRef.current = { event: eventController, seek: seekController };
-
         try {
-            // 🔴 گام اول: باز کردن استریم ایونت‌ها (گوش دادن به شروع بازی)
-            const listenForGame = async () => {
-                try {
-                    const res = await fetch('https://lichess.org/api/stream/event', {
-                        headers: { 'Authorization': `Bearer ${token}` },
-                        signal: eventController.signal
-                    });
-                    
-                    const reader = res.body?.getReader();
-                    const decoder = new TextDecoder('utf-8');
-
-                    if (reader) {
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            
-                            const chunk = decoder.decode(value, { stream: true });
-                            const lines = chunk.split('\n').filter(l => l.trim() !== '');
-                            
-                            for (let line of lines) {
-                                try {
-                                    const data = JSON.parse(line);
-                                    if (data.type === 'gameStart') {
-                                        // 🟢 بازی پیدا شد! قطع رادار و پرتاب کاربر به بازی
-                                        seekController.abort();
-                                        eventController.abort();
-                                        setIsSearching(false);
-                                        navigate(`/play/online/game/${data.game.id}`, { 
-                                            state: { timeControl, gameId: data.game.id, token: token } 
-                                        });
-                                        return;
-                                    }
-                                } catch (e) {}
-                            }
-                        }
-                    }
-                } catch (e: any) {
-                    if (e.name !== 'AbortError') console.error("Event stream error", e);
-                }
-            };
-
-            listenForGame();
-
-            // 🔴 گام دوم: ارسال سیگنال جستجو (Seek)
             const formData = new URLSearchParams();
             formData.append('rated', 'false');
             formData.append('time', minutes.toString());
@@ -131,12 +67,10 @@ export default function LichessLobby() {
             const response = await fetch('https://lichess.org/api/board/seek', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
-                body: formData,
-                signal: seekController.signal
+                body: formData
             });
 
             if (!response.ok) {
-                eventController.abort(); // در صورت ارور دادنِ جستجو، گوش‌شنوا رو هم می‌بندیم
                 const errText = await response.text();
                 let exactError: any = errText;
                 
@@ -162,27 +96,52 @@ export default function LichessLobby() {
                 throw new Error(`خطای سرور لیچس (${response.status}): ${errorString}`);
             }
 
-            // اگر به این خط رسیدیم، یعنی درخواست موفقیت‌آمیز بوده و فقط باید صبر کنیم 
-            // تا تابع listenForGame کلمه gameStart رو دریافت کنه!
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder('utf-8');
 
-        } catch (err: any) {
-            if (err.name !== 'AbortError') {
-                setIsSearching(false);
-                setError(err.message);
+            if (reader) {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n').filter(l => l.trim() !== '');
+                    
+                    for (let line of lines) {
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.type === 'gameStart') {
+                                setIsSearching(false);
+                                navigate(`/play/online/game/${data.game.id}`, { 
+                                    state: { timeControl, gameId: data.game.id, token: token } 
+                                });
+                                return;
+                            }
+                        } catch (e) {}
+                    }
+                }
             }
+        } catch (err: any) {
+            setIsSearching(false);
+            setError(err.message);
         }
     };
 
-    const handleChallengeMaia = async () => {
+    // 🌟 چالش اختصاصی ربات با زمان داینامیک (جلوگیری از بن شدن در تست)
+    const handleChallengeMaia = async (timeControl: string) => {
         if (!token) return;
         setIsSearching(true);
         setError(null);
 
+        const [minStr, incStr] = timeControl.split('+');
+        const limitInSeconds = parseInt(minStr, 10) * 60; // تبدیل دقیقه به ثانیه برای API چلنج
+        const increment = parseInt(incStr, 10);
+
         try {
             const formData = new URLSearchParams();
             formData.append('rated', 'false');
-            formData.append('clock.limit', '180'); 
-            formData.append('clock.increment', '2');
+            formData.append('clock.limit', limitInSeconds.toString()); 
+            formData.append('clock.increment', increment.toString());
 
             const response = await fetch('https://lichess.org/api/challenge/maia1', {
                 method: 'POST',
@@ -210,7 +169,7 @@ export default function LichessLobby() {
                 setIsSearching(false);
                 navigate(`/play/online/game/${data.challenge.id}`, { 
                     state: { 
-                        timeControl: '3+2',
+                        timeControl: timeControl,
                         gameId: data.challenge.id,
                         token: token
                     } 
@@ -220,13 +179,6 @@ export default function LichessLobby() {
             setIsSearching(false);
             setError(err.message);
         }
-    };
-
-    const handleCancelSearch = () => {
-        controllersRef.current.seek?.abort();
-        controllersRef.current.event?.abort();
-        setIsSearching(false); 
-        setError("جستجو توسط شما لغو شد.");
     };
 
     const timeControls = [
@@ -285,9 +237,9 @@ export default function LichessLobby() {
                                     <Search size={32} className="text-farzin-accent animate-pulse" />
                                 </div>
                             </div>
-                            <h2 className="text-2xl font-black mb-2 text-center">در انتظار اتصال حریف واقعی...</h2>
+                            <h2 className="text-2xl font-black mb-2 text-center">در انتظار اتصال حریف...</h2>
                             <p className="text-farzin-accent font-mono font-bold tracking-widest text-lg mb-8">00:{searchTime.toString().padStart(2, '0')}</p>
-                            <button onClick={handleCancelSearch} className="px-8 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-full font-bold hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2">
+                            <button onClick={() => { setIsSearching(false); setError("جستجو لغو شد."); }} className="px-8 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-full font-bold hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2">
                                 <X size={18} /> لغو جستجو
                             </button>
                         </motion.div>
@@ -306,13 +258,13 @@ export default function LichessLobby() {
                             <div className="mb-6 p-4 bg-sky-500/10 border border-sky-500/20 rounded-2xl flex items-start gap-3 shadow-inner">
                                 <Info size={20} className="text-sky-400 shrink-0 mt-0.5" />
                                 <p className="text-xs text-sky-100/90 leading-relaxed font-medium">
-                                   قوانین API لیچس: مچ‌میکینگ عمومی تنها برای حالت‌های <b className="text-white">سریع (Rapid) و کلاسیک</b> مجاز است. برای تست می‌توانید روی دکمه‌ی بازی با ربات در پایین صفحه کلیک کنید.
+                                   قوانین API لیچس: مچ‌میکینگ عمومی تنها برای حالت‌های <b className="text-white">سریع (Rapid) و کلاسیک</b> مجاز است. برای بازی سرعتی از بخش تمرین با ربات در پایین صفحه استفاده کنید.
                                 </p>
                             </div>
 
                             {error && <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold rounded-xl leading-relaxed flex items-center gap-2 shadow-inner"><AlertCircle size={20} className="shrink-0"/> {error}</div>}
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
                                 {timeControls.map((tc) => {
                                     const min = parseInt(tc.id.split('+')[0]);
                                     const isSpeedGame = min < 10;
@@ -333,9 +285,27 @@ export default function LichessLobby() {
                                 )})}
                             </div>
 
-                            <button onClick={handleChallengeMaia} className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95 shadow-inner">
-                                <Bot size={20} /> بازی تستی فوری با ربات Maia (سطح 1500)
-                            </button>
+                            {/* 🌟 بخش جدید، شیک و امن برای توسعه‌دهنده (تست با ربات مایا) */}
+                            <div className="w-full bg-indigo-500/5 border border-indigo-500/20 rounded-3xl p-5 shadow-inner flex flex-col gap-4">
+                                <div className="flex items-center gap-2 text-indigo-400">
+                                    <ShieldAlert size={18} />
+                                    <h4 className="font-bold text-sm">محیط تست امن (بدون بن شدن)</h4>
+                                </div>
+                                <p className="text-[11px] text-indigo-300/70 mb-2">برای تست کدها، لغو مکرر بازی و تست بازی‌های سرعتی (Bullet/Blitz) فقط از این دکمه‌ها استفاده کنید تا اکانت شما مسدود نشود.</p>
+                                
+                                <div className="grid grid-cols-3 gap-3">
+                                    <button onClick={() => handleChallengeMaia('1+0')} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-95">
+                                        <Zap size={16} /> <span className="text-xs font-black" dir="ltr">1+0</span>
+                                    </button>
+                                    <button onClick={() => handleChallengeMaia('3+2')} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-95">
+                                        <Flame size={16} /> <span className="text-xs font-black" dir="ltr">3+2</span>
+                                    </button>
+                                    <button onClick={() => handleChallengeMaia('10+0')} className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-colors active:scale-95">
+                                        <Shield size={16} /> <span className="text-xs font-black" dir="ltr">10+0</span>
+                                    </button>
+                                </div>
+                            </div>
+
                         </motion.div>
                     )}
                 </AnimatePresence>
