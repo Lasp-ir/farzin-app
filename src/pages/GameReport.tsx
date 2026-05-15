@@ -10,6 +10,10 @@ import { useStockfish } from '../hooks/useStockfish';
 import { isBookPosition } from '../utils/ecoParser';
 import { getPieceValue, epFormula, getAbsScore } from '../utils/analysisConfig';
 
+// 🌟 تبدیل اعداد به فارسی
+const faNum = (n: number | string) => n.toString().replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[parseInt(d)]);
+
+// ریاضیات خالص Lichess 
 const calcWinPercent = (cp: number) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 const calcMoveAccuracy = (winBefore: number, winAfter: number) => {
     if (winAfter >= winBefore) return 100;
@@ -37,45 +41,70 @@ const getGamePhase = (fen: string, moveNumber: number) => {
     for(let char of nonPawns) weight += getPieceValue(char);
     return weight < 14 ? 'endgame' : 'middlegame';
 };
+const getWhiteScore = (line: any, isWhiteTurnForEval: boolean) => {
+    let cp = (line.score || 0) * 100;
+    if (line.mate !== undefined || line.mateIn !== undefined) {
+        let mVal = parseInt(line.mateIn !== undefined ? line.mateIn : line.mate, 10);
+        if (!isNaN(mVal)) {
+            if (mVal > 0) cp = 10000;
+            else if (mVal < 0) cp = -10000;
+        }
+    }
+    return isWhiteTurnForEval ? cp : -cp;
+};
 
-const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalMoves: number }) => {
-    const [scenario, setScenario] = useState(0);
-    const [loadingText, setLoadingText] = useState("در حال خواندن ذهن حریف...");
+// 🌟 لودینگ فضایی با ۱۹ سناریوی جنگی شطرنج
+const DynamicChessLoader = ({ progress, totalMoves, onCancel }: { progress: number, totalMoves: number, onCancel: () => void }) => {
+    const [scenarioIdx, setScenarioIdx] = useState(0);
 
     const SCENARIOS = useMemo(() => [
-        { id: 1, p1: '♞', p2: '♗', a1: { y: [0, -30, 0], rotate: [0, 20, -20, 0] }, a2: { y: [0, -15, 0], scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } },
-        { id: 2, p1: '♖', p2: '♟', a1: { x: [0, 40, 0], scale: [1, 1.2, 1] }, a2: { x: [0, -40, 0], rotate: [0, -45, 0], opacity: [1, 0, 1] } },
-        { id: 3, p1: '♕', p2: '♔', a1: { scale: [1, 1.5, 1], filter: ['drop-shadow(0 0 10px #779556)', 'drop-shadow(0 0 30px #779556)', 'drop-shadow(0 0 10px #779556)'] }, a2: { x: [0, 10, -10, 10, -10, 0] } },
-        { id: 4, p1: '♘', p2: '♙', a1: { rotate: [0, 360], scale: [1, 0.8, 1] }, a2: { y: [0, -50, 0], filter: ['blur(0px)', 'blur(4px)', 'blur(0px)'] } },
+        { text: 'بررسی درگیری‌های تن‌به‌تن...', p: [{ c: '♘', a: { x: [0, 30, 0] } }, { c: '♞', a: { x: [0, -30, 0] } }] },
+        { text: 'تحلیل قربانی‌های احتمالی...', p: [{ c: '♖', a: { x: [0, 40], opacity: [1, 0] } }, { c: '♝', a: { scale: [1, 1.3, 1], rotate: [0, 15, 0] } }] },
+        { text: 'محاسبه دقت قلعه‌گیری...', p: [{ c: '♔', a: { x: [0, 50, 50, 0] } }, { c: '♖', a: { x: [0, -30, -30, 0], y: [0, -30, 0, 0] } }] },
+        { text: 'تشخیص قانون آن‌پاسان...', p: [{ c: '♙', a: { x: [0, 20, 0], y: [0, -20, 0] } }, { c: '♟', a: { opacity: [1, 0, 1], scale: [1, 0.5, 1] } }] },
+        { text: 'بررسی ارتقاء پیاده...', p: [{ c: '♙', a: { y: [0, -40], opacity: [1, 0] } }, { c: '♕', a: { y: [40, 0], opacity: [0, 1], filter: 'drop-shadow(0 0 10px #779556)' }, delay: 0.5 }] },
+        { text: 'تحلیل شبکه‌های ماتی...', p: [{ c: '♕', a: { x: [0, 20, 0], scale: [1, 1.2, 1] } }, { c: '♚', a: { rotate: [0, 90, 0], filter: ['drop-shadow(0 0 0px red)', 'drop-shadow(0 0 20px red)', 'drop-shadow(0 0 0px red)'] } }] },
+        { text: 'بررسی پات و تساوی...', p: [{ c: '♔', a: { x: [0, 5, -5, 0] } }, { c: '♚', a: { x: [0, -5, 5, 0] } }] },
+        { text: 'محاسبه فشار جفت فیل...', p: [{ c: '♗', a: { x: [0, 30, -30, 0], y: [0, -30, 30, 0] } }, { c: '♗', a: { x: [0, -30, 30, 0], y: [0, -30, 30, 0] } }] },
+        { text: 'طوفان پیاده‌ها...', p: [{ c: '♙', a: { y: [0, -30, 0] } }, { c: '♙', a: { y: [0, -40, 0] }, delay: 0.2 }, { c: '♙', a: { y: [0, -20, 0] }, delay: 0.4 }] },
+        { text: 'مانور اسب‌های قدرتمند...', p: [{ c: '♘', a: { x: [0, 0, 40, 0], y: [0, -40, -40, 0] } }] },
+        { text: 'حملات برخاستی...', p: [{ c: '♘', a: { x: [0, 40, 0], opacity: [1, 0.5, 1] } }, { c: '♖', a: { filter: ['drop-shadow(0 0 0px red)', 'drop-shadow(0 0 20px red)', 'drop-shadow(0 0 0px red)'] } }] },
+        { text: 'بررسی پیاده‌های دوپشته...', p: [{ c: '♟', a: { y: [0, 10, 0] } }, { c: '♟', a: { y: [-20, -10, -20] } }] },
+        { text: 'تحلیل وزیرهای مهارنشدنی...', p: [{ c: '♛', a: { scale: [1, 1.4, 1], filter: 'drop-shadow(0 0 30px #a855f7)' } }, { c: '♙', a: { x: [0, -40, 0], opacity: [1, 0, 1] } }] },
+        { text: 'ارزیابی چنگال‌های سلطنتی...', p: [{ c: '♞', a: { scale: [1, 1.2, 1] } }, { c: '♔', a: { filter: ['blur(0px)', 'blur(2px)', 'blur(0px)'] } }, { c: '♕', a: { filter: ['blur(0px)', 'blur(2px)', 'blur(0px)'] } }] },
+        { text: 'بررسی رخ‌های متصل...', p: [{ c: '♖', a: { y: [0, -20, 0] } }, { c: '♖', a: { y: [0, -20, 0] }, delay: 0.1 }] },
+        { text: 'تنهایی پادشاهان...', p: [{ c: '♔', a: { scale: [1, 0.9, 1], opacity: [1, 0.5, 1] } }, { c: '♚', a: { scale: [1, 0.9, 1], opacity: [1, 0.5, 1] } }] },
+        { text: 'زنجیره پیاده‌های مسدود...', p: [{ c: '♙', a: { y: [0, -5, 0] } }, { c: '♟', a: { y: [0, 5, 0] } }] },
+        { text: 'شروع حمله همه‌جانبه...', p: [{ c: '♕', a: { y: [0, -20, 0] } }, { c: '♘', a: { x: [0, 20, 0] } }, { c: '♗', a: { x: [0, -20, 0] } }] },
+        { text: 'پیدا کردن حرکات درخشان...', p: [{ c: '✨', a: { scale: [0, 2, 0], rotate: [0, 180, 360] } }, { c: '♞', a: { filter: 'drop-shadow(0 0 20px #00ebff)' } }] },
     ], []);
 
     useEffect(() => {
-        setScenario(Math.floor(Math.random() * SCENARIOS.length));
-        const texts = ["کشف تاکتیک‌های پنهان...", "محاسبه احتمالات بی‌نهایت...", "استخراج نقاط ضعف...", "هماهنگی گراف با مربی..."];
-        let idx = 0;
         const interval = setInterval(() => {
-            idx = (idx + 1) % texts.length;
-            setLoadingText(texts[idx]);
+            setScenarioIdx(prev => (prev + 1) % SCENARIOS.length);
         }, 3000);
         return () => clearInterval(interval);
-    }, []);
+    }, [SCENARIOS.length]);
 
-    const currentScenario = SCENARIOS[scenario] || SCENARIOS[0];
+    const activeScenario = SCENARIOS[scenarioIdx];
 
     return (
         <div className="flex flex-col items-center justify-center w-full h-full relative z-20">
-            <div className="flex items-center justify-center gap-12 mb-12 h-32 relative">
-                <div className="absolute inset-0 bg-farzin-accent/20 blur-[60px] rounded-full"></div>
-                <motion.div animate={currentScenario.a1} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="text-7xl drop-shadow-[0_0_20px_rgba(255,255,255,0.5)] text-white">
-                    {currentScenario.p1}
-                </motion.div>
-                <motion.div animate={currentScenario.a2} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="text-7xl drop-shadow-[0_0_20px_rgba(119,149,86,0.8)] text-farzin-accent">
-                    {currentScenario.p2}
-                </motion.div>
+            <div className="flex items-center justify-center gap-6 sm:gap-10 mb-10 h-32 relative w-full">
+                <div className="absolute inset-0 bg-farzin-accent/10 blur-[80px] rounded-full"></div>
+                <AnimatePresence mode="popLayout">
+                    <motion.div key={scenarioIdx} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} className="flex gap-4 sm:gap-8 items-center justify-center">
+                        {activeScenario.p.map((piece, i) => (
+                            <motion.div key={i} animate={piece.a} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: piece.delay || 0 }} className="text-6xl sm:text-7xl drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] text-white/90">
+                                {piece.c}
+                            </motion.div>
+                        ))}
+                    </motion.div>
+                </AnimatePresence>
             </div>
-            <div className="relative w-48 h-48 mb-8">
-                <div className="absolute inset-0 border-4 border-dashed border-[#35332e] rounded-full animate-[spin_10s_linear_infinite]"></div>
-                <div className="absolute inset-2 border-2 border-[#1e1c19] rounded-full"></div>
+            <div className="relative w-40 h-40 sm:w-48 sm:h-48 mb-6">
+                <div className="absolute inset-0 border-4 border-dashed border-farzin-accent/30 rounded-full animate-[spin_12s_linear_infinite]"></div>
+                <div className="absolute inset-2 border-2 border-white/5 rounded-full"></div>
                 <svg className="w-full h-full -rotate-90 relative z-10" viewBox="0 0 100 100">
                     <defs>
                         <linearGradient id="loadGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -85,16 +114,20 @@ const DynamicChessLoader = ({ progress, totalMoves }: { progress: number, totalM
                     </defs>
                     <motion.circle cx="50" cy="50" r="46" fill="none" stroke="url(#loadGrad)" strokeWidth="3" strokeDasharray="289" strokeDashoffset={289 - (289 * progress) / 100} strokeLinecap="round" className="transition-all duration-300" style={{ filter: 'drop-shadow(0 0 12px rgba(119,149,86,0.6))' }} />
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#110f0d]/50 backdrop-blur-sm rounded-full m-4">
-                    <span className="text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">{progress}<span className="text-xl text-farzin-accent">%</span></span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505]/40 backdrop-blur-md rounded-full m-4">
+                    <span className="text-4xl sm:text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" dir="ltr">{faNum(progress)}<span className="text-lg text-farzin-accent">%</span></span>
                 </div>
             </div>
-            <h2 className="text-xl font-black text-white mb-2 flex items-center gap-2"><Cpu size={20} className="text-farzin-accent animate-pulse" /> موتور هوش مصنوعی فرزین</h2>
+            <h2 className="text-lg sm:text-xl font-black text-white mb-2 flex items-center gap-2"><Cpu size={20} className="text-farzin-accent animate-pulse" /> موتور هوش مصنوعی فرزین</h2>
             <AnimatePresence mode="wait">
-                <motion.p key={loadingText} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-xs text-zinc-400 font-bold bg-[#1a1917] px-4 py-2 rounded-full border border-[#35332e] shadow-lg">
-                    {loadingText} (حرکت {Math.ceil(progress * totalMoves / 100)} از {totalMoves})
+                <motion.p key={activeScenario.text} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-[10px] sm:text-xs text-zinc-300 font-bold bg-white/5 backdrop-blur-xl px-5 py-2.5 rounded-full border border-white/10 shadow-lg text-center">
+                    {activeScenario.text} (حرکت {faNum(Math.ceil(progress * totalMoves / 100))} از {faNum(totalMoves)})
                 </motion.p>
             </AnimatePresence>
+
+            <button onClick={onCancel} className="mt-10 px-6 py-2 rounded-full border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 hover:text-red-300 transition-all font-bold text-xs shadow-lg active:scale-95">
+                لغو و بازگشت
+            </button>
         </div>
     );
 };
@@ -329,13 +362,12 @@ export default function GameReport() {
     if (isAnalyzing) {
         return (
             <AnimatePresence>
-                {/* 🔴 استفاده از fixed inset-0 برای حل مشکل اسکرول در لودینگ */}
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-[#050505] flex flex-col items-center justify-center p-6 overflow-hidden" dir="rtl">
                     <div className="absolute top-1/4 left-1/4 w-[50vw] h-[50vw] bg-farzin-accent/20 blur-[120px] rounded-full mix-blend-screen animate-pulse pointer-events-none"></div>
                     <div className="absolute bottom-1/4 right-1/4 w-[40vw] h-[40vw] bg-purple-600/10 blur-[100px] rounded-full mix-blend-screen pointer-events-none"></div>
                     
                     <div className="relative z-10 w-full max-w-md">
-                        <DynamicChessLoader progress={progress} totalMoves={movesData.length} />
+                        <DynamicChessLoader progress={progress} totalMoves={movesData.length} onCancel={() => navigate(-1)} />
                     </div>
                 </motion.div>
             </AnimatePresence>
@@ -360,7 +392,6 @@ export default function GameReport() {
     const getMarkerColor = (cls: string) => ALL_CATEGORIES.find(c => c.key === cls)?.color || 'transparent';
 
     return (
-        // 🔴 استفاده از fixed inset-0 و overflow-y-auto برای رفع قطعی اسکرول دوتایی
         <motion.div initial="initial" animate="animate" exit="exit" variants={pageTransition} className="fixed inset-0 z-50 h-[100dvh] w-full bg-[#050505] pb-32 font-sans overflow-y-auto overflow-x-hidden custom-scrollbar" dir="rtl">
             <div className="fixed top-[-20%] right-[-10%] w-[80vw] h-[80vw] bg-farzin-accent/10 blur-[180px] rounded-full pointer-events-none z-0"></div>
             <div className="fixed bottom-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-[#5c8df7]/5 blur-[150px] rounded-full pointer-events-none z-0"></div>
@@ -399,7 +430,7 @@ export default function GameReport() {
                                         <motion.circle initial={{ strokeDashoffset: 276 }} animate={{ strokeDashoffset: 276 - (276 * item.acc) / 100 }} transition={{ duration: 2.5, ease: "easeOut", delay: 0.2 }} cx="50" cy="50" r="44" fill="none" stroke={item.color} strokeWidth="8" strokeDasharray="276" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 12px ${item.glow})` }} />
                                     </svg>
                                     <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-                                        <span className="text-5xl sm:text-6xl font-black text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">{item.acc.toFixed(1)}</span>
+                                        <span className="text-5xl sm:text-6xl font-black text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">{faNum(item.acc.toFixed(1))}</span>
                                         <span className="text-zinc-400 font-black text-sm uppercase tracking-widest mt-1">Percent</span>
                                     </div>
                                 </div>
@@ -426,9 +457,9 @@ export default function GameReport() {
                                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{phase.en}</span>
                                 </div>
                                 <div className="w-full flex justify-between items-center relative z-10 bg-black/40 px-4 py-3 rounded-2xl border border-white/5">
-                                    <div className="flex flex-col items-center"><span className="text-xl font-black text-white">{phase.w.toFixed(1)}</span></div>
+                                    <div className="flex flex-col items-center"><span className="text-xl font-black text-white">{faNum(phase.w.toFixed(1))}</span></div>
                                     <div className="h-6 w-[2px] bg-[#35332e] rounded-full"></div>
-                                    <div className="flex flex-col items-center"><span className="text-xl font-black text-zinc-400">{phase.b.toFixed(1)}</span></div>
+                                    <div className="flex flex-col items-center"><span className="text-xl font-black text-zinc-400">{faNum(phase.b.toFixed(1))}</span></div>
                                 </div>
                             </div>
                         )
@@ -467,7 +498,7 @@ export default function GameReport() {
                 <motion.div variants={itemFadeIn} className="bg-[#11100e]/60 backdrop-blur-3xl border border-white/5 rounded-[40px] sm:rounded-[56px] overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
                     <div className="p-6 sm:p-10 bg-gradient-to-b from-[#1a1917]/80 to-transparent border-b border-[#35332e] flex items-center justify-between">
                         <div className="flex items-center gap-3"><Target size={24} className="text-purple-400 drop-shadow-[0_0_15px_rgba(192,132,252,0.5)]" /><span className="text-base font-black text-white">کالبدشکافی حرکات</span></div>
-                        <span className="text-[10px] sm:text-xs font-black text-zinc-400 bg-black/50 px-5 py-2 rounded-full shadow-inner border border-white/5 tracking-widest">{movesData.length - 1} MOVES</span>
+                        <span className="text-[10px] sm:text-xs font-black text-zinc-400 bg-black/50 px-5 py-2 rounded-full shadow-inner border border-white/5 tracking-widest">{faNum(movesData.length - 1)} MOVES</span>
                     </div>
                     <div className="p-4 sm:p-8 grid grid-cols-1 gap-3">
                         {ALL_CATEGORIES.map((cat, i) => {
@@ -477,27 +508,23 @@ export default function GameReport() {
                             
                             return (
                                 <div key={i} className="flex items-center justify-between p-4 sm:p-5 bg-black/40 hover:bg-[#1a1917] border border-transparent hover:border-[#35332e] transition-all rounded-[32px] group">
-                                    <span className={`w-16 text-center font-black text-2xl ${wCount > 0 ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-zinc-700'}`}>{wCount}</span>
+                                    <span className={`w-16 text-center font-black text-2xl ${wCount > 0 ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-zinc-700'}`}>{faNum(wCount)}</span>
                                     <div className="flex items-center gap-4 flex-1 justify-center">
                                         <div className={`p-3 rounded-2xl ${cat.bg} ${cat.border} border shadow-inner group-hover:scale-110 transition-transform duration-300`}><cat.icon size={20} style={{ color: cat.color }} className="drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]" /></div>
                                         <span className="text-sm sm:text-base font-black text-zinc-200 min-w-[120px] text-center tracking-wide">{cat.label}</span>
                                     </div>
-                                    <span className={`w-16 text-center font-black text-2xl ${bCount > 0 ? 'text-zinc-400' : 'text-zinc-700'}`}>{bCount}</span>
+                                    <span className={`w-16 text-center font-black text-2xl ${bCount > 0 ? 'text-zinc-400' : 'text-zinc-700'}`}>{faNum(bCount)}</span>
                                 </div>
                             );
                         })}
                     </div>
                 </motion.div>
 
-                <motion.div variants={itemFadeIn} className="flex flex-col gap-4 mt-4">
-                    <button onClick={() => navigate('/analysis/board', { state: location.state })} className="w-full relative overflow-hidden bg-gradient-to-r from-farzin-accent to-[#5c7a40] text-white py-7 rounded-[40px] font-black text-xl flex items-center justify-center gap-3 shadow-[0_20px_50px_rgba(119,149,86,0.4)] transition-all active:scale-95 hover:shadow-[0_20px_60px_rgba(119,149,86,0.6)] group border border-[#8eb069]/50">
+                <motion.div variants={itemFadeIn} className="flex justify-center mt-4 mb-8">
+                    <button onClick={() => navigate(-1)} className="w-full sm:w-2/3 relative overflow-hidden bg-gradient-to-r from-farzin-accent to-[#5c7a40] text-white py-6 rounded-[40px] font-black text-xl flex items-center justify-center gap-3 shadow-[0_20px_50px_rgba(119,149,86,0.4)] transition-all active:scale-95 hover:shadow-[0_20px_60px_rgba(119,149,86,0.6)] group border border-[#8eb069]/50">
                         <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)] -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000"></div>
-                        <Zap size={28} className="group-hover:scale-110 transition-transform drop-shadow-lg" /> مرور بازی با مربی فرزین
+                        <ChevronRight size={28} className="group-hover:-translate-x-2 transition-transform drop-shadow-lg" /> بازگشت به میز آنالیز
                     </button>
-                    <div className="grid grid-cols-2 gap-4">
-                        <button className="bg-[#11100e]/80 backdrop-blur-xl hover:bg-[#1e1c19] text-white py-6 rounded-[32px] font-black text-sm border border-white/10 shadow-xl transition-all active:scale-95">اشتراک‌گذاری گزارش</button>
-                        <button onClick={() => navigate('/analysis')} className="bg-[#11100e]/80 backdrop-blur-xl hover:bg-[#1e1c19] text-white py-6 rounded-[32px] font-black text-sm border border-white/10 shadow-xl transition-all active:scale-95">آنالیز بازی جدید</button>
-                    </div>
                 </motion.div>
 
             </div>
