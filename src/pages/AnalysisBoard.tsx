@@ -1105,7 +1105,7 @@ export default function AnalysisBoard() {
                     <button 
                         onClick={() => {
                             if (Object.keys(tree).length <= 1) {
-                                showToast('اول یه حرکتی روی تخته بزن! 😅♟️');
+                                showToast('اول یه حرکتی روی تخته بزن! 😅');
                                 return;
                             }
                             navigate('/report', { state: { data: getPgnString(), meta: playerMeta } });
