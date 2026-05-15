@@ -14,6 +14,8 @@ import Education from './pages/Education';
 import AnalysisSetup from './pages/AnalysisSetup';
 import AnalysisBoard from './pages/AnalysisBoard';
 import GameReport from './pages/GameReport';
+import LichessLobby from './pages/LichessLobby';
+import LichessLiveGame from './pages/LichessLiveGame';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -48,6 +50,8 @@ export default function App() {
           <Route path="/analysis" element={<AnalysisSetup />} />
           <Route path="/analysis/board" element={<AnalysisBoard />} />
           <Route path="/report" element={<GameReport />} />
+          <Route path="/play/online/lobby" element={<LichessLobby />} />
+          <Route path="/play/online/game/:gameId" element={<LichessLiveGame />} />
         </Routes>
         
         <PaywallModal />
