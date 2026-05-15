@@ -43,7 +43,7 @@ export default function LichessLobby() {
         setToken(null);
     };
 
-    // 🌟 درخواست هوشمند بازی از لیچس با کالبدشکافی ارورهای 400
+    // 🌟 درخواست هوشمند بازی از لیچس با گارد قدرتمند برای پردازش ارور
     const handleSeek = async (timeControl: string) => {
         if (!token) return;
         setIsSearching(true);
@@ -62,25 +62,28 @@ export default function LichessLobby() {
             const response = await fetch('https://lichess.org/api/board/seek', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    // Content-Type را حذف کردیم تا مرورگر خودش بایندینگ URLSearchParams را دقیق انجام دهد
+                    'Authorization': `Bearer ${token}`
                 },
                 body: formData
             });
 
             if (!response.ok) {
                 const errText = await response.text();
-                let exactError = errText;
+                let exactError: any = errText;
+                
                 try {
                     const errJson = JSON.parse(errText);
                     exactError = errJson.error || errJson.message || errText;
                 } catch(e) {}
 
+                // 🔴 گارد تبدیل به رشته: مهم نیست لیچس آبجکت بده یا آرایه، ما به استرینگ تبدیلش میکنیم
+                const errorString = typeof exactError === 'string' ? exactError : JSON.stringify(exactError);
+
                 if (response.status === 400) {
-                    if (exactError.toLowerCase().includes('already seeking')) {
+                    if (errorString.toLowerCase().includes('already seeking')) {
                         throw new Error("شما در حال حاضر یک جستجوی فعال در لیچس دارید. لطفاً جستجوی قبلی را در سایت لیچس لغو کنید.");
                     }
-                    throw new Error(`خطای 400 (Bad Request): لیچس این کنترل زمانی را رد کرد. دلیل: ${exactError}`);
+                    throw new Error(`خطای 400 (Bad Request): لیچس این کنترل زمانی را رد کرد. دلیل: ${errorString}`);
                 } else if (response.status === 403) {
                     throw new Error("دسترسی غیرمجاز (403): توکن شما دسترسی Board API ندارد یا اکانت شما مسدود/ربات است.");
                 } else if (response.status === 401) {
@@ -88,7 +91,7 @@ export default function LichessLobby() {
                 } else if (response.status === 429) {
                     throw new Error("درخواست بیش از حد به لیچس. لطفاً چند ثانیه صبر کنید.");
                 }
-                throw new Error(`خطای سرور لیچس (${response.status}): ${exactError}`);
+                throw new Error(`خطای سرور لیچس (${response.status}): ${errorString}`);
             }
 
             const reader = response.body?.getReader();
@@ -145,14 +148,16 @@ export default function LichessLobby() {
 
             if (!response.ok) {
                 const errText = await response.text();
-                let exactError = errText;
+                let exactError: any = errText;
                 try {
                     const errJson = JSON.parse(errText);
                     exactError = errJson.error || errJson.message || errText;
                 } catch(e) {}
 
+                const errorString = typeof exactError === 'string' ? exactError : JSON.stringify(exactError);
+
                 if (response.status === 403) throw new Error("دسترسی 403: لطفاً توکن جدید با دسترسی Board API بسازید.");
-                if (response.status === 400) throw new Error(`خطای 400 ربات: ${exactError}`);
+                if (response.status === 400) throw new Error(`خطای 400 ربات: ${errorString}`);
                 throw new Error(`ربات لیچس در دسترس نیست (${response.status})`);
             }
 
