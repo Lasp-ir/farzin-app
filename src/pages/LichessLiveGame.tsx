@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Flag, Handshake, Trophy, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw, Zap, PieChart, RotateCcw, CheckCircle2, AlertCircle, Skull, Scale } from 'lucide-react';
+import { ArrowRight, Flag, Handshake, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw, Zap, PieChart, RotateCcw, CheckCircle2, AlertCircle, Cpu } from 'lucide-react';
 
 const Board = Chessboard as any;
 const pieceChars: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
 
-// 🌟 سیستم صوتی بهینه‌شده (بدون لگ)
 const sounds = {
   move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
   capture: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3'),
@@ -36,7 +35,6 @@ export default function LichessLiveGame() {
   const [playerColor, setPlayerColor] = useState<'white' | 'black'>('white');
   const playerColorRef = useRef<'white' | 'black'>('white'); 
 
-  // 🌟 استفاده از Refs برای سرعت بینهایت در استریم
   const [game, setGame] = useState(new Chess());
   const gameRef = useRef(new Chess());
   
@@ -61,25 +59,44 @@ export default function LichessLiveGame() {
   const fenHistoryRef = useRef<string[]>([new Chess().fen()]);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
+  const [customPromotion, setCustomPromotion] = useState<{ from: string; to: string; color: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<{text: string, type: 'error' | 'success' | 'info'} | null>(null);
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
   const playerPieceColor = playerColor === 'white' ? 'w' : 'b';
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const pieceSvgs: Record<string, Record<string, string>> = {
+    w: { q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg' },
+    b: { q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Chess_ndt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg' }
+  };
+
   const showToast = (text: string, type: 'error' | 'success' | 'info' = 'info') => {
       setToastMessage({text, type});
       setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const updateGameOver = (status: string, winner: string | null) => {
+      let theme: 'win'|'loss'|'draw' = 'draw';
+      if (winner === playerColorRef.current) theme = 'win';
+      else if (winner) theme = 'loss';
+      setGameOver({ status, winner, theme });
+      gameOverRef.current = true;
+  };
+
+  // 🔴 رفع قطعی باگ Invalid Move: استخراج تاریخچه با فرمت رشته خام (SAN)
   const syncGameToState = (g: Chess, isInit = false) => {
       gameRef.current = g;
       setGame(new Chess(g.fen()));
       
       const fens = [new Chess().fen()];
-      const hist = g.history({ verbose: true });
+      const hist = g.history(); // فقط رشته‌های سان رو می‌گیریم (e.g. 'e4')
       const tempG = new Chess();
-      hist.forEach(m => { tempG.move(m); fens.push(tempG.fen()); });
+      
+      hist.forEach(m => { 
+          tempG.move(m); 
+          fens.push(tempG.fen()); 
+      });
       
       fenHistoryRef.current = fens;
       setFenHistory(fens);
@@ -96,10 +113,9 @@ export default function LichessLiveGame() {
       fetch('https://lichess.org/api/account', { headers: { 'Authorization': `Bearer ${token}` } })
           .then(res => res.json())
           .then(data => setMyLichessId(data.id))
-          .catch(() => showToast('خطا در دریافت اطلاعات', 'error'));
+          .catch(() => showToast('خطا در دریافت اطلاعات کاربری', 'error'));
   }, [token, gameId, navigate]);
 
-  // 🌟 موتور استریم فوق‌سریع
   useEffect(() => {
       if (!token || !gameId || !myLichessId) return;
 
@@ -149,7 +165,10 @@ export default function LichessLiveGame() {
                                   playerColorRef.current = clr;
                                   setBoardOrientation(clr);
                                   
-                                  setOpponent({ name: amIWhite ? (data.black.name || 'حریف') : (data.white.name || 'حریف'), rating: amIWhite ? (data.black.rating || '?') : (data.white.rating || '?') });
+                                  setOpponent({
+                                      name: amIWhite ? (data.black.name || 'حریف') : (data.white.name || 'حریف'),
+                                      rating: amIWhite ? (data.black.rating || '?') : (data.white.rating || '?')
+                                  });
 
                                   const newGame = new Chess();
                                   if (data.state.moves) {
@@ -164,7 +183,6 @@ export default function LichessLiveGame() {
                                   const serverMoves = data.moves.split(' ').filter(Boolean);
                                   const localMovesCount = gameRef.current.history().length;
 
-                                  // 🔴 فقط حرکات جدید رو اعمال کن (جلوگیری از افت فریم و کندی)
                                   if (serverMoves.length > localMovesCount) {
                                       const newMoves = serverMoves.slice(localMovesCount);
                                       const gameCopy = new Chess(gameRef.current.fen());
@@ -178,7 +196,6 @@ export default function LichessLiveGame() {
 
                                       if (lastMove) {
                                           setMoveSquares({ [lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } });
-                                          // اگر حریف حرکت کرده، صدا پخش کن
                                           if (gameCopy.turn() === playerColorRef.current[0]) {
                                               if (gameCopy.isCheckmate()) playSound('gameOver');
                                               else if (gameCopy.isCheck()) playSound('check');
@@ -193,18 +210,14 @@ export default function LichessLiveGame() {
                                   setOpponentTime(Math.floor((amIWhite ? data.btime : data.wtime) / 1000));
 
                                   if (data.status !== 'started') {
-                                      let statusText = 'نامشخص'; let theme: 'win'|'loss'|'draw' = 'draw';
+                                      let statusText = 'نامشخص';
                                       if (data.status === 'mate') statusText = 'مات';
                                       else if (data.status === 'resign') statusText = 'تسلیم';
                                       else if (data.status === 'draw') statusText = 'تساوی';
                                       else if (data.status === 'outoftime') statusText = 'پایان زمان';
                                       else if (data.status === 'aborted') statusText = 'لغو بازی';
                                       
-                                      if (data.winner === playerColorRef.current) theme = 'win';
-                                      else if (data.winner) theme = 'loss';
-                                      
-                                      setGameOver({ status: statusText, winner: data.winner || null, theme });
-                                      gameOverRef.current = true;
+                                      updateGameOver(statusText, data.winner || null);
                                       playSound('gameOver');
                                   }
                               }
@@ -217,15 +230,19 @@ export default function LichessLiveGame() {
           }
 
           if (isMounted && !gameOverRef.current) {
-              reconnectTimer = setTimeout(connectStream, 1000); 
+              reconnectTimer = setTimeout(connectStream, 1500); 
           }
       };
 
       connectStream();
-      return () => { isMounted = false; clearTimeout(reconnectTimer); abortControllerRef.current?.abort(); };
+
+      return () => {
+          isMounted = false;
+          clearTimeout(reconnectTimer);
+          abortControllerRef.current?.abort();
+      };
   }, [token, gameId, myLichessId, navigate]);
 
-  // 🌟 شلیک خودکار پریموو با تغییر نوبت
   useEffect(() => {
       if (isPlayerTurn && premoveRef.current && !gameOverRef.current && !isViewingHistory) {
           const pm = premoveRef.current;
@@ -256,6 +273,7 @@ export default function LichessLiveGame() {
   const executeLocalMove = (sourceSquare: string, targetSquare: string, promotion = 'q') => {
       const gameCopy = new Chess(gameRef.current.fen());
       const moveObj = gameCopy.move({ from: sourceSquare, to: targetSquare, promotion });
+      
       if (moveObj) {
           syncGameToState(gameCopy);
           playSound(moveObj.captured ? 'capture' : 'move');
@@ -267,7 +285,13 @@ export default function LichessLiveGame() {
           }).then(res => {
               if (!res.ok) {
                   showToast('حرکت در سرور ثبت نشد!', 'error');
-                  syncGameToState(new Chess(fenHistoryRef.current[fenHistoryRef.current.length - 1]));
+                  // بازگشت امن به وضعیت قبل
+                  const rollbackGame = new Chess();
+                  fenHistoryRef.current.slice(0, -1).forEach((_, idx) => {
+                     const m = gameRef.current.history()[idx];
+                     if(m) rollbackGame.move(m);
+                  });
+                  syncGameToState(rollbackGame);
               }
           });
           return true;
@@ -278,7 +302,7 @@ export default function LichessLiveGame() {
   const getPseudoLegalMoves = (sourceSquare: string) => {
       const tempGame = new Chess(gameRef.current.fen());
       const tokens = tempGame.fen().split(' ');
-      tokens[1] = tokens[1] === 'w' ? 'b' : 'w'; // عوض کردن مجازی نوبت
+      tokens[1] = tokens[1] === 'w' ? 'b' : 'w'; 
       tokens[3] = '-'; 
       try {
           tempGame.load(tokens.join(' '));
@@ -314,7 +338,6 @@ export default function LichessLiveGame() {
     setOptionSquares({}); setClickedSquare(null);
     if (gameOverRef.current || isViewingHistory) { setViewIndex(fenHistoryRef.current.length - 1); return false; }
     
-    // ثبت پریموو
     if (!isPlayerTurnRef.current) {
         if (piece[0] === playerPieceColor) {
             const pseudoMoves = getPseudoLegalMoves(sourceSquare);
@@ -329,8 +352,7 @@ export default function LichessLiveGame() {
     const moves = gameRef.current.moves({ verbose: true });
     const isPromotion = moves.some(m => m.from === sourceSquare && m.to === targetSquare && m.promotion);
     if (isPromotion) { 
-        // در اینجا به صورت اتوماتیک وزیر میاریم (Auto Queen) برای سرعت
-        return executeLocalMove(sourceSquare, targetSquare, 'q');
+        return executeLocalMove(sourceSquare, targetSquare, 'q'); // Auto Queen
     }
 
     const legalMove = moves.find(m => m.from === sourceSquare && m.to === targetSquare);
@@ -417,7 +439,7 @@ export default function LichessLiveGame() {
     <div className="flex-none flex items-center justify-between w-full py-3 px-2 relative z-10 transition-all duration-300">
       <div className="flex flex-col justify-center">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${isOpponent ? 'bg-[#c27a3e] text-white border border-[#8a5327]' : 'bg-[#262421] text-white border border-[#35332e]'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm ${isOpponent ? 'bg-[#1a1916] text-white border border-[#35332e]' : 'bg-[#262421] text-white border border-[#35332e]'}`}>
              {isOpponent ? 'L' : 'ش'}
           </div>
           <div className="flex flex-col">
@@ -446,11 +468,11 @@ export default function LichessLiveGame() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#050505] text-gray-300 overflow-hidden font-sans relative" dir="rtl" onContextMenu={e => { e.preventDefault(); setPremove(null); premoveRef.current = null; setClickedSquare(null); setOptionSquares({}); }}>
-      {/* 🌟 افکت‌های پس‌زمینه بر اساس نتیجه بازی */}
-      <div className={`fixed top-[-10%] right-[-5%] w-[50vw] h-[50vw] blur-[120px] rounded-full pointer-events-none transition-colors duration-1000 ${gameOver?.theme === 'win' ? 'bg-amber-500/20' : gameOver?.theme === 'loss' ? 'bg-red-500/10' : 'bg-farzin-accent/10'}`}></div>
+    <div className="flex flex-col h-[100dvh] bg-[#050505] text-gray-300 overflow-hidden font-sans relative" dir="ltr" onContextMenu={e => { e.preventDefault(); setPremove(null); premoveRef.current = null; setClickedSquare(null); setOptionSquares({}); }}>
+      {/* افکت نوری پس‌زمینه بر اساس نتیجه بازی */}
+      <div className={`fixed top-[-10%] right-[-5%] w-[50vw] h-[50vw] blur-[120px] rounded-full pointer-events-none transition-colors duration-1000 ${gameOver?.theme === 'win' ? 'bg-amber-500/20' : gameOver?.theme === 'loss' ? 'bg-red-500/10' : 'bg-sky-500/10'}`}></div>
 
-      <div className="fixed top-6 inset-x-0 z-[100] flex justify-center pointer-events-none px-4">
+      <div className="fixed top-6 inset-x-0 z-[100] flex justify-center pointer-events-none px-4" dir="rtl">
         <AnimatePresence>
           {toastMessage && (
             <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className={`border px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 pointer-events-auto ${toastMessage.type === 'error' ? 'bg-red-900/80 border-red-500/50 text-white' : 'bg-[#1e1c19] border-farzin-accent/50 text-white'}`}>
@@ -463,17 +485,19 @@ export default function LichessLiveGame() {
         </AnimatePresence>
       </div>
 
-      <div className="flex-none h-16 flex items-center justify-between px-6 bg-[#161512]/80 backdrop-blur-md border-b border-white/5 z-20">
+      <div className="flex-none h-16 flex items-center justify-between px-6 bg-[#161512]/80 backdrop-blur-md border-b border-white/5 z-20" dir="rtl">
         <div className="flex items-center gap-5">
            <button onClick={() => navigate('/play/online/lobby')} className="text-zinc-400 hover:text-white transition-colors p-1.5 hover:bg-zinc-800 rounded-lg"><ArrowRight size={22} /></button>
            <div className="flex flex-col">
-             <span className="font-bold text-white text-[15px] flex items-center gap-2">آرنای لیچس <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span></span>
+             <span className="font-bold text-white text-[15px] flex items-center gap-2">آرنای لیچس <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span></span>
              <span className="text-[11px] text-zinc-500 font-medium">Lichess Live Server</span>
            </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-3 lg:p-6 w-full max-w-[1250px] mx-auto gap-5 lg:gap-8 relative z-0">
+      {/* 🔴 استفاده از lg:flex-row-reverse برای قرار گرفتن تخته در سمت چپ دسکتاپ (استاندارد Lichess) */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row-reverse p-3 lg:p-6 w-full max-w-[1250px] mx-auto gap-5 lg:gap-8 relative z-0" dir="rtl">
+        
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
           <div className="w-full h-full flex flex-col max-w-[90vh] lg:max-w-full relative z-0 justify-center">
             
@@ -481,42 +505,70 @@ export default function LichessLiveGame() {
             
             <motion.div animate={gameOver?.theme === 'loss' ? { x: [-5, 5, -5, 5, 0] } : {}} transition={{ duration: 0.4 }} className="w-full relative flex items-center justify-center z-0 my-1">
               <div className={`w-full aspect-square max-h-[70vh] relative shadow-2xl rounded-sm border-[4px] z-0 overflow-hidden transition-colors duration-1000 ${gameOver?.theme === 'win' ? 'border-amber-500/50' : gameOver?.theme === 'loss' ? 'border-red-500/50' : 'border-[#2A2926]'}`}>
-                <Board 
-                  position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
-                  onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin} onSquareClick={handleSquareClick}
-                  boardOrientation={boardOrientation} animationDuration={200}
-                  customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                  customSquareStyles={{ ...moveSquares, ...optionSquares, ...(premove ? {[premove.from]:{backgroundColor:'rgba(239,68,68,0.5)'}, [premove.to]:{backgroundColor:'rgba(239,68,68,0.5)'}} : {}) }}
-                />
                 
-                {/* 🌟 پاپ‌آپ انیمیشنی پایان بازی */}
+                {/* 🔴 با درپوش ltr تخته به صورت چپ به راست رندر می‌شود */}
+                <div dir="ltr" className="w-full h-full">
+                  <Board 
+                    position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
+                    onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin} onSquareClick={handleSquareClick}
+                    boardOrientation={boardOrientation} animationDuration={200}
+                    customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                    customSquareStyles={{ ...moveSquares, ...optionSquares, ...(premove ? {[premove.from]:{backgroundColor:'rgba(239,68,68,0.5)'}, [premove.to]:{backgroundColor:'rgba(239,68,68,0.5)'}} : {}) }}
+                  />
+                </div>
+
+                {customPromotion && (
+                  <div className="z-[1000] absolute w-[12.5%] h-[50%] flex flex-col pointer-events-none" style={{ left: `${(boardOrientation === 'black' ? 7 - (customPromotion.to.charCodeAt(0) - 97) : (customPromotion.to.charCodeAt(0) - 97)) * 12.5}%`, [parseInt(customPromotion.to[1], 10) === 8 ? 'top' : 'bottom']: '0%', flexDirection: parseInt(customPromotion.to[1], 10) === 8 ? 'column' : 'column-reverse' }}>
+                    {['q', 'n', 'r', 'b'].map(t => (
+                      <button key={t} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleCustomPromotionSelect(t); }} className="w-full h-1/4 flex items-center justify-center relative group cursor-pointer pointer-events-auto bg-black/40 hover:bg-black/60 backdrop-blur">
+                        <img src={pieceSvgs[customPromotion.color][t]} alt={t} className="relative z-10 w-[85%] h-[85%] object-contain drop-shadow-md pointer-events-none" draggable={false} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {/* 🌟 پاپ‌آپ انیمیشنی پایان بازی (فوق پریمیوم) */}
                 <AnimatePresence>
                   {gameOver && (
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="absolute inset-0 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center z-50 p-6"
-                    >
-                        <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_currentColor] ${gameOver.theme === 'win' ? 'bg-amber-500/20 text-amber-400' : gameOver.theme === 'loss' ? 'bg-red-500/20 text-red-500' : 'bg-sky-500/20 text-sky-400'}`}>
-                            {gameOver.theme === 'win' ? <Trophy size={48}/> : gameOver.theme === 'loss' ? <Skull size={48}/> : <Scale size={48}/>}
-                        </div>
-                        
-                        <h2 className="text-4xl font-black text-white mb-2 tracking-tight">
-                            {gameOver.theme === 'win' ? 'شاهکار بود! 🏆' : gameOver.theme === 'loss' ? 'شکست خوردی 💔' : 'صلح شوالیه‌ها 🤝'}
-                        </h2>
-                        
-                        <div className="flex items-center gap-2 mb-8 bg-[#1e1c19] border border-[#35332e] px-4 py-2 rounded-full">
-                            <span className="text-zinc-400 font-bold text-xs">نتیجه:</span>
-                            <span className={`font-black text-sm ${gameOver.theme === 'win' ? 'text-amber-400' : gameOver.theme === 'loss' ? 'text-red-400' : 'text-sky-400'}`}>{gameOver.status}</span>
-                        </div>
-                        
-                        <div className="flex flex-col w-full max-w-[280px] gap-3">
-                            <button onClick={() => navigate('/report', { state: { data: game.pgn(), forceNew: true, meta: { white: { name: playerColor === 'white' ? 'شما' : opponent.name, elo: 1500 }, black: { name: playerColor === 'black' ? 'شما' : opponent.name, elo: 1500 }, result: gameOver.winner === null ? '1/2-1/2' : gameOver.winner === 'white' ? '1-0' : '0-1' } } })} className="w-full bg-gradient-to-r from-farzin-accent to-[#5c7a40] text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(119,149,86,0.3)] active:scale-95 transition-all"><PieChart size={18} /> کالبدشکافی استراتژیک</button>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => navigate('/play/online/lobby')} className="bg-[#1e1c19] hover:bg-[#262421] text-white py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#35332e]"><RotateCcw size={14}/> لابی</button>
-                                <button onClick={() => navigate('/play/online/lobby')} className="bg-[#1e1c19] hover:bg-[#262421] text-white py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#35332e]"><Zap size={14}/> حریف جدید</button>
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-6" dir="rtl">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.8, y: 30 }} 
+                            animate={{ opacity: 1, scale: 1, y: 0 }} 
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className={`w-full max-w-sm rounded-[32px] overflow-hidden border shadow-2xl flex flex-col items-center text-center relative p-8 ${
+                                gameOver.theme === 'win' ? 'bg-gradient-to-b from-amber-500/20 to-[#161512] border-amber-500/50 shadow-[0_20px_60px_rgba(245,158,11,0.3)]' :
+                                gameOver.theme === 'loss' ? 'bg-gradient-to-b from-red-500/20 to-[#161512] border-red-500/50 shadow-[0_20px_60px_rgba(239,68,68,0.3)]' :
+                                'bg-gradient-to-b from-sky-500/20 to-[#161512] border-sky-500/50 shadow-[0_20px_60px_rgba(14,165,233,0.3)]'
+                            }`}
+                        >
+                            <div className={`absolute -top-20 inset-x-0 mx-auto w-40 h-40 rounded-full blur-[50px] ${gameOver.theme === 'win' ? 'bg-amber-500/40' : gameOver.theme === 'loss' ? 'bg-red-500/40' : 'bg-sky-500/40'}`}></div>
+
+                            <motion.div
+                                animate={ gameOver.theme === 'win' ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : gameOver.theme === 'loss' ? { x: [-5, 5, -5, 0] } : { scale: [1, 1.1, 1] } }
+                                transition={{ duration: 2, repeat: Infinity }}
+                                className="text-7xl mb-4 relative z-10"
+                            >
+                                {gameOver.theme === 'win' ? '🏆' : gameOver.theme === 'loss' ? '💀' : '🤝'}
+                            </motion.div>
+                            
+                            <h2 className={`text-3xl font-black mb-2 relative z-10 tracking-tight ${gameOver.theme === 'win' ? 'text-amber-400' : gameOver.theme === 'loss' ? 'text-red-400' : 'text-sky-400'}`}>
+                                {gameOver.theme === 'win' ? 'پیروزی درخشان!' : gameOver.theme === 'loss' ? 'شکست خوردی' : 'صلح شوالیه‌ها'}
+                            </h2>
+                            
+                            <div className="flex items-center gap-2 mb-8 bg-[#0a0a0a]/50 border border-white/5 px-4 py-2 rounded-full relative z-10">
+                                <span className="text-zinc-400 font-bold text-xs">سرور لیچس:</span>
+                                <span className={`font-black text-sm text-white`}>{gameOver.status}</span>
                             </div>
-                        </div>
-                    </motion.div>
+                            
+                            <div className="flex flex-col w-full gap-3 relative z-10">
+                                <button onClick={() => navigate('/report', { state: { data: game.pgn(), forceNew: true, meta: { white: { name: playerColor === 'white' ? 'شما' : opponent.name, elo: 1500 }, black: { name: playerColor === 'black' ? 'شما' : opponent.name, elo: 1500 }, result: gameOver.winner === null ? '1/2-1/2' : gameOver.winner === 'white' ? '1-0' : '0-1' } } })} className="w-full bg-gradient-to-r from-farzin-accent to-[#5c7a40] text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(119,149,86,0.3)] active:scale-95 transition-all"><PieChart size={18} /> کالبدشکافی بازی</button>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button onClick={() => navigate('/play/online/lobby')} className="bg-[#1e1c19] hover:bg-[#262421] text-white py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#35332e]"><RotateCcw size={14}/> لابی</button>
+                                    <button onClick={() => navigate('/play/online/lobby')} className="bg-[#1e1c19] hover:bg-[#262421] text-white py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all border border-[#35332e]"><Zap size={14}/> حریف جدید</button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
                   )}
                 </AnimatePresence>
               </div>
@@ -526,6 +578,7 @@ export default function LichessLiveGame() {
           </div>
         </div>
 
+        {/* 🌟 پنل تاریخچه حرکات */}
         <div className="flex-none w-full lg:w-[320px] flex flex-col bg-[#161512] border border-white/5 rounded-2xl shadow-2xl h-[30vh] lg:h-full shrink-0 relative z-10 overflow-hidden mt-4 lg:mt-0">
           <div className="bg-[#1a1916] px-4 py-3 border-b border-[#35332e] flex items-center justify-between">
              <span className="font-bold text-zinc-300 text-sm">تاریخچه مسابقه</span>
@@ -553,7 +606,7 @@ export default function LichessLiveGame() {
           </div>
 
           {!gameOver && (
-            <div className="flex-none flex bg-[#0a0a0a] p-3 gap-2 border-t border-[#35332e]">
+            <div className="flex-none flex bg-[#0a0a0a] p-3 gap-2 border-t border-[#35332e]" dir="rtl">
               <button onClick={handleDrawOffer} className="flex-1 py-3 bg-[#1e1c19] hover:bg-[#262421] text-zinc-300 font-bold rounded-xl flex items-center justify-center gap-2 transition-all border border-[#35332e] active:scale-95 text-xs"><Handshake size={16}/> تساوی</button>
               <button onClick={handleResign} className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl flex items-center justify-center gap-2 transition-all border border-red-500/20 active:scale-95 text-xs"><Flag size={16}/> تسلیم</button>
             </div>
