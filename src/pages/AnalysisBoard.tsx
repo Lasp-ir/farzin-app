@@ -22,7 +22,11 @@ import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, Ed
 export default function AnalysisBoard() {
   const location = useLocation();
   const navigate = useNavigate();
-  const initialData = location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
+  
+  // ایمن‌سازی initialData برای جلوگیری از رندر لوپ
+  const initialData = useMemo(() => {
+      return location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
+  }, [location.state]);
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<'white'|'black'>('white');
@@ -55,12 +59,34 @@ export default function AnalysisBoard() {
   const [graphMode, setGraphMode] = useState<'hidden' | 'fullscreen' | 'floating'>('hidden');
   const [isEnginePaused, setIsEnginePaused] = useState(false);
 
-  // 🌟 استیت کنترل ایستر اگ (حالت‌های: خاموش، درخواست، انفجار، نتیجه)
   const [easterEggState, setEasterEggState] = useState<'idle' | 'prompt' | 'exploded' | 'resolved'>('idle');
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
+  // 🌟 بازیابی و راه‌اندازی اولیه
   useEffect(() => {
+    // 1. بررسی کش (Session Storage) برای بازیابی دقیق وضعیت خروج
+    const savedState = sessionStorage.getItem('farzin_analysis_state');
+    if (savedState && !location.state?.forceNew) {
+        try {
+            const parsed = JSON.parse(savedState);
+            // اگر کاربر از جای دیگه (مثل صفحه ریپورت) برگشته باشه، دیتای اولیه تغییر نکرده
+            if (!location.state?.data || location.state.data === parsed.initialData.data) {
+                setTree(parsed.tree);
+                setCurrentNodeId(parsed.currentNodeId);
+                setPlayerMeta(parsed.playerMeta);
+                if (parsed.cache) {
+                    engineCache.current = parsed.cache;
+                }
+                setIsLoaded(true);
+                return; // پایان موفقیت‌آمیز بازیابی
+            }
+        } catch (e) {
+            console.error("State restore failed:", e);
+        }
+    }
+
+    // 2. در غیر این صورت، راه‌اندازی نرمال از روی دیتای ورودی
     let rootFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     let initialTree: Record<string, MoveNode> = {
       'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 }
@@ -118,11 +144,29 @@ export default function AnalysisBoard() {
     setTree(initialTree);
     setCurrentNodeId(endNodeId); 
     setIsLoaded(true);
-  }, [initialData]);
+  }, [initialData, location.state]);
+
+  // 🌟 ذخیره پیوسته وضعیت (State Persistence) در سشن مرورگر
+  useEffect(() => {
+    if (isLoaded) {
+        try {
+            sessionStorage.setItem('farzin_analysis_state', JSON.stringify({
+                tree, currentNodeId, playerMeta, initialData,
+                cache: engineCache.current
+            }));
+        } catch(e) {
+            // در صورت پر شدن حافظه (حجم زیاد انجین)، فقط ساختار رو ذخیره کن
+            try {
+                sessionStorage.setItem('farzin_analysis_state', JSON.stringify({
+                    tree, currentNodeId, playerMeta, initialData
+                }));
+            } catch(e2) {}
+        }
+    }
+  }, [tree, currentNodeId, playerMeta, isLoaded, initialData]);
 
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   
-  // محافظت از کرش شدن chess.js در صورت خراب شدن FEN
   const activeGame = useMemo(() => {
     try {
         return new Chess(currentPosition);
@@ -165,7 +209,6 @@ export default function AnalysisBoard() {
       return { white: whiteAdv, black: blackAdv };
   }, [currentPosition]);
 
-  // ماشین حساب هوشمند تشخیص وضعیت‌های غیرقانونی (شاه زیر ضرب)
   const isKingInDanger = useMemo(() => {
       try {
           const parts = currentPosition.split(' ');
@@ -180,16 +223,15 @@ export default function AnalysisBoard() {
       }
   }, [currentPosition]);
 
-  // جلوگیری از ارسال FEN غیرقانونی به موتور و راه‌اندازی ایستر اگ
   useEffect(() => {
     if (isKingInDanger && easterEggState === 'idle') {
         setEasterEggState('prompt');
         setIsEnginePaused(true);
-        if (stop) stop(); // موتور رو خفه می‌کنیم که کرش نکنه!
+        if (stop) stop(); 
         return;
     }
 
-    if (easterEggState !== 'idle') return; // تو ایستر اگ موتور باید بخوابه
+    if (easterEggState !== 'idle') return;
 
     if (isReady && currentPosition) {
       if (isEnginePaused) {
@@ -578,7 +620,6 @@ export default function AnalysisBoard() {
     } catch (e) { return false; }
   };
 
-  // 🌟 قفل کردن دکمه‌ها در حین اجرای ایستر اگ
   const prevMove = () => { if (easterEggState !== 'idle') return; const pid = tree[currentNodeId]?.parentId; if (pid) setCurrentNodeId(pid); };
   const nextMove = () => { if (easterEggState !== 'idle') return; const cids = tree[currentNodeId]?.childrenIds; if (cids && cids.length > 0) setCurrentNodeId(cids[0]); };
   const goStart = () => { if (easterEggState !== 'idle') return; setCurrentNodeId('root'); };
@@ -619,7 +660,6 @@ export default function AnalysisBoard() {
       if (easterEggState === 'idle') highlightLegalMoves(sourceSquare); 
   };
   
-  // 🌟 منطق انفجار بمب!
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { 
     setOptionSquares({}); setClickedSquare(null); 
     
@@ -628,7 +668,6 @@ export default function AnalysisBoard() {
         if (targetPiece && targetPiece.type === 'k' && targetPiece.color !== activeGame.turn()) {
             setEasterEggState('exploded');
             
-            // 💥 انیمیشن سینمایی با باقی ماندن مهره‌های بزرگ در صفحه
             setTimeout(() => {
                 const pieces = document.querySelectorAll('[data-piece]');
                 pieces.forEach((p: any) => {
@@ -800,7 +839,6 @@ export default function AnalysisBoard() {
       {/* 😈 پاپ‌آپ‌های ایستر اگ */}
       <AnimatePresence>
         {easterEggState === 'prompt' && (
-          // 🌟 استفاده از inset-x-0 و flex justify-center برای وسط‌چین کردنِ بی‌نقص در حالت RTL
           <motion.div initial={{ y: -50, scale: 0.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-10 inset-x-0 flex justify-center z-[200] pointer-events-none px-4">
             <div className="bg-[#12110f]/95 border border-rose-500/50 backdrop-blur-xl p-6 rounded-3xl shadow-[0_10px_50px_rgba(225,29,72,0.6)] flex flex-col items-center gap-4 text-center max-w-[300px] w-full">
               <span className="text-6xl drop-shadow-[0_0_15px_rgba(225,29,72,0.8)] animate-bounce">😈</span>
@@ -1032,30 +1070,22 @@ export default function AnalysisBoard() {
                     </div>
                 )}
                 
+                {/* 🌟 تب گراف شفاف، تمیز و همراه با دکمه تمام صفحه شناور */}
                 {activeTab === 'graph' && (
-                    <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex items-center p-3">
-                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-                            <path d={areaWhite} fill="#fff" />
-                            <path d={areaBlack} fill="#000" />
-                            <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
+                    <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex flex-col p-0">
+                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-90 pointer-events-none">
+                            <path d={areaWhite} fill="#ffffff" fillOpacity="0.15" />
+                            <path d={areaBlack} fill="#000000" fillOpacity="0.6" />
+                            <path d={linePath} fill="none" stroke="#ffffff" strokeWidth="4" style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.4))' }} />
                         </svg>
-                        <div className="absolute inset-0 backdrop-blur-[2px] bg-black/40 z-10" />
                         
-                        <div className="relative z-20 flex items-center justify-between w-full gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.3)] shrink-0">
-                                    <TrendingUp size={20} />
-                                </div>
-                                <div className="flex flex-col text-right">
-                                    <span className="text-xs font-bold text-white">تحلیل گرافیکی</span>
-                                    <span className="text-[9px] text-zinc-400">سیگموئید و فازها</span>
-                                </div>
-                            </div>
+                        <div className="absolute bottom-3 right-3 z-20">
                             <button 
                                 onClick={() => setGraphMode('fullscreen')} 
-                                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg font-bold text-[10px] transition-colors shadow-lg active:scale-95 shrink-0"
+                                className="p-2 bg-[#1e1c19]/80 backdrop-blur border border-[#35332e] hover:bg-[#262421] text-zinc-300 hover:text-white rounded-lg transition-colors shadow-lg active:scale-95"
+                                title="تمام‌صفحه"
                             >
-                                باز کردن <Maximize2 size={12} />
+                                <Maximize2 size={16} />
                             </button>
                         </div>
                     </div>
