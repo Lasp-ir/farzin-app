@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle, Bot } from 'lucide-react';
 
 export default function LichessLobby() {
     const navigate = useNavigate();
@@ -19,13 +19,12 @@ export default function LichessLobby() {
         return () => clearInterval(interval);
     }, [isSearching]);
 
-    // ورود واقعی (ذخیره توکن کاربر)
     const handleLogin = () => {
         if (!inputToken.trim()) {
             setError("لطفاً توکن را وارد کنید");
             return;
         }
-        // تست توکن با درخواست به لیچس
+        
         fetch('https://lichess.org/api/account', {
             headers: { 'Authorization': `Bearer ${inputToken}` }
         }).then(res => {
@@ -34,18 +33,17 @@ export default function LichessLobby() {
                 setToken(inputToken);
                 setError(null);
             } else {
-                setError("توکن نامعتبر است. لطفاً توکنی با دسترسی Board API ایجاد کنید.");
+                setError("توکن نامعتبر است. لطفاً توکنی با دسترسی Play games with the board API ایجاد کنید.");
             }
         }).catch(() => setError("خطا در برقراری ارتباط با لیچس."));
     };
 
-    // خروج
     const handleLogout = () => {
         localStorage.removeItem('lichess_token');
         setToken(null);
     };
 
-    // 🌟 درخواست واقعی بازی از لیچس
+    // 🌟 درخواست هوشمند بازی از لیچس با کالبدشکافی ارورهای 400
     const handleSeek = async (timeControl: string) => {
         if (!token) return;
         setIsSearching(true);
@@ -56,26 +54,43 @@ export default function LichessLobby() {
         const increment = parseInt(incStr, 10);
 
         try {
-            // استفاده از Lichess Board API برای ارسال درخواست بازی
-            // چون این یک استریم است، از fetch به صورت معمول استفاده نمی‌شود، بلکه بادی رو می‌خونیم
+            const formData = new URLSearchParams();
+            formData.append('rated', 'false');
+            formData.append('time', minutes.toString());
+            formData.append('increment', increment.toString());
+
             const response = await fetch('https://lichess.org/api/board/seek', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    // Content-Type را حذف کردیم تا مرورگر خودش بایندینگ URLSearchParams را دقیق انجام دهد
                 },
-                body: new URLSearchParams({
-                    rated: 'false', // فعلاً برای تست Unrated
-                    time: minutes.toString(),
-                    increment: increment.toString(),
-                })
+                body: formData
             });
 
             if (!response.ok) {
-                throw new Error("خطا در ایجاد چالش");
+                const errText = await response.text();
+                let exactError = errText;
+                try {
+                    const errJson = JSON.parse(errText);
+                    exactError = errJson.error || errJson.message || errText;
+                } catch(e) {}
+
+                if (response.status === 400) {
+                    if (exactError.toLowerCase().includes('already seeking')) {
+                        throw new Error("شما در حال حاضر یک جستجوی فعال در لیچس دارید. لطفاً جستجوی قبلی را در سایت لیچس لغو کنید.");
+                    }
+                    throw new Error(`خطای 400 (Bad Request): لیچس این کنترل زمانی را رد کرد. دلیل: ${exactError}`);
+                } else if (response.status === 403) {
+                    throw new Error("دسترسی غیرمجاز (403): توکن شما دسترسی Board API ندارد یا اکانت شما مسدود/ربات است.");
+                } else if (response.status === 401) {
+                    throw new Error("توکن منقضی شده یا نامعتبر است.");
+                } else if (response.status === 429) {
+                    throw new Error("درخواست بیش از حد به لیچس. لطفاً چند ثانیه صبر کنید.");
+                }
+                throw new Error(`خطای سرور لیچس (${response.status}): ${exactError}`);
             }
 
-            // خواندن استریم برای پیدا شدن حریف
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
 
@@ -90,10 +105,8 @@ export default function LichessLobby() {
                     for (let line of lines) {
                         try {
                             const data = JSON.parse(line);
-                            // وقتی بازی شروع بشه لیچس GameStart میده
                             if (data.type === 'gameStart') {
                                 setIsSearching(false);
-                                // ریدایرکت به صفحه بازی با آیدی واقعی
                                 navigate(`/play/online/game/${data.game.id}`, { 
                                     state: { 
                                         timeControl,
@@ -103,15 +116,60 @@ export default function LichessLobby() {
                                 });
                                 return;
                             }
-                        } catch (e) {
-                            // نادیده گرفتن خطاهای پارس (مثل سیگنال‌های پینگ خالی)
-                        }
+                        } catch (e) {}
                     }
                 }
             }
         } catch (err: any) {
             setIsSearching(false);
-            setError("جستجو لغو شد یا خطایی رخ داد: " + err.message);
+            setError(err.message);
+        }
+    };
+
+    const handleChallengeMaia = async () => {
+        if (!token) return;
+        setIsSearching(true);
+        setError(null);
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('rated', 'false');
+            formData.append('clock.limit', '180');
+            formData.append('clock.increment', '2');
+
+            const response = await fetch('https://lichess.org/api/challenge/maia1', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                let exactError = errText;
+                try {
+                    const errJson = JSON.parse(errText);
+                    exactError = errJson.error || errJson.message || errText;
+                } catch(e) {}
+
+                if (response.status === 403) throw new Error("دسترسی 403: لطفاً توکن جدید با دسترسی Board API بسازید.");
+                if (response.status === 400) throw new Error(`خطای 400 ربات: ${exactError}`);
+                throw new Error(`ربات لیچس در دسترس نیست (${response.status})`);
+            }
+
+            const data = await response.json();
+            if (data.challenge && data.challenge.id) {
+                setIsSearching(false);
+                navigate(`/play/online/game/${data.challenge.id}`, { 
+                    state: { 
+                        timeControl: '3+2',
+                        gameId: data.challenge.id,
+                        token: token
+                    } 
+                });
+            }
+        } catch (err: any) {
+            setIsSearching(false);
+            setError(err.message);
         }
     };
 
@@ -162,7 +220,7 @@ export default function LichessLobby() {
                             </button>
                         </motion.div>
                     ) : isSearching ? (
-                        <motion.div key="searching" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center">
+                        <motion.div key="searching" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center w-full">
                             <div className="relative w-64 h-64 flex items-center justify-center mb-8">
                                 <div className="absolute inset-0 border-4 border-farzin-accent/20 rounded-full animate-ping" style={{ animationDuration: '3s' }}></div>
                                 <div className="absolute inset-4 border-4 border-farzin-accent/40 rounded-full animate-ping" style={{ animationDuration: '3s', animationDelay: '1s' }}></div>
@@ -171,7 +229,7 @@ export default function LichessLobby() {
                                     <Search size={32} className="text-farzin-accent animate-pulse" />
                                 </div>
                             </div>
-                            <h2 className="text-2xl font-black mb-2">در حال یافتن حریف واقعی...</h2>
+                            <h2 className="text-2xl font-black mb-2 text-center">در انتظار اتصال حریف واقعی...</h2>
                             <p className="text-farzin-accent font-mono font-bold tracking-widest text-lg mb-8">00:{searchTime.toString().padStart(2, '0')}</p>
                             <button onClick={() => { setIsSearching(false); setError("جستجو لغو شد."); }} className="px-8 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-full font-bold hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2">
                                 <X size={18} /> لغو جستجو
@@ -185,13 +243,13 @@ export default function LichessLobby() {
                                     <div className="flex items-center gap-2 bg-farzin-accent/10 text-farzin-accent px-3 py-1.5 rounded-full border border-farzin-accent/30">
                                         <CheckCircle2 size={14} /> <span className="text-[10px] font-bold">متصل</span>
                                     </div>
-                                    <button onClick={handleLogout} className="bg-zinc-800 hover:bg-zinc-700 text-xs px-3 py-1.5 rounded-full border border-zinc-600 transition-colors">خروج</button>
+                                    <button onClick={handleLogout} className="bg-zinc-800 hover:bg-zinc-700 text-xs px-3 py-1.5 rounded-full border border-zinc-600 transition-colors">تغییر توکن</button>
                                 </div>
                             </div>
 
-                            {error && <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-bold rounded-xl text-center">{error}</div>}
+                            {error && <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-bold rounded-xl text-center leading-loose">{error}</div>}
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                                 {timeControls.map((tc) => (
                                     <button 
                                         key={tc.id} 
@@ -206,6 +264,10 @@ export default function LichessLobby() {
                                     </button>
                                 ))}
                             </div>
+
+                            <button onClick={handleChallengeMaia} className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 py-4 rounded-2xl flex items-center justify-center gap-2 font-bold transition-all active:scale-95">
+                                <Bot size={20} /> بازی تستی فوری با ربات Maia (سطح 1500)
+                            </button>
                         </motion.div>
                     )}
                 </AnimatePresence>
