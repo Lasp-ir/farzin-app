@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, Zap, Flame, Infinity as InfinityIcon, Shield, Search, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function LichessLobby() {
     const navigate = useNavigate();
     const [token, setToken] = useState<string | null>(localStorage.getItem('lichess_token'));
+    const [inputToken, setInputToken] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchTime, setSearchTime] = useState(0);
-    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
-    // شبیه‌ساز تایمر جستجو
+    // تایمر جستجو
     useEffect(() => {
         let interval: any;
         if (isSearching) interval = setInterval(() => setSearchTime(p => p + 1), 1000);
@@ -18,22 +19,100 @@ export default function LichessLobby() {
         return () => clearInterval(interval);
     }, [isSearching]);
 
+    // ورود واقعی (ذخیره توکن کاربر)
     const handleLogin = () => {
-        // در دنیای واقعی اینجا کاربر به Lichess OAuth ریدایرکت میشه
-        // برای تست، یک توکن دمو ست می‌کنیم
-        const demoToken = "lip_demo_token_123";
-        localStorage.setItem('lichess_token', demoToken);
-        setToken(demoToken);
+        if (!inputToken.trim()) {
+            setError("لطفاً توکن را وارد کنید");
+            return;
+        }
+        // تست توکن با درخواست به لیچس
+        fetch('https://lichess.org/api/account', {
+            headers: { 'Authorization': `Bearer ${inputToken}` }
+        }).then(res => {
+            if (res.ok) {
+                localStorage.setItem('lichess_token', inputToken);
+                setToken(inputToken);
+                setError(null);
+            } else {
+                setError("توکن نامعتبر است. لطفاً توکنی با دسترسی Board API ایجاد کنید.");
+            }
+        }).catch(() => setError("خطا در برقراری ارتباط با لیچس."));
     };
 
-    const handleSeek = (timeControl: string) => {
-        setSelectedTime(timeControl);
+    // خروج
+    const handleLogout = () => {
+        localStorage.removeItem('lichess_token');
+        setToken(null);
+    };
+
+    // 🌟 درخواست واقعی بازی از لیچس
+    const handleSeek = async (timeControl: string) => {
+        if (!token) return;
         setIsSearching(true);
-        // شبیه‌سازی پیدا شدن حریف بعد از 4 ثانیه (در واقعیت اینجا به وب‌سوکت لیچس وصل می‌شیم)
-        setTimeout(() => {
+        setError(null);
+
+        const [minStr, incStr] = timeControl.split('+');
+        const minutes = parseInt(minStr, 10);
+        const increment = parseInt(incStr, 10);
+
+        try {
+            // استفاده از Lichess Board API برای ارسال درخواست بازی
+            // چون این یک استریم است، از fetch به صورت معمول استفاده نمی‌شود، بلکه بادی رو می‌خونیم
+            const response = await fetch('https://lichess.org/api/board/seek', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    rated: 'false', // فعلاً برای تست Unrated
+                    time: minutes.toString(),
+                    increment: increment.toString(),
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error("خطا در ایجاد چالش");
+            }
+
+            // خواندن استریم برای پیدا شدن حریف
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder('utf-8');
+
+            if (reader) {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n').filter(l => l.trim() !== '');
+                    
+                    for (let line of lines) {
+                        try {
+                            const data = JSON.parse(line);
+                            // وقتی بازی شروع بشه لیچس GameStart میده
+                            if (data.type === 'gameStart') {
+                                setIsSearching(false);
+                                // ریدایرکت به صفحه بازی با آیدی واقعی
+                                navigate(`/play/online/game/${data.game.id}`, { 
+                                    state: { 
+                                        timeControl,
+                                        gameId: data.game.id,
+                                        token: token
+                                    } 
+                                });
+                                return;
+                            }
+                        } catch (e) {
+                            // نادیده گرفتن خطاهای پارس (مثل سیگنال‌های پینگ خالی)
+                        }
+                    }
+                }
+            }
+        } catch (err: any) {
             setIsSearching(false);
-            navigate('/play/online/game/game_demo_123', { state: { timeControl, color: 'white' } });
-        }, 4000);
+            setError("جستجو لغو شد یا خطایی رخ داد: " + err.message);
+        }
     };
 
     const timeControls = [
@@ -55,19 +134,31 @@ export default function LichessLobby() {
                 <button onClick={() => navigate('/')} className="p-2.5 bg-[#161512]/80 backdrop-blur-xl border border-white/5 rounded-xl text-zinc-400 hover:text-white transition-all shadow-lg active:scale-95"><ChevronRight size={22} /></button>
                 <div>
                     <h1 className="text-xl font-black">آرنای جهانی فرزین</h1>
-                    <p className="text-xs text-zinc-500 font-bold mt-1">متصل به سرورهای Lichess.org</p>
+                    <p className="text-xs text-zinc-500 font-bold mt-1">متصل به سرورهای واقعی Lichess.org</p>
                 </div>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10 w-full max-w-3xl mx-auto">
                 <AnimatePresence mode="wait">
                     {!token ? (
-                        <motion.div key="login" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-[#11100e]/80 backdrop-blur-3xl border border-white/10 p-10 rounded-[40px] text-center shadow-[0_30px_60px_rgba(0,0,0,0.6)]">
+                        <motion.div key="login" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-[#11100e]/80 backdrop-blur-3xl border border-white/10 p-10 rounded-[40px] text-center shadow-[0_30px_60px_rgba(0,0,0,0.6)] w-full">
                             <Shield size={64} className="mx-auto text-zinc-600 mb-6" />
-                            <h2 className="text-2xl font-black mb-3">اتصال به شبکه جهانی</h2>
-                            <p className="text-sm text-zinc-400 font-bold mb-8 leading-relaxed">برای بازی با میلیون‌ها بازیکن در سراسر جهان، ابتدا باید اکانت لیچس خود را متصل کنید. ما به هیچ عنوان به رمز عبور شما دسترسی نخواهیم داشت.</p>
+                            <h2 className="text-2xl font-black mb-3">اتصال واقعی به لیچس</h2>
+                            <p className="text-sm text-zinc-400 font-bold mb-6 leading-relaxed">برای بازی، یک توکن با دسترسی <span className="text-sky-400 bg-sky-500/10 px-2 py-1 rounded">Play games with the board API</span> در سایت لیچس ایجاد کرده و اینجا وارد کنید.</p>
+                            
+                            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl flex items-center gap-2 justify-center"><AlertCircle size={14}/> {error}</div>}
+                            
+                            <input 
+                                type="password" 
+                                placeholder="lip_..." 
+                                value={inputToken}
+                                onChange={(e) => setInputToken(e.target.value)}
+                                className="w-full bg-[#1e1c19] border border-[#35332e] text-center focus:border-farzin-accent rounded-xl py-3 text-sm text-white placeholder-zinc-600 outline-none transition-colors mb-4" 
+                                dir="ltr"
+                            />
+
                             <button onClick={handleLogin} className="w-full bg-white text-black hover:bg-zinc-200 py-4 rounded-2xl font-black text-lg shadow-[0_10px_30px_rgba(255,255,255,0.2)] active:scale-95 transition-all">
-                                ورود با Lichess
+                                تایید و اتصال
                             </button>
                         </motion.div>
                     ) : isSearching ? (
@@ -80,9 +171,9 @@ export default function LichessLobby() {
                                     <Search size={32} className="text-farzin-accent animate-pulse" />
                                 </div>
                             </div>
-                            <h2 className="text-2xl font-black mb-2">در حال یافتن حریف...</h2>
+                            <h2 className="text-2xl font-black mb-2">در حال یافتن حریف واقعی...</h2>
                             <p className="text-farzin-accent font-mono font-bold tracking-widest text-lg mb-8">00:{searchTime.toString().padStart(2, '0')}</p>
-                            <button onClick={() => setIsSearching(false)} className="px-8 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-full font-bold hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2">
+                            <button onClick={() => { setIsSearching(false); setError("جستجو لغو شد."); }} className="px-8 py-3 bg-red-500/10 text-red-400 border border-red-500/30 rounded-full font-bold hover:bg-red-500/20 active:scale-95 transition-all flex items-center gap-2">
                                 <X size={18} /> لغو جستجو
                             </button>
                         </motion.div>
@@ -90,10 +181,16 @@ export default function LichessLobby() {
                         <motion.div key="lobby" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
                             <div className="flex items-center justify-between mb-8 px-2">
                                 <h3 className="font-black text-lg text-zinc-300">یک کنترل زمانی انتخاب کنید</h3>
-                                <div className="flex items-center gap-2 bg-farzin-accent/10 text-farzin-accent px-3 py-1.5 rounded-full border border-farzin-accent/30">
-                                    <CheckCircle2 size={14} /> <span className="text-[10px] font-bold">متصل</span>
+                                <div className="flex gap-2">
+                                    <div className="flex items-center gap-2 bg-farzin-accent/10 text-farzin-accent px-3 py-1.5 rounded-full border border-farzin-accent/30">
+                                        <CheckCircle2 size={14} /> <span className="text-[10px] font-bold">متصل</span>
+                                    </div>
+                                    <button onClick={handleLogout} className="bg-zinc-800 hover:bg-zinc-700 text-xs px-3 py-1.5 rounded-full border border-zinc-600 transition-colors">خروج</button>
                                 </div>
                             </div>
+
+                            {error && <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-bold rounded-xl text-center">{error}</div>}
+
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 {timeControls.map((tc) => (
                                     <button 
