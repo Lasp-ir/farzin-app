@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db" 
+}
+model User {
+  id               Int      @id @default(autoincrement())
+  username         String   @unique
+  email            String   @unique
+  password         String
+  role             String   @default("user")
+  puzzleRating     Int      @default(1200)
+  puzzleStreak     Int      @default(0)
+  maxStreak        Int      @default(0)
+  quotaMistakes    Int      @default(3)
+  quotaRated       Int      @default(5)
+  quotaThemes      Int      @default(5)
+  quotaRush        Int      @default(1)
+  lastQuotaReset   DateTime @default(now())
+  failedPuzzles    String   @default("[]")
+  connectedLichess String   @default("[]") 
+  connectedChesscom String  @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+model Puzzle {
+  puzzleId         String   @id @unique
+  fen              String
+  moves            String   
+  rating           Int
+  themes           String   
+  @@index([rating])
+  @@index([themes])
+}
