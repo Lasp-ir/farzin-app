@@ -5,7 +5,7 @@ import { Chess } from 'chess.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, Zap, Heart, Timer, Trophy, RefreshCw, X, RotateCcw,
-    Flame, Skull, Clock, HeartCrack, ChevronLeft, Target, Check, Sparkles, Crown
+    Flame, Skull, Clock, HeartCrack, ChevronLeft, Target, Check
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
 
@@ -22,6 +22,12 @@ const playSound = (type: keyof typeof sounds) => {
     const audio = sounds[type];
     audio.currentTime = 0;
     audio.play().catch(e => console.log('Audio blocked:', e));
+};
+
+// 🔥 تابع مبدل اعداد انگلیسی به فارسی
+const toPersianDigits = (num: number | string) => {
+    const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    return num.toString().replace(/\d/g, (x) => persianDigits[parseInt(x)]);
 };
 
 export default function PuzzleRush() {
@@ -214,7 +220,8 @@ export default function PuzzleRush() {
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
-        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        // 🔥 تبدیل خروجی تایمر به اعداد فارسی
+        return toPersianDigits(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
     };
 
     let customSquares = { ...lastMoveSquares };
@@ -222,12 +229,11 @@ export default function PuzzleRush() {
     if (wrongSquare) customSquares[wrongSquare] = { backgroundColor: 'rgba(239, 68, 68, 0.7)' };
 
     // ==========================================
-    // 🌟 رندر لابی انتخابی مدرن و نئونی (Setup)
+    // رندر لابی (Setup)
     // ==========================================
     if (status === 'setup') {
         return (
             <div className="min-h-[100dvh] bg-[#0c0b0a] text-zinc-200 flex flex-col items-center pb-10 relative overflow-hidden" dir="rtl">
-                {/* دایره‌های نئونی متحرک بک‌گراند */}
                 <div className="absolute top-[-20%] left-[-20%] w-[70vw] h-[70vw] rounded-full bg-yellow-500/5 blur-[120px] pointer-events-none animate-pulse"></div>
                 <div className="absolute bottom-[-20%] right-[-20%] w-[70vw] h-[70vw] rounded-full bg-orange-500/5 blur-[120px] pointer-events-none animate-pulse" style={{ animationDelay: '2s' }}></div>
 
@@ -276,7 +282,7 @@ export default function PuzzleRush() {
                                     <Skull size={22} />
                                 </div>
                                 <div className="flex flex-col text-right">
-                                    <span className="font-black text-white text-lg group-hover:text-red-400 transition-colors">۳۰ ثانیه جنون‌آمیز</span>
+                                    <span className="font-black text-white text-lg group-hover:text-red-400 transition-colors">{toPersianDigits('30')} ثانیه جنون‌آمیز</span>
                                     <span className="text-[10px] text-zinc-500 font-black mt-0.5">سرعت فوق جتی (هاردکور)</span>
                                 </div>
                             </div>
@@ -295,7 +301,7 @@ export default function PuzzleRush() {
                                     <Flame size={22} fill="currentColor" />
                                 </div>
                                 <div className="flex flex-col text-right">
-                                    <span className="font-black text-white text-lg group-hover:text-orange-400 transition-colors">۱ دقیقه طلایی</span>
+                                    <span className="font-black text-white text-lg group-hover:text-orange-400 transition-colors">{toPersianDigits('1')} دقیقه طلایی</span>
                                     <span className="text-[10px] text-zinc-500 font-black mt-0.5">تمرکز بالا و ریتم سریع</span>
                                 </div>
                             </div>
@@ -314,7 +320,7 @@ export default function PuzzleRush() {
                                     <Clock size={22} />
                                 </div>
                                 <div className="flex flex-col text-right">
-                                    <span className="font-black text-white text-lg group-hover:text-yellow-400 transition-colors">۳ دقیقه استاندارد</span>
+                                    <span className="font-black text-white text-lg group-hover:text-yellow-400 transition-colors">{toPersianDigits('3')} دقیقه استاندارد</span>
                                     <span className="text-[10px] text-yellow-400/70 font-black mt-0.5">فرمت اصلی و بین‌المللی چس‌کام</span>
                                 </div>
                             </div>
@@ -327,12 +333,12 @@ export default function PuzzleRush() {
     }
 
     // ==========================================
-    // 🌟 رندر صفحه گیم‌پلی با استایل پیشرفته نسل زد
+    // رندر گیم‌پلی
     // ==========================================
     return (
         <div className="min-h-[100dvh] bg-[#0c0b0a] text-zinc-200 flex flex-col items-center pb-8" dir="rtl">
             
-            {/* هدر بالایی بازی */}
+            {/* هدر بالایی */}
             <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between sticky top-0 z-10 bg-[#0c0b0a]/90 backdrop-blur-md border-b border-white/5">
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setStatus('setup')} className="p-2.5 bg-[#1e1c19] rounded-xl hover:text-white text-zinc-400 transition-colors border border-white/5">
                     <ChevronRight size={22} />
@@ -344,14 +350,14 @@ export default function PuzzleRush() {
                         رگبار سرعتی پازل
                     </span>
                     <span className="text-[10px] text-zinc-500 font-black mt-0.5 flex items-center gap-1">
-                        امتیاز پازل فعلی: <Target size={11} className="text-blue-400" /> <span className="text-blue-400 font-mono font-bold">{currentDifficulty}</span>
+                        امتیاز پازل فعلی: <Target size={11} className="text-blue-400" /> <span className="text-blue-400 font-mono font-bold" dir="ltr">{toPersianDigits(currentDifficulty)}</span>
                     </span>
                 </div>
 
                 <div className="w-10"></div> 
             </div>
 
-            {/* صفحه شطرنج ایزوله شده */}
+            {/* تخته شطرنج */}
             <div className="w-full max-w-md mt-6 px-4 relative z-0">
                 {isLoading && status === 'playing' && (
                     <div className="absolute inset-0 z-20 bg-[#0c0b0a]/60 backdrop-blur-sm flex items-center justify-center rounded-2xl">
@@ -376,7 +382,7 @@ export default function PuzzleRush() {
                 </div>
             </div>
 
-            {/* 🌟 فضای میانی خیره‌کننده: نمایش استریک‌ها و کامبوهای فیوز شده نئونی */}
+            {/* فضای میانی: استریک و کامبو */}
             <div className="w-full max-w-md px-4 flex-1 flex flex-col items-center justify-center min-h-[95px] py-2 relative">
                 <AnimatePresence mode="wait">
                     {streak >= 3 ? (
@@ -392,7 +398,7 @@ export default function PuzzleRush() {
                                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="text-orange-500">
                                     <Flame size={28} fill="currentColor" />
                                 </motion.div>
-                                {streak} تایی متوالی! 🔥
+                                {toPersianDigits(streak)} تایی متوالی! 🔥
                             </div>
                         </motion.div>
                     ) : (
@@ -408,7 +414,6 @@ export default function PuzzleRush() {
                     )}
                 </AnimatePresence>
 
-                {/* مینی تایم‌لاین دایره‌ای درخشان نتایج اخیر */}
                 <div className="flex items-center gap-2 mt-4 flex-wrap justify-center max-w-[85%]" dir="ltr">
                     <AnimatePresence>
                         {resultsHistory.slice(-10).map((res, i) => (
@@ -425,25 +430,22 @@ export default function PuzzleRush() {
                 </div>
             </div>
 
-            {/* --- داشبورد پایینی HUD شیشه‌ای سایبرپانک --- */}
+            {/* داشبورد پایینی HUD */}
             <div className="w-full max-w-md px-4 flex flex-col gap-3">
                 <div className="w-full bg-[#141312]/70 border border-white/5 rounded-[28px] p-5 shadow-[0_15px_50px_rgba(0,0,0,0.5)] relative overflow-hidden flex justify-between items-center backdrop-blur-xl">
                     
-                    {/* لایه‌های نوری داینامیک پشت داشبورد */}
                     <div className={`absolute top-0 right-0 w-28 h-28 rounded-full blur-[60px] opacity-20 pointer-events-none transition-colors duration-500 ${timeLeft <= 20 ? 'bg-red-500' : 'bg-blue-400'}`}></div>
                     <div className={`absolute bottom-0 left-0 w-28 h-28 rounded-full blur-[60px] opacity-20 pointer-events-none transition-colors duration-500 ${lives === 1 ? 'bg-red-500 animate-pulse' : 'bg-yellow-400'}`}></div>
 
-                    {/* زمان زمان (راست) */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-black tracking-wider uppercase mb-1 flex items-center gap-1">
                             زمان باقی‌مانده
                         </span>
-                        <span className={`font-mono text-2xl font-black ${timeLeft <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' : timeLeft <= 30 ? 'text-orange-400' : 'text-zinc-200'}`}>
+                        <span className={`font-mono text-2xl font-black ${timeLeft <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' : timeLeft <= 30 ? 'text-orange-400' : 'text-zinc-200'}`} dir="ltr">
                             {formatTime(timeLeft)}
                         </span>
                     </div>
 
-                    {/* امتیاز کریستالی بزرگ نئونی (وسط) */}
                     <motion.div 
                         key={score}
                         initial={{ scale: 1.3 }}
@@ -455,11 +457,10 @@ export default function PuzzleRush() {
                             امتیاز پازل
                         </span>
                         <span className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] font-mono leading-none pt-1">
-                            {score}
+                            {toPersianDigits(score)}
                         </span>
                     </motion.div>
 
-                    {/* جان‌های قلبی شیشه‌ای (چپ) */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-black tracking-wider uppercase mb-2">
                             فرصت‌های خطا
@@ -478,7 +479,6 @@ export default function PuzzleRush() {
                     </div>
                 </div>
 
-                {/* پروگرس بار بسیار باریک و شیک زیر کارت */}
                 <div className="w-full h-1 bg-[#1a1918] rounded-full overflow-hidden border border-white/5">
                     <motion.div 
                         className={`h-full ${timeLeft <= 10 ? 'bg-red-500' : timeLeft <= 30 ? 'bg-orange-500' : 'bg-gradient-to-l from-blue-500 to-sky-400'}`}
@@ -488,7 +488,6 @@ export default function PuzzleRush() {
                     />
                 </div>
 
-                {/* دکمه تسلیم و پایان زودهنگام */}
                 <motion.button 
                     whileHover={{ scale: 1.01, backgroundColor: 'rgba(239,68,68,0.05)', borderColor: 'rgba(239,68,68,0.2)' }}
                     whileTap={{ scale: 0.99 }}
@@ -500,9 +499,7 @@ export default function PuzzleRush() {
                 </motion.button>
             </div>
 
-            {/* ==========================================
-                🌟 مودال پایان بازی هوشمند و فوق العاده شیک
-               ========================================== */}
+            {/* مودال پایان بازی */}
             <AnimatePresence>
                 {status === 'gameover' && (
                     <motion.div 
@@ -528,7 +525,7 @@ export default function PuzzleRush() {
                                     {endReason === 'time' ? 'زمان به آخر رسید! ⏱️' : 'فرصت‌هات سوخت! 💔'}
                                 </h2>
                                 <p className="text-zinc-500 text-xs font-bold mt-1.5">
-                                    تلاش شما در چالش سرعتی <b className="text-zinc-300 mx-0.5">{timeMode / 60 >= 1 ? `${timeMode / 60} دقیقه‌ای` : `${timeMode} ثانیه‌ای`}</b>
+                                    تلاش شما در چالش سرعتی <b className="text-zinc-300 mx-0.5">{timeMode / 60 >= 1 ? `${toPersianDigits(timeMode / 60)} دقیقه‌ای` : `${toPersianDigits(timeMode)} ثانیه‌ای`}</b>
                                 </p>
                             </div>
                             
@@ -536,7 +533,7 @@ export default function PuzzleRush() {
                                 <div className="flex flex-col items-center w-full bg-[#0c0b0a] rounded-2xl py-5 border border-white/5 shadow-inner">
                                     <span className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">پازل‌های حل شده</span>
                                     <span className="text-6xl font-mono font-black bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400 drop-shadow-md">
-                                        {score}
+                                        {toPersianDigits(score)}
                                     </span>
                                 </div>
 
