@@ -2,12 +2,22 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const puzzleRoutes = require('./routes/puzzleRoutes');
+const courseRoutes = require('./routes/courses');
 
 const app = express();
 const prisma = new PrismaClient();
 
+// =======================================================
+// 🚨 بسیار مهم: این دو خط حتماً باید قبل از همه روت‌ها باشند!
+// =======================================================
 app.use(cors());
 app.use(express.json());
+
+// =======================================================
+// 🌐 حالا روت‌ها رو تعریف می‌کنیم
+// =======================================================
+app.use('/api/courses', courseRoutes);
+app.use('/api/puzzles', puzzleRoutes);
 
 app.get('/api/health', async (req, res) => {
     try {
@@ -18,8 +28,6 @@ app.get('/api/health', async (req, res) => {
         res.status(500).json({ error: 'Database connection failed' });
     }
 });
-
-app.use('/api/puzzles', puzzleRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
