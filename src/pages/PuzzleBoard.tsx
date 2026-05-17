@@ -9,6 +9,8 @@ import {
     SkipBack, SkipForward, Rewind, FastForward, Check, X, Lightbulb, TrendingUp, TrendingDown, Eye, Tag
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
+// 🔥 ایمپورت هوک تم
+import { useChessTheme } from '../hooks/useChessTheme';
 
 const THEME_DICTIONARY: Record<string, string> = {
     mateIn1: 'مات در ۱', mateIn2: 'مات در ۲', mateIn3: 'مات در ۳', mateIn4: 'مات در ۴', mateIn5: 'مات در ۵+',
@@ -44,6 +46,9 @@ const playSound = (type: keyof typeof sounds) => {
 export default function PuzzleBoard() {
     const { mode } = useParams();
     const navigate = useNavigate();
+    
+    // 🔥 فراخوانی استایل‌های پویا از هوک تم
+    const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
 
     const [game, setGame] = useState(new Chess());
     const [puzzleData, setPuzzleData] = useState<any>(null);
@@ -418,11 +423,9 @@ export default function PuzzleBoard() {
     }
 
     return (
-        // 🔥 کل صفحه راست‌چین (RTL) است تا متون، دکمه بازگشت و هدر درست نمایش داده شوند
         <div className="min-h-[100dvh] bg-[#161512] text-zinc-200 flex flex-col items-center pb-10" dir="rtl">
             <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between bg-[#1e1c19] border-b border-[#35332e] sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="p-2 bg-[#262421] rounded-xl hover:text-white text-zinc-400 transition-colors">
-                    {/* 🔥 دکمه بازگشت در حالت RTL باید ChevronRight باشد */}
                     <ChevronRight size={24} />
                 </button>
                 <div className="flex flex-col items-center">
@@ -456,7 +459,6 @@ export default function PuzzleBoard() {
                         </button>
                     </div>
                 ) : (
-                    // 🔥 فقط و فقط کانتینر دربرگیرنده‌ی شطرنج به صورت LTR (چپ‌چین) تنظیم شده است تا انیمیشن مهره‌ها باگ نخورد
                     <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? (solutionViewed ? 'border-zinc-500/80 shadow-[0_0_30px_rgba(113,113,122,0.3)]' : usedHint ? 'border-blue-500/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]') : 'border-[#35332e]'}`}>
                         
                         <Chessboard 
@@ -465,8 +467,11 @@ export default function PuzzleBoard() {
                             onPieceDrop={onDrop}
                             onSquareClick={handleSquareClick}
                             boardOrientation={playerColor}
-                            customDarkSquareStyle={{ backgroundColor: '#779556' }}
-                            customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                            // 🔥 اعمال استایل‌های داینامیک
+                            customDarkSquareStyle={darkSquareStyle} 
+                            customLightSquareStyle={lightSquareStyle}
+                            customPieces={customPieces}
+                            // -----------------------------
                             customSquareStyles={finalCustomSquares}
                             animationDuration={250}
                             autoPromoteToQueen={true}
@@ -511,7 +516,6 @@ export default function PuzzleBoard() {
 
             <div className="w-full max-w-md mt-6 px-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between bg-[#1e1c19] border border-[#35332e] rounded-2xl p-2">
-                    {/* نوار کنترل مدیاپلیر (عقب و جلو رفتن) به دلیل ماهیتش، در یک دیوِ جداگانه ltr نگه داشته می‌شود */}
                     <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                         <button onClick={goStart} disabled={loadError || historyIndex === 0 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
                         <button onClick={goBack} disabled={loadError || historyIndex === 0 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipBack size={17} /></button>
@@ -559,9 +563,9 @@ export default function PuzzleBoard() {
                         <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-4 text-red-400">
                                 <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shrink-0 text-xl">💥</div>
-                                <div className="flex flex-col">
-                                    <span className="font-black text-lg text-white">حرکت اشتباه!</span>
-                                    <span className="text-xs opacity-80">این بهترین جواب برای این پوزیشن نیست.</span>
+                                <div className="flex flex-col text-left">
+                                    <span className="font-black text-lg text-white" dir="rtl">حرکت اشتباه!</span>
+                                    <span className="text-xs opacity-80" dir="rtl">این بهترین جواب برای این پوزیشن نیست.</span>
                                 </div>
                             </div>
                             {scoreChange !== null && (
@@ -589,11 +593,11 @@ export default function PuzzleBoard() {
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center border shrink-0 text-2xl ${solutionViewed ? 'bg-zinc-500/10 border-zinc-500/20 text-xl' : usedHint ? 'bg-blue-500/10 border-blue-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                                     {solutionViewed ? '👁️' : usedHint ? '💡' : '🏆'}
                                 </div>
-                                <div className="flex flex-col">
-                                    <span className="font-black text-lg text-white">
+                                <div className="flex flex-col text-left">
+                                    <span className="font-black text-lg text-white" dir="rtl">
                                         {solutionViewed ? 'پاسخ پازل را دیدی' : usedHint ? 'با راهنمایی رد شدی' : 'آفرین! پازل حل شد'}
                                     </span>
-                                    <span className="text-xs opacity-80">
+                                    <span className="text-xs opacity-80" dir="rtl">
                                         {solutionViewed || usedHint ? 'برای این پازل امتیازی دریافت نمی‌کنی.' : 'امتیاز ریتینگ به حساب شما واریز شد.'}
                                     </span>
                                 </div>
@@ -607,7 +611,7 @@ export default function PuzzleBoard() {
                         </div>
 
                         {translatedThemes.length > 0 && (
-                            <div className="w-full flex flex-wrap items-center gap-1.5 pt-3 mt-1 border-t border-[#35332e]">
+                            <div className="w-full flex flex-wrap items-center gap-1.5 pt-3 mt-1 border-t border-[#35332e]" dir="rtl">
                                 <Tag size={12} className="text-zinc-500 mr-1" />
                                 {translatedThemes.map((t, idx) => (
                                     <span key={idx} className="bg-[#161512] text-zinc-400 border border-[#35332e] px-2.5 py-1 rounded-md text-[10px] font-bold">

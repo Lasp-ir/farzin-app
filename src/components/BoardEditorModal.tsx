@@ -2,11 +2,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, RotateCcw, Zap, AlertTriangle, Eraser, ShieldCheck, Footprints, LayoutGrid } from 'lucide-react';
 import { Chessboard } from 'react-chessboard';
+// 🔥 ایمپورت هوک تم برای اعمال روی ویرایشگر
+import { useChessTheme } from '../hooks/useChessTheme';
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-
-const getPieceImg = (p: string) => `https://lichess1.org/assets/_64XmY2/piece/merida/${p}.svg`;
 
 function fenToObj(fen: string) {
     const obj: Record<string, string> = {};
@@ -26,6 +26,17 @@ function fenToObj(fen: string) {
 }
 
 export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
+    // 🔥 استخراج استایل‌ها از هوک گرافیکی
+    const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
+
+    // 🌟 خواندن نام تم مهره‌ی فعلی برای آپدیت عکس‌های پالت سمت چپ و راست
+    const pieceTheme = JSON.parse(localStorage.getItem('farzin_settings') || '{}').pieceTheme || 'neo';
+    const getPieceImg = (p: string) => {
+        const lower = p.toLowerCase();
+        const cached = localStorage.getItem(`farzin_piece_${pieceTheme}_${lower}`);
+        return cached || `https://images.chesscomfiles.com/chess-themes/pieces/${pieceTheme}/150/${lower}.png`;
+    };
+
     const [position, setPosition] = useState(fenToObj(INITIAL_FEN));
     const [activePiece, setActivePiece] = useState<string | null>('wP');
     const [turn, setTurn] = useState<'w' | 'b'>('w');
@@ -50,9 +61,7 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
     }, [position, turn]);
 
     useEffect(() => {
-        if (!validEpSquares.includes(enPassant)) {
-            setEnPassant('-');
-        }
+        if (!validEpSquares.includes(enPassant)) setEnPassant('-');
     }, [validEpSquares, enPassant]);
 
     const handleDrop = (e: React.DragEvent) => {
@@ -139,7 +148,6 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
     const handleConfirm = () => {
         let hasInvalidPawn = false;
         for (const [square, piece] of Object.entries(position)) {
-            // پیاده سفید در عرض 1 یا پیاده سیاه در عرض 8
             if (piece === 'wP' && square.includes('1')) hasInvalidPawn = true;
             if (piece === 'bP' && square.includes('8')) hasInvalidPawn = true;
         }
@@ -159,7 +167,6 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                     <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} 
                         className="w-full max-w-5xl bg-[#161512] border border-[#35332e] rounded-3xl shadow-2xl flex flex-col overflow-hidden my-auto relative"
                     >
-                        {/* 🌟 هدر یکپارچه و مدرن در بالای پاپ‌آپ */}
                         <div className="flex items-center justify-between px-6 py-4 bg-[#1a1916] border-b border-[#35332e] shrink-0" dir="rtl">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400">
@@ -173,34 +180,33 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                         </div>
 
                         <div className="flex flex-col lg:flex-row flex-1 min-h-0">
-                            {/* 🌟 بخش اصلی: پالت‌ها و تخته شطرنج */}
                             <div className="flex-1 p-5 lg:p-8 flex flex-col items-center justify-center bg-[#12110f] border-b lg:border-b-0 lg:border-l border-[#35332e]">
                                 
-                                {/* 🌟 پالت مهره‌های سیاه (با پس‌زمینه خاکستری روشن) */}
+                                {/* پالت مهره‌های سیاه */}
                                 <div className="flex justify-center gap-2 mb-5 w-full max-w-[440px]">
                                     {['bQ', 'bR', 'bB', 'bN', 'bK', 'bP'].map(p => (
                                         <button 
                                             key={p} 
                                             onClick={() => setActivePiece(p)} 
-                                            className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${activePiece === p ? 'bg-zinc-200 border-2 border-farzin-accent scale-110 z-10 shadow-lg' : 'bg-zinc-300 hover:bg-zinc-200 opacity-90 hover:opacity-100'}`}
+                                            className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${activePiece === p ? 'bg-[#35332e] border border-farzin-accent scale-110 z-10 shadow-lg' : 'bg-transparent hover:bg-[#262421]'}`}
                                         >
                                             <img 
                                                 src={getPieceImg(p)} 
                                                 alt={p} 
                                                 draggable 
                                                 onDragStart={(e) => { e.dataTransfer.setData('piece', p); setActivePiece(p); }} 
-                                                className="w-9 h-9 sm:w-11 sm:h-11 cursor-grab active:cursor-grabbing drop-shadow-sm" 
+                                                className="w-9 h-9 sm:w-11 sm:h-11 cursor-grab active:cursor-grabbing drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" 
                                             />
                                         </button>
                                     ))}
                                 </div>
 
-                                {/* تخته شطرنج */}
+                                {/* تخته شطرنج با گرافیک داینامیک */}
                                 <div 
                                     ref={boardRef}
                                     onDragOver={e => e.preventDefault()}
                                     onDrop={handleDrop}
-                                    className="w-full max-w-[440px] aspect-square rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border-4 border-[#262421] overflow-hidden bg-[#ebecd0]"
+                                    className="w-full max-w-[440px] aspect-square rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border-4 border-[#262421] overflow-hidden bg-[#1a1916]"
                                 >
                                     <Chessboard 
                                         position={position}
@@ -215,8 +221,10 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                                             });
                                             return true;
                                         }}
-                                        customDarkSquareStyle={{ backgroundColor: '#779556' }}
-                                        customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                                        // 🔥 تزریق استایل‌های شخصی‌سازی شده کاربر به ویرایشگر
+                                        customDarkSquareStyle={darkSquareStyle}
+                                        customLightSquareStyle={lightSquareStyle}
+                                        customPieces={customPieces}
                                         animationDuration={150}
                                     />
                                 </div>
@@ -227,14 +235,14 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                                         <button 
                                             key={p} 
                                             onClick={() => setActivePiece(p)} 
-                                            className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${activePiece === p ? 'bg-zinc-200 border-2 border-farzin-accent scale-110 z-10 shadow-lg' : 'bg-[#262421] hover:bg-[#35332e] opacity-90 hover:opacity-100'}`}
+                                            className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${activePiece === p ? 'bg-[#35332e] border border-farzin-accent scale-110 z-10 shadow-lg' : 'bg-transparent hover:bg-[#262421]'}`}
                                         >
                                             <img 
                                                 src={getPieceImg(p)} 
                                                 alt={p} 
                                                 draggable 
                                                 onDragStart={(e) => { e.dataTransfer.setData('piece', p); setActivePiece(p); }} 
-                                                className="w-9 h-9 sm:w-11 sm:h-11 cursor-grab active:cursor-grabbing drop-shadow-md" 
+                                                className="w-9 h-9 sm:w-11 sm:h-11 cursor-grab active:cursor-grabbing drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" 
                                             />
                                         </button>
                                     ))}
@@ -248,10 +256,9 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                                         <Eraser size={24} />
                                     </button>
                                 </div>
-
                             </div>
 
-                            {/* 🌟 بخش تنظیمات (سمت راست تخته - RTL) */}
+                            {/* بخش تنظیمات */}
                             <div className="w-full lg:w-[320px] bg-[#1a1916] p-6 lg:p-8 flex flex-col gap-8 shrink-0 overflow-y-auto custom-scrollbar" dir="rtl">
                                 
                                 <section>
@@ -311,7 +318,7 @@ export default function BoardEditorModal({ isOpen, onClose, onConfirm }: any) {
                                     <Zap size={20} /> شروع آنالیز
                                 </button>
                             </div>
-                            {/* 🌟 پاپ‌آپ خطای پیاده غیرقانونی */}
+
                         <AnimatePresence>
                             {invalidPawnWarning && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" dir="rtl">

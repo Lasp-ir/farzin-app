@@ -8,6 +8,8 @@ import {
     Flame, Skull, Clock, HeartCrack, ChevronLeft, Target, Check
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
+// 🔥 ایمپورت هوک تم
+import { useChessTheme } from '../hooks/useChessTheme';
 
 const sounds = {
     move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
@@ -24,17 +26,18 @@ const playSound = (type: keyof typeof sounds) => {
     audio.play().catch(e => console.log('Audio blocked:', e));
 };
 
-// تابع مبدل اعداد انگلیسی به فارسی
 const toPersianDigits = (num: number | string) => {
     const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
     return num.toString().replace(/\d/g, (x) => persianDigits[parseInt(x)]);
 };
 
-// فونت اختصاصی و هیجان‌انگیز بازی
 const GAME_FONT = "'Lalezar', system-ui, sans-serif";
 
 export default function PuzzleRush() {
     const navigate = useNavigate();
+
+    // 🔥 فراخوانی استایل‌های پویا از هوک تم
+    const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
 
     const [status, setStatus] = useState<'setup' | 'playing' | 'gameover'>('setup');
     const [timeMode, setTimeMode] = useState<number>(180); 
@@ -233,7 +236,6 @@ export default function PuzzleRush() {
     if (status === 'setup') {
         return (
             <div className="min-h-[100dvh] bg-[#0c0b0a] text-zinc-200 flex flex-col items-center pb-10 relative overflow-hidden" dir="rtl">
-                {/* تزریق فونت سینمایی و زیبای لاله‌زار */}
                 <style>{`@import url('https://fonts.googleapis.com/css2?family=Lalezar&display=swap');`}</style>
                 
                 <div className="absolute top-[-20%] left-[-20%] w-[70vw] h-[70vw] rounded-full bg-yellow-500/5 blur-[120px] pointer-events-none animate-pulse"></div>
@@ -278,7 +280,6 @@ export default function PuzzleRush() {
                                     <Skull size={22} />
                                 </div>
                                 <div className="flex flex-col text-right">
-                                    {/* فونت استاندارد برای بخش‌های معمولی */}
                                     <span className="font-black text-white text-lg group-hover:text-red-400 transition-colors">{toPersianDigits('30')} ثانیه جنون‌آمیز</span>
                                     <span className="text-[10px] text-zinc-500 font-black mt-0.5">سرعت فوق جتی (هاردکور)</span>
                                 </div>
@@ -335,7 +336,6 @@ export default function PuzzleRush() {
                         رگبار سرعتی پازل
                     </span>
                     <span className="text-[10px] text-zinc-500 font-black mt-0.5 flex items-center gap-1">
-                        {/* فونت استاندارد برای اطلاعات جانبی */}
                         امتیاز پازل فعلی: <Target size={11} className="text-blue-400" /> <span className="text-blue-400 font-bold" dir="ltr">{toPersianDigits(currentDifficulty)}</span>
                     </span>
                 </div>
@@ -358,8 +358,11 @@ export default function PuzzleRush() {
                         position={game.fen()} 
                         onPieceDrop={onDrop}
                         boardOrientation={playerColor}
-                        customDarkSquareStyle={{ backgroundColor: '#779556' }}
-                        customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                        // 🔥 اعمال استایل‌های داینامیک
+                        customDarkSquareStyle={darkSquareStyle} 
+                        customLightSquareStyle={lightSquareStyle}
+                        customPieces={customPieces}
+                        // -----------------------------
                         customSquareStyles={customSquares}
                         animationDuration={140} 
                         autoPromoteToQueen={true}
@@ -379,7 +382,6 @@ export default function PuzzleRush() {
                             transition={{ type: "spring", stiffness: 400, damping: 15 }}
                             className="flex flex-col items-center"
                         >
-                            {/* 🔥 اعمال فونت گیمینگ Lalezar روی متن کامبو */}
                             <div style={{ fontFamily: GAME_FONT, paddingTop: '6px' }} className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent text-3xl tracking-wide flex items-center gap-2 drop-shadow-[0_4px_20px_rgba(249,115,22,0.4)]">
                                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="text-orange-500">
                                     <Flame size={28} fill="currentColor" />
@@ -423,12 +425,10 @@ export default function PuzzleRush() {
                     <div className={`absolute top-0 right-0 w-28 h-28 rounded-full blur-[60px] opacity-20 pointer-events-none transition-colors duration-500 ${timeLeft <= 20 ? 'bg-red-500' : 'bg-blue-400'}`}></div>
                     <div className={`absolute bottom-0 left-0 w-28 h-28 rounded-full blur-[60px] opacity-20 pointer-events-none transition-colors duration-500 ${lives === 1 ? 'bg-red-500 animate-pulse' : 'bg-yellow-400'}`}></div>
 
-                    {/* تایمر */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-black tracking-wider uppercase mb-1 flex items-center gap-1">
                             زمان باقی‌مانده
                         </span>
-                        {/* 🔥 اعمال فونت گیمینگ Lalezar روی تایمر */}
                         <span 
                             style={{ fontFamily: GAME_FONT, paddingTop: '4px' }} 
                             className={`text-3xl tracking-widest ${timeLeft <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' : timeLeft <= 30 ? 'text-orange-400' : 'text-zinc-200'}`} 
@@ -438,7 +438,6 @@ export default function PuzzleRush() {
                         </span>
                     </div>
 
-                    {/* امتیاز */}
                     <motion.div 
                         key={score}
                         initial={{ scale: 1.3 }}
@@ -449,7 +448,6 @@ export default function PuzzleRush() {
                         <span className="text-[10px] text-yellow-400 font-black tracking-wider uppercase flex items-center gap-1">
                             امتیاز پازل
                         </span>
-                        {/* 🔥 اعمال فونت گیمینگ Lalezar روی امتیاز بزرگ داشبورد */}
                         <span 
                             style={{ fontFamily: GAME_FONT, paddingTop: '8px' }} 
                             className="text-6xl text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] leading-none"
@@ -458,7 +456,6 @@ export default function PuzzleRush() {
                         </span>
                     </motion.div>
 
-                    {/* جان‌ها */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-black tracking-wider uppercase mb-2">
                             فرصت‌های خطا
@@ -530,7 +527,6 @@ export default function PuzzleRush() {
                             <div className="p-7 flex flex-col gap-5 items-center">
                                 <div className="flex flex-col items-center w-full bg-[#0c0b0a] rounded-2xl py-5 border border-white/5 shadow-inner">
                                     <span className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">پازل‌های حل شده</span>
-                                    {/* 🔥 اعمال فونت گیمینگ Lalezar روی امتیاز پایانی */}
                                     <span 
                                         style={{ fontFamily: GAME_FONT, paddingTop: '10px' }} 
                                         className="text-7xl bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400 drop-shadow-md leading-none"

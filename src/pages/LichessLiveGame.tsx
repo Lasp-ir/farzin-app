@@ -4,6 +4,8 @@ import { Chess } from 'chess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Flag, Handshake, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw, Zap, PieChart, RotateCcw, CheckCircle2, AlertCircle } from 'lucide-react';
+// 🔥 ایمپورت هوک تم
+import { useChessTheme } from '../hooks/useChessTheme';
 
 const Board = Chessboard as any;
 const pieceChars: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
@@ -26,6 +28,9 @@ const playSound = (type: keyof typeof sounds) => {
 export default function LichessLiveGame() {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // 🔥 فراخوانی استایل‌های پویا از هوک تم
+  const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
   
   const gameId = location.state?.gameId;
   const token = location.state?.token;
@@ -84,7 +89,6 @@ export default function LichessLiveGame() {
       gameOverRef.current = true;
   };
 
-  // 🔴 تابع جادویی برای کپی کردن بازی بدون از دست رفتن تاریخچه!
   const cloneGame = (g: Chess) => {
       const copy = new Chess();
       copy.loadPgn(g.pgn());
@@ -441,7 +445,6 @@ export default function LichessLiveGame() {
     return `${m}:${s}`;
   };
 
-  // تایمر
   useEffect(() => {
     if (gameOver) return;
     const timer = setInterval(() => {
@@ -501,7 +504,6 @@ export default function LichessLiveGame() {
 
   return (
     <div className="flex flex-col h-[100dvh] bg-[#050505] text-gray-300 overflow-hidden font-sans relative" dir="rtl" onContextMenu={e => { e.preventDefault(); setPremove(null); premoveRef.current = null; setClickedSquare(null); setOptionSquares({}); }}>
-      {/* 🌟 نورپردازی حرفه‌ای محیط بر اساس نتیجه بازی */}
       <div className={`fixed top-[-10%] right-[-5%] w-[50vw] h-[50vw] blur-[120px] rounded-full pointer-events-none transition-colors duration-1000 ${gameOver?.theme === 'win' ? 'bg-amber-500/20' : gameOver?.theme === 'loss' ? 'bg-rose-500/20' : 'bg-sky-500/10'}`}></div>
       <div className={`fixed bottom-[-10%] left-[-5%] w-[40vw] h-[40vw] blur-[100px] rounded-full pointer-events-none transition-colors duration-1000 ${gameOver?.theme === 'win' ? 'bg-emerald-500/10' : gameOver?.theme === 'loss' ? 'bg-red-500/10' : 'bg-transparent'}`}></div>
 
@@ -528,7 +530,6 @@ export default function LichessLiveGame() {
         </div>
       </div>
 
-      {/* 🔴 استفاده از lg:flex-row برای تطابق کامل با چیدمان استاندارد و صفحه هوش مصنوعی */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-3 lg:p-6 w-full max-w-[1250px] mx-auto gap-5 lg:gap-8 relative z-0" dir="rtl">
         
         <div className="flex flex-col flex-1 min-w-0 h-full items-center justify-center relative z-0">
@@ -536,7 +537,6 @@ export default function LichessLiveGame() {
             
             {playerColor === 'white' ? <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} {...blackPlayerProps} /> : <PlayerInfo name={opponent.name} rating={opponent.rating} time={opponentTime} isOpponent={true} isActive={!isPlayerTurn && !gameOver} {...whitePlayerProps} />}
             
-            {/* افکت لرزش و پالس دور تخته در هنگام پایان بازی */}
             <motion.div animate={gameOver?.theme === 'loss' ? { x: [-5, 5, -5, 5, 0] } : gameOver?.theme === 'win' ? { scale: [1, 1.02, 1] } : {}} transition={{ duration: 0.5 }} className="w-full relative flex items-center justify-center z-0 my-1">
               <div className={`w-full aspect-square max-h-[70vh] relative shadow-2xl rounded-sm border-[4px] z-0 overflow-hidden transition-colors duration-700 ${gameOver?.theme === 'win' ? 'border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.2)]' : gameOver?.theme === 'loss' ? 'border-rose-500/50 shadow-[0_0_50px_rgba(244,63,94,0.2)]' : 'border-[#2A2926]'}`}>
                 
@@ -545,22 +545,14 @@ export default function LichessLiveGame() {
                     position={isViewingHistory ? fenHistory[viewIndex] : game.fen()} 
                     onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin} onSquareClick={handleSquareClick}
                     boardOrientation={boardOrientation} animationDuration={200}
-                    customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                    // 🔥 اعمال تنظیمات تم روی تخته آنلاین
+                    customDarkSquareStyle={darkSquareStyle} 
+                    customLightSquareStyle={lightSquareStyle}
+                    customPieces={customPieces}
                     customSquareStyles={{ ...moveSquares, ...optionSquares, ...(premove ? {[premove.from]:{backgroundColor:'rgba(239,68,68,0.5)'}, [premove.to]:{backgroundColor:'rgba(239,68,68,0.5)'}} : {}) }}
                   />
                 </div>
-
-                {customPromotion && (
-                  <div className="z-[1000] absolute w-[12.5%] h-[50%] flex flex-col pointer-events-none" style={{ left: `${(boardOrientation === 'black' ? 7 - (customPromotion.to.charCodeAt(0) - 97) : (customPromotion.to.charCodeAt(0) - 97)) * 12.5}%`, [parseInt(customPromotion.to[1], 10) === 8 ? 'top' : 'bottom']: '0%', flexDirection: parseInt(customPromotion.to[1], 10) === 8 ? 'column' : 'column-reverse' }}>
-                    {['q', 'n', 'r', 'b'].map(t => (
-                      <button key={t} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); handleCustomPromotionSelect(t); }} className="w-full h-1/4 flex items-center justify-center relative group cursor-pointer pointer-events-auto bg-black/40 hover:bg-black/60 backdrop-blur">
-                        <img src={pieceSvgs[customPromotion.color][t]} alt={t} className="relative z-10 w-[85%] h-[85%] object-contain drop-shadow-md pointer-events-none" draggable={false} />
-                      </button>
-                    ))}
-                  </div>
-                )}
                 
-                {/* 🌟 پاپ‌آپ پایان بازی (AAA Premium Level) */}
                 <AnimatePresence>
                   {gameOver && (
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 sm:p-6" dir="rtl">
@@ -570,11 +562,9 @@ export default function LichessLiveGame() {
                             transition={{ type: "spring", damping: 20, stiffness: 200 }}
                             className="w-full max-w-[340px] rounded-[40px] bg-[#11100e]/90 backdrop-blur-2xl border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.8)] overflow-hidden relative"
                         >
-                            {/* هاله نورانی بک‌گراند پاپ‌آپ */}
                             <div className={`absolute top-0 inset-x-0 h-40 blur-[80px] opacity-40 ${gameOver.theme === 'win' ? 'bg-amber-500' : gameOver.theme === 'loss' ? 'bg-rose-500' : 'bg-sky-500'}`} />
 
                             <div className="p-8 flex flex-col items-center text-center relative z-10">
-                                
                                 <motion.div 
                                     animate={ gameOver.theme === 'win' ? { y: [-5, 5, -5], scale: [1, 1.05, 1] } : gameOver.theme === 'loss' ? { rotate: [-5, 5, -5, 0], scale: [1, 0.95, 1] } : { y: [-2, 2, -2] } }
                                     transition={{ duration: gameOver.theme === 'loss' ? 0.5 : 3, repeat: Infinity }}

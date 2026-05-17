@@ -4,6 +4,8 @@ import { Chess } from 'chess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Flag, Handshake, Trophy, ChevronLeft, ChevronRight, FastForward, Rewind, RefreshCw, Cpu } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+// 🔥 ایمپورت هوک تم
+import { useChessTheme } from '../hooks/useChessTheme';
 
 const Board = Chessboard as any;
 
@@ -28,9 +30,11 @@ export default function PlayAI() {
   const navigate = useNavigate();
   const location = useLocation();
   
+  // 🔥 فراخوانی استایل‌های پویا از هوک تم
+  const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
+  
   const opponent = location.state?.selectedBot || { name: 'فرزین (آلفا)', rating: 1500, accuracy: 'پیشرفته' };
   
-  // 🔥 دریافت زمان پایه و پاداش زمانی (Increment)
   const initialTime = location.state?.time !== undefined ? location.state.time : 600;
   const timeIncrement = location.state?.increment !== undefined ? location.state.increment : 0;
   
@@ -61,11 +65,6 @@ export default function PlayAI() {
 
   const isViewingHistory = viewIndex < fenHistory.length - 1;
   const playerPieceColor = initialPlayerColor === 'white' ? 'w' : 'b';
-
-  const pieceSvgs: Record<string, Record<string, string>> = {
-    w: { q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
-    b: { q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Chess_ndt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg', p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
-  };
 
   const formatTime = (seconds: number) => {
     if (initialTime === 0) return '∞';
@@ -142,7 +141,6 @@ export default function PlayAI() {
           promotion: move.promotion ? 'q' : undefined
         });
         if (success) {
-           // 🔥 اعمال پاداش زمانی به کاربر (اگر زمان بی‌نهایت نباشد)
            if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
            setIsPlayerTurn(false);
         }
@@ -211,7 +209,6 @@ export default function PlayAI() {
 
     const success = makeMove({ from: sourceSquare, to: targetSquare });
     if (success) {
-       // 🔥 اعمال پاداش زمانی به کاربر
        if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
        setIsPlayerTurn(false);
     }
@@ -262,7 +259,6 @@ export default function PlayAI() {
 
         const success = makeMove({ from: clickedSquare, to: square });
         if (success) {
-           // 🔥 اعمال پاداش زمانی به کاربر
            if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
            setIsPlayerTurn(false);
         }
@@ -303,7 +299,6 @@ export default function PlayAI() {
       }
 
       if (success) {
-         // 🔥 اعمال پاداش زمانی به کاربر در صورت ارتقا
          if(initialTime !== 0) setPlayerTime(prev => prev + timeIncrement);
          setIsPlayerTurn(false);
       }
@@ -327,7 +322,6 @@ export default function PlayAI() {
           const chosenMove = possibleMoves[randomIndex];
           const success = makeMove({ from: chosenMove.from, to: chosenMove.to, promotion: 'q' });
           if (success) {
-             // 🔥 اعمال پاداش زمانی به ربات بعد از حرکت
              if(initialTime !== 0) setOpponentTime(prev => prev + timeIncrement);
              setIsPlayerTurn(true);
           }
@@ -346,32 +340,6 @@ export default function PlayAI() {
   for (let i = 0; i < history.length; i += 2) {
     movePairs.push([history[i], history[i + 1]]);
   }
-
-  const getPromotionOverlayStyle = (): React.CSSProperties => {
-    if (!customPromotion) return {};
-    const { to } = customPromotion;
-    const file = to.charCodeAt(0) - 97; 
-    const rank = parseInt(to[1], 10);   
-
-    const isFlipped = boardOrientation === 'black';
-    const visualFile = isFlipped ? 7 - file : file;
-    const visualRank = isFlipped ? 9 - rank : rank;
-    
-    const leftPercent = visualFile * 12.5;
-    const isTopEdge = visualRank === 8;
-
-    return {
-      position: 'absolute',
-      left: `${leftPercent}%`,
-      [isTopEdge ? 'top' : 'bottom']: '0%',
-      width: '12.5%',
-      height: '50%', 
-      zIndex: 1000,
-      display: 'flex',
-      flexDirection: isTopEdge ? 'column' : 'column-reverse',
-      pointerEvents: 'none' 
-    };
-  };
 
   const premoveStyles = premove ? {
     [premove.from]: { backgroundColor: 'rgba(204, 51, 51, 0.6)' },
@@ -524,40 +492,15 @@ export default function PlayAI() {
                     setOptionSquares({});
                   }}
                   boardOrientation={boardOrientation}
+                  // 🔥 اعمال تم روی تخته آفلاین
+                  customDarkSquareStyle={darkSquareStyle} 
+                  customLightSquareStyle={lightSquareStyle}
+                  customPieces={customPieces}
                   customSquareStyles={{ ...moveSquares, ...optionSquares, ...premoveStyles }}
                   animationDuration={250}
-                  customDarkSquareStyle={{ backgroundColor: '#779556' }}
-                  customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
                   autoPromoteToQueen={true} 
                 />
 
-                {customPromotion && (
-                  <div 
-                    style={getPromotionOverlayStyle()}
-                    className="z-[1000]"
-                  >
-                    {['q', 'n', 'r', 'b'].map((type) => (
-                      <button 
-                        key={type}
-                        onPointerDown={(e) => { 
-                          e.preventDefault(); 
-                          e.stopPropagation(); 
-                          handleCustomPromotionSelect(type); 
-                        }}
-                        className="w-full h-1/4 flex items-center justify-center relative group cursor-pointer pointer-events-auto"
-                      >
-                        <div className="absolute w-[90%] h-[90%] rounded-full bg-zinc-100 shadow-[0_5px_15px_rgba(0,0,0,0.5)] group-hover:bg-white group-hover:scale-110 transition-all duration-200"></div>
-                        <img 
-                          src={pieceSvgs[customPromotion.color][type]} 
-                          alt={type} 
-                          className="relative z-10 w-[85%] h-[85%] object-contain drop-shadow-md pointer-events-none" 
-                          draggable={false} 
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                
                 {gameOver && (
                   <div className="absolute inset-0 bg-zinc-900/80 backdrop-blur-md flex flex-col items-center justify-center z-20 animate-in fade-in zoom-in-95 duration-300">
                     <Trophy size={56} className={gameOver.winner === 'white' ? 'text-amber-400 mb-5 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 'text-zinc-400 mb-5'} />

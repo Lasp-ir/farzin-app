@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
+// 🔥 ایمپورت هوک مرکزی تم فرزین
+import { useChessTheme } from '../hooks/useChessTheme';
 import EvaluationGraph from '../components/EvaluationGraph';
 import OpeningExplorer from '../components/OpeningExplorer';
 import OpeningDisplay from '../components/OpeningDisplay';
@@ -23,6 +25,9 @@ export default function AnalysisBoard() {
   const location = useLocation();
   const navigate = useNavigate();
   const initialData = location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
+
+  // 🔥 فراخوانی استایل‌های پویا از هوک تم
+  const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<'white'|'black'>('white');
@@ -59,7 +64,6 @@ export default function AnalysisBoard() {
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
-  // 🌟 مکانیزم خطوط پایدار (Evaluation Smoother)
   const [stableLines, setStableLines] = useState<any[]>([]);
 
   useEffect(() => {
@@ -203,12 +207,10 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, isKingInDanger, easterEggState]);
 
-  // 🌟 پاک کردن استیبل لاین با هر تغییر نود تا نوسان قبلی نمایش داده نشود
   useEffect(() => {
     setStableLines([]);
   }, [currentNodeId]);
 
-  // 🌟 ذخیره لاین‌های پایدار و معتبر (جلوگیری از Horizon Effect در عمق‌های پایین)
   useEffect(() => {
     if (lines && lines.length > 0) {
       engineCache.current[currentNodeId] = lines;
@@ -216,7 +218,6 @@ export default function AnalysisBoard() {
       const depth = lines[0].depth || 0;
       const isMateVal = lines[0].isMate || lines[0].score === 10000 || lines[0].score === -10000;
       
-      // آپدیت UI فقط در صورت رسیدن به عمق پایدار (6) یا تشخیص قطعی مات
       if (depth >= Math.min(6, engineSettings.maxDepth) || isMateVal) {
           setStableLines(lines);
       }
@@ -246,7 +247,6 @@ export default function AnalysisBoard() {
     const parentIsDraw = pg.isDraw() || pg.isStalemate() || pg.isThreefoldRepetition() || pg.isInsufficientMaterial();
 
     if (!parentIsMate && !parentIsDraw && (!parentLines || !parentLines[0])) return COACH_COLORS.loading;
-    // 🌟 مربی تا زمانی که عمق به 6 نرسیده نظر قطعی نمی‌دهد تا فلیکر نکند
     if (!isMate && !isDraw && (!currentLines || !currentLines[0] || currentLines[0].depth < Math.min(6, engineSettings.maxDepth))) return COACH_COLORS.loading;
 
     let absScoreB = 0;
@@ -451,7 +451,6 @@ export default function AnalysisBoard() {
     return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
   }, [graphPoints, activeMainline, allPaths, maxX]);
 
-  // 🌟 استفاده از stableLines برای کشیدن دقیق‌تر فلش‌ها
   const engineArrows = useMemo(() => {
     if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !stableLines || stableLines.length === 0) return [];
     
@@ -750,7 +749,6 @@ export default function AnalysisBoard() {
     return customSq;
   }, [tree, currentNodeId]);
 
-  // 🌟 محاسبه نرم شده برای Eval Text
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       if (!stableLines || stableLines.length === 0 || !stableLines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '...', isMate: false };
       
@@ -774,7 +772,6 @@ export default function AnalysisBoard() {
   const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
   const isOpeningPhase = currentNodeId === 'root' || (Object.keys(tree).length < 15);
   
-  // استفاده از lines (خام) برای استاتوس بار انجین تا سرعت جستجو دیده شود
   const displayEngineStatus = (isOpeningPhase && activeTab === 'explorer') ? 'reading books...' : (isReady ? `Farzin 1.0 (NNUE)` : engineStatus);
 
   const renderTreeNodes = useCallback((nodeId: string, forceShowMoveNumber: boolean = false): React.ReactNode[] => {
@@ -971,7 +968,11 @@ export default function AnalysisBoard() {
                         <div id="farzin-board-container" className="w-full aspect-square rounded-md relative z-10 flex">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
-                              customDarkSquareStyle={{ backgroundColor: '#779556' }} customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+                              // 🔥 اعمال تم‌های گرافیکی روی تخته
+                              customDarkSquareStyle={darkSquareStyle} 
+                              customLightSquareStyle={lightSquareStyle} 
+                              customPieces={customPieces}
+                              // ------------------------------------
                               arePiecesDraggable={true} onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin}
                               onSquareClick={handleSquareClick} onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
                               onSquareRightClick={() => { setClickedSquare(null); setOptionSquares({}); }}
