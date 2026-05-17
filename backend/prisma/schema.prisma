@@ -7,17 +7,15 @@ datasource db {
   url      = "file:./dev.db" 
 }
 
-// ==========================================
-// 🛡️ سیستم کاربران و احراز هویت
-// ==========================================
+// 🛡️ جدول یکپارچه کاربران
 model User {
   id               Int      @id @default(autoincrement())
   username         String   @unique
   email            String   @unique
   password         String
-  role             String   @default("user") // مقادیر: "user" یا "admin"
+  role             String   @default("user") // "user" یا "admin"
   
-  // فیلدهای پازل (از قبل داشتی)
+  // اطلاعات پازل
   puzzleRating     Int      @default(1200)
   puzzleStreak     Int      @default(0)
   maxStreak        Int      @default(0)
@@ -30,14 +28,15 @@ model User {
   connectedLichess String   @default("[]") 
   connectedChesscom String  @default("[]")
   
-  // 🔥 فیلدهای جدید برای سیستم آموزشی و مالی
+  // اطلاعات مالی و دوره‌ها
   gems             Int      @default(0)
-  courses          UserCourse[] 
+  courses          UserCourse[]
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
 
+// 🧩 جدول پازل‌ها
 model Puzzle {
   puzzleId         String   @id @unique
   fen              String
@@ -49,9 +48,7 @@ model Puzzle {
   @@index([themes])
 }
 
-// ==========================================
-// 📚 سیستم آموزشی آکادمی فرزین
-// ==========================================
+// 📚 جدول دوره‌های آموزشی
 model Course {
   id          String       @id @default(uuid())
   title       String
@@ -61,7 +58,7 @@ model Course {
   duration    String
   image       String
   isPremium   Boolean      @default(true)
-  price       Int          @default(0)      
+  price       Int          @default(0)
   
   lessons     Lesson[]
   enrollments UserCourse[]
@@ -70,6 +67,7 @@ model Course {
   updatedAt   DateTime     @updatedAt
 }
 
+// 🎥 جدول جلسات هر دوره
 model Lesson {
   id            String   @id @default(uuid())
   title         String
@@ -84,17 +82,17 @@ model Lesson {
   createdAt     DateTime @default(now())
 }
 
-// ارتباط بین یوزر و دوره (خریدها و پیشرفت)
+// 🎯 جدول پیشرفت کاربر در دوره‌ها
 model UserCourse {
   id        String   @id @default(uuid())
   
-  userId    Int      // 🔥 نوع این فیلد با آیدی یوزر یکسان شد (Int)
+  userId    Int      // متصل به آیدی عددی کاربر
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   courseId  String
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
-  progress  Int      @default(0) // 0 to 100
+  progress  Int      @default(0)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
