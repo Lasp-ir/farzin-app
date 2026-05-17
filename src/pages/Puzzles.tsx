@@ -1,33 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Flame, Target, Zap, Swords, BrainCircuit, 
   Calendar, ArrowRight, Star, Crosshair, Shield, Activity, 
-  Crown, Play, Lock, Sparkles, X, Info, TrendingUp, Search
+  Crown, Play, Lock, Sparkles, X, Info, TrendingUp, Search,
+  GitBranch, ShieldAlert, Skull, MousePointerClick, Anchor,
+  Eye, Zap as Flash, History, Compass, Map
 } from 'lucide-react';
 
-// 🔥 افزایش تنوع تم‌های تمرینی برای جذابیت بیشتر
-const thematicCategories = [
-  { id: 'mateIn1', title: 'مات در ۱ حرکت', icon: <Target size={18} /> },
-  { id: 'mateIn2', title: 'مات در ۲ حرکت', icon: <Crosshair size={18} /> },
-  { id: 'fork', title: 'چنگال (Fork)', icon: <ArrowRight size={18} /> },
-  { id: 'pin', title: 'آچمز (Pin)', icon: <Shield size={18} /> },
-  { id: 'skewer', title: 'سیخ‌کباب (Skewer)', icon: <Swords size={18} /> },
-  { id: 'discovered', title: 'حمله برخاسته', icon: <Search size={18} /> },
-  { id: 'sacrifice', title: 'قربانی دادن', icon: <Flame size={18} /> },
-  { id: 'passedPawn', title: 'پیاده رونده', icon: <TrendingUp size={18} /> },
-  { id: 'endgame', title: 'آخر بازی', icon: <Activity size={18} /> },
+// 🔥 دیکشنری جامع تم‌های تاکتیکی با آیکون‌های اختصاصی
+const ALL_THEMES = [
+  { id: 'mateIn1', title: 'مات در ۱', icon: <Target size={16} /> },
+  { id: 'mateIn2', title: 'مات در ۲', icon: <Crosshair size={16} /> },
+  { id: 'mateIn3', title: 'مات در ۳', icon: <Skull size={16} /> },
+  { id: 'fork', title: 'چنگال (Fork)', icon: <GitBranch size={16} /> },
+  { id: 'pin', title: 'آچمز (Pin)', icon: <Anchor size={16} /> },
+  { id: 'skewer', title: 'سیخ‌کباب (Skewer)', icon: <Swords size={16} /> },
+  { id: 'sacrifice', title: 'قربانی مهره', icon: <Flame size={16} /> },
+  { id: 'discoveredAttack', title: 'حمله برخاسته', icon: <Eye size={16} /> },
+  { id: 'doubleCheck', title: 'کیش دوگانه', icon: <Flash size={16} /> },
+  { id: 'passedPawn', title: 'پیاده رونده', icon: <TrendingUp size={16} /> },
+  { id: 'endgame', title: 'آخر بازی', icon: <History size={16} /> },
+  { id: 'middlegame', title: 'وسط بازی', icon: <Activity size={16} /> },
+  { id: 'opening', title: 'گشایش', icon: <Map size={16} /> },
+  { id: 'defensiveMove', title: 'دفاع به موقع', icon: <Shield size={16} /> },
+  { id: 'hangingPiece', title: 'مهره بی‌دفاع', icon: <ShieldAlert size={16} /> },
+  { id: 'attraction', title: 'کیشش (جذب)', icon: <MousePointerClick size={16} /> },
+  { id: 'deflection', title: 'انحراف مدافع', icon: <Compass size={16} /> },
+  { id: 'smotheredMate', title: 'مات خفه', icon: <Lock size={16} /> },
+  { id: 'crushing', title: 'برتری قاطع', icon: <Crown size={16} /> },
 ];
 
 export default function Puzzles() {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [selectedProMode, setSelectedProMode] = useState<any>(null);
-  const isUserPremium = false; // کاربر رایگان
+  const isUserPremium = false; 
 
-  // 🔥 سهمیه رگبار پازل به ۱ کاهش یافت تا ارزشش بیشتر بشه
   const defaultQuotas = { mistakes: 3, rated: 5, themes: 5, rush: 1 };
   const [quotas, setQuotas] = useState(() => {
     const saved = localStorage.getItem('farzin_puzzle_quotas');
@@ -56,8 +68,6 @@ export default function Puzzles() {
 
   const handleModeClick = (mode: any) => {
     if (mode.isFree || isUserPremium) {
-      console.log('Direct entry to:', mode.id);
-      // 🔥 هدایت به صفحه بازی با پاس دادن آیدی (نوع پازل)
       navigate(`/puzzle/${mode.id}`); 
     } else {
       setSelectedProMode(mode);
@@ -66,27 +76,31 @@ export default function Puzzles() {
 
   const handleUseQuota = () => {
     if (selectedProMode && consumeQuota(selectedProMode.type)) {
-      console.log('Started mode with quota:', selectedProMode.id);
-      const targetId = selectedProMode.id; // ذخیره آیدی قبل از null کردن
+      const targetId = selectedProMode.id; 
       setSelectedProMode(null);
-      // 🔥 هدایت کاربر بعد از مصرف سهمیه
       navigate(`/puzzle/${targetId}`); 
     }
   };
 
+  // فیلتر کردن تم‌ها بر اساس سرچ
+  const filteredThemes = useMemo(() => {
+    if (!searchQuery.trim()) return ALL_THEMES;
+    return ALL_THEMES.filter(t => t.title.includes(searchQuery));
+  }, [searchQuery]);
+
   const container = {
     hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+    show: { opacity: 1, transition: { staggerChildren: 0.08 } }
   };
 
   const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    hidden: { opacity: 0, y: 15, scale: 0.95 },
+    show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 350, damping: 25 } }
   };
 
   const QuotaBadge = ({ current, max }: { current: number, max: number }) => (
-    <div className={`absolute top-4 left-4 px-2 py-0.5 text-[9px] font-black tracking-widest flex items-center gap-1 rounded-lg border shadow-sm z-20 ${current > 0 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
-        {current > 0 ? <Play size={8} fill="currentColor" /> : <Lock size={8} />}
+    <div className={`absolute top-4 left-4 px-2.5 py-1 text-[10px] font-black tracking-widest flex items-center gap-1.5 rounded-lg border shadow-sm z-20 ${current > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+        {current > 0 ? <Play size={10} fill="currentColor" /> : <Lock size={10} />}
         {current}/{max}
     </div>
   );
@@ -94,28 +108,28 @@ export default function Puzzles() {
   return (
     <>
       <motion.div 
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-24 overflow-x-hidden" 
         dir="rtl"
       >
-        <div className="w-full max-w-2xl px-5 py-6 flex items-center justify-between z-20 sticky top-0 bg-[#161512]/90 backdrop-blur-xl border-b border-white/5">
-          <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white transition-transform active:scale-90 bg-[#1e1c19] p-2 rounded-xl border border-[#35332e]">
-            <ChevronRight size={24} />
+        {/* --- Header (Glassmorphism) --- */}
+        <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between z-30 sticky top-0 bg-[#161512]/80 backdrop-blur-xl border-b border-[#35332e]">
+          <button onClick={() => navigate(-1)} className="text-zinc-400 hover:text-white transition-colors active:scale-90 bg-[#262421] p-2.5 rounded-xl border border-[#35332e]">
+            <ChevronRight size={22} />
           </button>
           
-          <div className="flex flex-col items-center ml-4">
-              <h1 className="text-lg font-black tracking-tight text-white uppercase drop-shadow-md">پازل‌های فرزین</h1>
-              <span className="text-[10px] text-farzin-accent font-bold tracking-widest uppercase mt-0.5 flex items-center gap-1">
-                <Target size={10} /> Daily Tactics
-              </span>
+          <div className="flex flex-col items-center ml-2">
+              <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                  <Target size={18} className="text-farzin-accent" />
+                  باشگاه پازل‌ها
+              </h1>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
               <div className="flex flex-col items-end">
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">ریتینگ</span>
+                  <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">ریتینگ</span>
                   <span className="font-mono text-sm font-black text-amber-400">{puzzleStats.rating}</span>
               </div>
               <div className="flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 px-2 py-1.5 rounded-lg shadow-inner">
@@ -129,144 +143,148 @@ export default function Puzzles() {
           variants={container}
           initial="hidden"
           animate={isLoaded ? "show" : "hidden"}
-          className="w-full max-w-2xl px-4 mt-6 flex flex-col gap-6"
+          className="w-full max-w-2xl px-4 mt-6 flex flex-col gap-5"
         >
           
-          {/* 1. پازل روزانه */}
+          {/* --- Daily Puzzle --- */}
           <motion.div variants={item}>
               <div 
                 onClick={() => handleModeClick({ id: 'daily', isFree: true })}
-                className="relative w-full rounded-[28px] overflow-hidden border border-blue-500/30 shadow-[0_10px_30px_rgba(59,130,246,0.15)] group cursor-pointer active:scale-[0.98] transition-all duration-300 bg-gradient-to-br from-[#1c2438] to-[#161512]"
+                className="relative w-full rounded-[24px] overflow-hidden border border-blue-500/30 shadow-[0_10px_40px_rgba(59,130,246,0.15)] group cursor-pointer active:scale-[0.98] transition-all duration-300 bg-gradient-to-br from-[#1c2438] to-[#161512]"
               >
-                  <div className="absolute top-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full blur-[50px] -ml-10 -mt-10 pointer-events-none"></div>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-[60px] pointer-events-none"></div>
                   
-                  <div className="absolute top-4 left-4 px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-black tracking-widest uppercase rounded-lg border border-blue-500/30 flex items-center gap-1 shadow-sm">
-                      رایگان
+                  <div className="absolute top-4 left-4 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-[10px] font-black tracking-widest uppercase rounded-lg border border-blue-500/30 flex items-center gap-1 shadow-sm">
+                      <Sparkles size={12} /> رایگان
                   </div>
 
                   <div className="relative z-10 p-6 flex flex-col gap-3">
-                      <div className="flex items-center gap-3 mb-2">
-                          <div className="w-12 h-12 rounded-[16px] bg-blue-500/20 flex items-center justify-center border border-blue-500/30 group-hover:scale-110 transition-transform">
-                              <Calendar size={24} className="text-blue-400" />
+                      <div className="flex items-center gap-3">
+                          <div className="w-14 h-14 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30 group-hover:scale-110 group-hover:rotate-3 transition-transform">
+                              <Calendar size={26} className="text-blue-400" />
                           </div>
                           <div className="flex flex-col">
                               <span className="text-[10px] font-black tracking-widest text-blue-400 uppercase">منتخب امروز</span>
-                              <h2 className="text-xl font-black text-white">پازل روزانه</h2>
+                              <h2 className="text-2xl font-black text-white">پازل روزانه</h2>
                           </div>
                       </div>
-
-                      <p className="text-xs text-zinc-300 leading-relaxed">
-                          با حل پازل روزانه، استریک (🔥) خود را حفظ کنید. یک چالش زیبا و رایگان برای شروع روز!
+                      <p className="text-xs text-zinc-300 leading-relaxed mt-1 opacity-90">
+                          با حل پازل اختصاصی امروز، شعله استریک (🔥) خودت رو روشن نگه دار.
                       </p>
-
-                      <button className="mt-2 w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 group-hover:bg-blue-500 group-hover:text-white shadow-lg transition-all">
-                          <Play size={16} fill="currentColor" />
-                          حل پازل امروز
-                      </button>
                   </div>
               </div>
           </motion.div>
 
-          {/* 2. یادگیری از اشتباهات */}
-          <motion.div variants={item}>
-              <div 
-                onClick={() => handleModeClick({ id: 'mistakes', type: 'mistakes', title: 'یادگیری از اشتباهات', icon: <BrainCircuit size={24} className="text-farzin-accent" />, color: 'text-farzin-accent', max: 3 })}
-                className="relative w-full rounded-[24px] overflow-hidden border border-[#35332e] hover:border-farzin-accent/40 shadow-lg group cursor-pointer active:scale-[0.98] transition-all duration-300 bg-[#1e1c19]"
-              >
-                  {!isUserPremium && <QuotaBadge current={quotas.mistakes} max={3} />}
-
-                  <div className="p-5 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-[16px] bg-farzin-accent/10 flex items-center justify-center border border-farzin-accent/20 group-hover:scale-110 transition-transform">
-                              <BrainCircuit size={22} className="text-farzin-accent" />
-                          </div>
-                          <div className="flex flex-col">
-                              <h3 className="font-black text-white text-md">یادگیری از اشتباهات</h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                  <span className="flex h-2 w-2 relative">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                  </span>
-                                  <span className="text-[11px] font-bold text-zinc-400">{puzzleStats.personalMistakes} اشتباه از بازی‌های اخیر</span>
-                              </div>
-                          </div>
-                      </div>
-                      <ChevronRight size={20} className="text-zinc-600 group-hover:text-farzin-accent transition-colors" />
-                  </div>
-              </div>
-          </motion.div>
-
-          {/* 3. گرید حالت‌های بازی */}
+          {/* --- Grid Modes (Rush & Mistakes) --- */}
           <motion.div variants={item} className="grid grid-cols-2 gap-4">
               
               <div 
-                onClick={() => handleModeClick({ id: 'rated', type: 'rated', title: 'تمرین امتیازی', icon: <Target size={24} className="text-emerald-500" />, color: 'text-emerald-500', max: 5 })}
-                className="col-span-1 relative bg-[#1e1c19] rounded-[24px] border border-[#35332e] hover:border-emerald-500/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col gap-3 overflow-hidden"
+                onClick={() => handleModeClick({ id: 'mistakes', type: 'mistakes', title: 'مرور اشتباهات', icon: <BrainCircuit size={24} className="text-farzin-accent" />, color: 'text-farzin-accent', max: 3 })}
+                className="col-span-1 relative bg-[#1e1c19] rounded-[24px] border border-[#35332e] hover:border-farzin-accent/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col justify-between overflow-hidden min-h-[140px]"
               >
-                  {!isUserPremium && <QuotaBadge current={quotas.rated} max={5} />}
-                  <div className="w-10 h-10 rounded-[14px] bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform">
-                      <Target size={20} className="text-emerald-500" />
+                  {!isUserPremium && <QuotaBadge current={quotas.mistakes} max={3} />}
+                  <div className="w-12 h-12 rounded-[16px] bg-farzin-accent/10 flex items-center justify-center border border-farzin-accent/20 group-hover:scale-110 group-hover:-rotate-3 transition-transform">
+                      <BrainCircuit size={24} className="text-farzin-accent" />
                   </div>
-                  <div className="flex flex-col">
-                      <h3 className="font-black text-white text-sm">تمرین امتیازی</h3>
-                      <span className="text-[10px] text-zinc-400 font-bold mt-0.5">افزایش ریتینگ پازل</span>
+                  <div className="flex flex-col mt-4">
+                      <h3 className="font-black text-white text-sm">مرور اشتباهات</h3>
+                      <span className="text-[10px] text-zinc-400 font-bold mt-0.5">{puzzleStats.personalMistakes} پازل حل نشده</span>
                   </div>
               </div>
 
-              {/* رگبار پازل با سهمیه 1 */}
               <div 
                 onClick={() => handleModeClick({ id: 'rush', type: 'rush', title: 'رگبار پازل', icon: <Zap size={24} className="text-yellow-500" fill="currentColor" />, color: 'text-yellow-500', max: 1 })}
-                className="col-span-1 relative bg-gradient-to-br from-[#1e1c19] to-[#2a2415] rounded-[24px] border border-yellow-500/20 hover:border-yellow-500/50 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col gap-3 overflow-hidden"
+                className="col-span-1 relative bg-gradient-to-br from-[#1e1c19] to-[#2a2415] rounded-[24px] border border-yellow-500/20 hover:border-yellow-500/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col justify-between overflow-hidden min-h-[140px]"
               >
                   {!isUserPremium && <QuotaBadge current={quotas.rush} max={1} />}
-                  <div className="w-10 h-10 rounded-[14px] bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 group-hover:scale-110 transition-transform z-10">
-                      <Zap size={20} className="text-yellow-500" fill="currentColor" />
-                  </div>
                   <div className="absolute -bottom-4 -left-4 opacity-10 rotate-12 group-hover:scale-125 transition-transform duration-500">
-                      <Zap size={80} className="text-yellow-500" fill="currentColor" />
+                      <Zap size={90} className="text-yellow-500" fill="currentColor" />
                   </div>
-                  <div className="flex flex-col z-10">
+                  <div className="w-12 h-12 rounded-[16px] bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 group-hover:scale-110 group-hover:rotate-3 transition-transform z-10">
+                      <Zap size={24} className="text-yellow-500" fill="currentColor" />
+                  </div>
+                  <div className="flex flex-col mt-4 z-10">
                       <h3 className="font-black text-white text-sm">رگبار پازل</h3>
-                      <span className="text-[10px] text-zinc-400 font-bold mt-0.5">سریع‌ترین در ۳ دقیقه</span>
+                      <span className="text-[10px] text-yellow-500/80 font-bold mt-0.5">حل سرعتی ۳ دقیقه‌ای</span>
                   </div>
               </div>
           </motion.div>
 
-          {/* 4. بخش تمرینات موضوعی */}
-          <motion.div variants={item} className="mt-2 flex flex-col gap-4">
-              <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2 text-farzin-accent">
-                      <Star size={18} />
-                      <h2 className="font-black text-sm uppercase tracking-widest">تمرینات موضوعی</h2>
-                  </div>
-                  {!isUserPremium && (
-                      <div className={`px-2 py-1 text-[10px] font-black tracking-widest flex items-center gap-1 rounded-lg border ${quotas.themes > 0 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
-                          {quotas.themes > 0 ? <Play size={10} fill="currentColor" /> : <Lock size={10} />}
-                          سهمیه روزانه: {quotas.themes}/5
+          {/* --- Theme Library Section --- */}
+          <motion.div variants={item} className="mt-4 flex flex-col gap-4 bg-[#1e1c19] border border-[#35332e] rounded-[28px] p-5 shadow-lg">
+              
+              <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-white">
+                          <div className="w-8 h-8 rounded-lg bg-[#262421] border border-[#35332e] flex items-center justify-center">
+                              <Star size={16} className="text-blue-400" fill="currentColor" />
+                          </div>
+                          <h2 className="font-black text-base">کتابخانه تاکتیک‌ها</h2>
                       </div>
-                  )}
+                      {!isUserPremium && (
+                          <div className={`px-2.5 py-1 text-[10px] font-black tracking-widest flex items-center gap-1.5 rounded-lg border ${quotas.themes > 0 ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
+                              {quotas.themes > 0 ? <Play size={10} fill="currentColor" /> : <Lock size={10} />}
+                              سهمیه: {quotas.themes}/5
+                          </div>
+                      )}
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative w-full">
+                      <div className="absolute inset-y-0 right-0 pl-3 pr-4 flex items-center pointer-events-none">
+                          <Search size={16} className="text-zinc-500" />
+                      </div>
+                      <input 
+                          type="text" 
+                          placeholder="جستجوی تاکتیک (مثلاً آچمز، مات...)" 
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full bg-[#161512] border border-[#35332e] text-zinc-200 text-xs font-bold rounded-xl focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 block py-3.5 pr-10 pl-4 transition-all placeholder-zinc-600 outline-none"
+                      />
+                      {searchQuery && (
+                          <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 left-0 pl-4 pr-3 flex items-center text-zinc-500 hover:text-white transition-colors">
+                              <X size={14} />
+                          </button>
+                      )}
+                  </div>
               </div>
               
-              <div className="flex overflow-x-auto gap-3 pb-4 pt-1 no-scrollbar px-1 snap-x">
-                  {thematicCategories.map((cat, idx) => (
-                      <button
-                          key={cat.id}
-                          onClick={() => handleModeClick({ id: `theme_${cat.id}`, type: 'themes', title: cat.title, icon: cat.icon, color: 'text-blue-400', max: 5 })}
-                          className="flex-shrink-0 relative flex flex-col gap-3 p-4 w-[130px] bg-[#1e1c19] rounded-[24px] border border-[#35332e] hover:border-[#52525b] hover:bg-[#262421] transition-all duration-300 snap-center group active:scale-95"
-                      >
-                          <div className={`w-10 h-10 rounded-full bg-[#161512] flex items-center justify-center border border-[#35332e] group-hover:scale-110 transition-transform ${idx % 2 === 0 ? 'text-farzin-accent' : 'text-blue-400'}`}>
-                              {cat.icon}
-                          </div>
-                          <span className="font-bold text-[11px] text-white text-right leading-tight">{cat.title}</span>
-                      </button>
-                  ))}
+              {/* Themes Grid */}
+              <div className="grid grid-cols-2 gap-2 mt-2 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
+                  <AnimatePresence>
+                      {filteredThemes.length === 0 ? (
+                          <motion.div initial={{opacity: 0}} animate={{opacity: 1}} className="col-span-2 py-8 flex flex-col items-center justify-center text-zinc-500">
+                              <Search size={24} className="mb-2 opacity-50" />
+                              <span className="text-xs font-bold">تاکتیکی پیدا نشد!</span>
+                          </motion.div>
+                      ) : (
+                          filteredThemes.map((theme, idx) => (
+                              <motion.button
+                                  layout
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.9 }}
+                                  transition={{ duration: 0.2 }}
+                                  key={theme.id}
+                                  onClick={() => handleModeClick({ id: `theme_${theme.id}`, type: 'themes', title: theme.title, icon: theme.icon, max: 5 })}
+                                  className="col-span-1 flex items-center justify-between p-3 bg-[#262421] rounded-xl border border-[#35332e] hover:border-[#52525b] hover:bg-[#2c2a27] transition-all group active:scale-95"
+                              >
+                                  <span className="font-bold text-[11px] text-zinc-300 group-hover:text-white transition-colors">{theme.title}</span>
+                                  <div className="w-7 h-7 rounded-md bg-[#161512] flex items-center justify-center border border-[#35332e] text-zinc-400 group-hover:text-blue-400 group-hover:border-blue-500/30 transition-all">
+                                      {theme.icon}
+                                  </div>
+                              </motion.button>
+                          ))
+                      )}
+                  </AnimatePresence>
               </div>
+
           </motion.div>
 
         </motion.div>
       </motion.div>
 
-      {/* پاپ‌آپ استراتژیک Freemium */}
+      {/* --- پاپ‌آپ استراتژیک Freemium --- */}
       <AnimatePresence>
         {selectedProMode && (
           <motion.div 
@@ -287,14 +305,10 @@ export default function Puzzles() {
             >
                 <div className="h-32 w-full relative bg-[#262421] flex items-center justify-center border-b border-[#35332e]">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/10 to-transparent"></div>
-                    <button 
-                        onClick={() => setSelectedProMode(null)}
-                        className="absolute top-4 right-4 p-2 bg-[#161512] rounded-full text-zinc-400 hover:text-white transition-colors z-10"
-                    >
+                    <button onClick={() => setSelectedProMode(null)} className="absolute top-4 right-4 p-2 bg-[#161512] rounded-full text-zinc-400 hover:text-white transition-colors z-10">
                         <X size={18} />
                     </button>
-                    
-                    <div className={`w-16 h-16 rounded-[20px] bg-[#161512] border border-[#35332e] flex items-center justify-center shadow-2xl relative z-10 group-hover:scale-110`}>
+                    <div className={`w-16 h-16 rounded-[20px] bg-[#161512] border border-[#35332e] flex items-center justify-center shadow-2xl relative z-10 text-white`}>
                         {selectedProMode.icon}
                     </div>
                 </div>
@@ -322,10 +336,7 @@ export default function Puzzles() {
                     <div className="w-full flex flex-col gap-3 mt-2">
                         {quotas[selectedProMode.type as keyof typeof defaultQuotas] > 0 ? (
                             <>
-                                <button 
-                                    onClick={handleUseQuota}
-                                    className="w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 bg-amber-500 text-[#161512] shadow-[0_4px_15px_rgba(245,158,11,0.3)] hover:bg-amber-400 active:scale-95 transition-all"
-                                >
+                                <button onClick={handleUseQuota} className="w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 bg-amber-500 text-[#161512] shadow-[0_4px_15px_rgba(245,158,11,0.3)] hover:bg-amber-400 active:scale-95 transition-all">
                                     <Play size={16} fill="currentColor" />
                                     شروع (کسر ۱ سهمیه)
                                 </button>
@@ -340,10 +351,7 @@ export default function Puzzles() {
                                     <Sparkles size={18} />
                                     خرید حساب ویژه (VIP)
                                 </button>
-                                <button 
-                                    onClick={() => setSelectedProMode(null)}
-                                    className="w-full py-3 rounded-xl font-bold text-xs text-zinc-500 hover:text-white transition-all"
-                                >
+                                <button onClick={() => setSelectedProMode(null)} className="w-full py-3 rounded-xl font-bold text-xs text-zinc-500 hover:text-white transition-all">
                                     شاید بعداً
                                 </button>
                             </>
