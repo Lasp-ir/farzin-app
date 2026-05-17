@@ -5,7 +5,7 @@ import { Chess } from 'chess.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, Zap, Heart, Timer, Trophy, RefreshCw, X, RotateCcw,
-    Flame, Skull, Clock, HeartCrack, ChevronLeft, Target
+    Flame, Skull, Clock, HeartCrack, ChevronLeft, Target, Check
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
 
@@ -37,6 +37,10 @@ export default function PuzzleRush() {
     const [timeLeft, setTimeLeft] = useState(180);
     const [currentDifficulty, setCurrentDifficulty] = useState(600);
     
+    // 🔥 استیت‌های جدید برای فضای خالی (استریک و تاریخچه نتایج)
+    const [streak, setStreak] = useState(0);
+    const [resultsHistory, setResultsHistory] = useState<('correct' | 'wrong')[]>([]);
+
     // --- استیت‌های شطرنج ---
     const [game, setGame] = useState(new Chess());
     const [puzzleMoves, setPuzzleMoves] = useState<string[]>([]);
@@ -69,6 +73,8 @@ export default function PuzzleRush() {
         setTimeLeft(seconds);
         setScore(0);
         setLives(3);
+        setStreak(0);
+        setResultsHistory([]);
         setCurrentDifficulty(600);
         setEndReason(null);
         setStatus('playing');
@@ -127,8 +133,12 @@ export default function PuzzleRush() {
         const newLives = lives - 1;
         setLives(newLives);
         
+        // 🔥 شکستن استریک و ثبت در تاریخچه
+        setStreak(0);
+        setResultsHistory(prev => [...prev, 'wrong']);
+
         if (newLives <= 0) {
-            setTimeout(() => endGame('lives'), 500); // تاخیر کوتاه برای دیدن آخرین اشتباه
+            setTimeout(() => endGame('lives'), 500); 
         } else {
             setTimeout(() => loadNextPuzzle(currentDifficulty), 600);
         }
@@ -161,6 +171,11 @@ export default function PuzzleRush() {
                 playSound('success');
                 const newScore = score + 1;
                 setScore(newScore);
+                
+                // 🔥 افزایش استریک و ثبت در تاریخچه
+                setStreak(prev => prev + 1);
+                setResultsHistory(prev => [...prev, 'correct']);
+
                 const newDifficulty = currentDifficulty + (newScore % 3 === 0 ? 50 : 0);
                 setCurrentDifficulty(newDifficulty);
                 setTimeout(() => loadNextPuzzle(newDifficulty), 400);
@@ -292,7 +307,6 @@ export default function PuzzleRush() {
     return (
         <div className="min-h-[100dvh] bg-[#161512] text-zinc-200 flex flex-col items-center pb-8" dir="rtl">
             
-            {/* --- هدر خلوت و تمرکزی --- */}
             <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between sticky top-0 z-10 bg-[#161512]/90 backdrop-blur-md border-b border-[#35332e]/50">
                 <button onClick={() => setStatus('setup')} className="p-2 bg-[#262421] rounded-xl hover:text-white text-zinc-400 transition-colors border border-[#35332e]">
                     <ChevronRight size={24} />
@@ -304,14 +318,13 @@ export default function PuzzleRush() {
                         رگبار پازل
                     </span>
                     <span className="text-[10px] text-zinc-500 font-bold tracking-widest mt-0.5 flex items-center gap-1">
-                        سختی پازل: <Target size={10} className="text-blue-400" /> <span className="text-blue-400">{currentDifficulty}</span>
+                        سختی هدف: <Target size={10} className="text-blue-400" /> <span className="text-blue-400">{currentDifficulty}</span>
                     </span>
                 </div>
 
-                <div className="w-10"></div> {/* Spacer */}
+                <div className="w-10"></div> 
             </div>
 
-            {/* --- صفحه شطرنج در یک دیو LTR ایزوله --- */}
             <div className="w-full max-w-md mt-6 px-4 relative z-0">
                 {isLoading && status === 'playing' && (
                     <div className="absolute inset-0 z-20 bg-[#161512]/60 backdrop-blur-sm flex items-center justify-center rounded-[4px] border-4 border-transparent">
@@ -336,15 +349,59 @@ export default function PuzzleRush() {
                 </div>
             </div>
 
-            {/* --- داشبورد پایینی (HUD) مدرن --- */}
-            <div className="w-full max-w-md mt-6 px-4 flex flex-col gap-3 flex-1 justify-end">
-                
+            {/* 🔥 فضای میانی جدید: سیستم استریک (کامبو) و تاریخچه نتایج */}
+            <div className="w-full max-w-md px-4 flex-1 flex flex-col items-center justify-center min-h-[80px] py-3">
+                <AnimatePresence mode="wait">
+                    {streak >= 3 ? (
+                        <motion.div
+                            key="combo"
+                            initial={{ scale: 0.5, opacity: 0, y: 10 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.5, opacity: 0, y: -10 }}
+                            className="flex flex-col items-center"
+                        >
+                            <span className="text-orange-500 font-black text-2xl italic tracking-wider flex items-center gap-1.5 drop-shadow-[0_0_15px_rgba(249,115,22,0.6)]" dir="ltr">
+                                <Flame size={26} fill="currentColor" className="animate-pulse" />
+                                {streak}x COMBO
+                            </span>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="normal"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="text-zinc-500 text-xs font-bold opacity-60"
+                        >
+                            سریع و دقیق باش
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* تایم‌لاین نتایج اخیر */}
+                <div className="flex items-center gap-1.5 mt-3 flex-wrap justify-center max-w-[80%]" dir="ltr">
+                    <AnimatePresence>
+                        {resultsHistory.slice(-10).map((res, i) => (
+                            <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                key={`${i}-${res}`}
+                                className={`w-4 h-4 rounded-sm flex items-center justify-center shadow-sm ${res === 'correct' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-500' : 'bg-red-500/20 border border-red-500/40 text-red-500'}`}
+                            >
+                                {res === 'correct' ? <Check size={12} strokeWidth={4} /> : <X size={12} strokeWidth={4} />}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </div>
+            </div>
+
+            {/* --- داشبورد پایینی (HUD) --- */}
+            <div className="w-full max-w-md px-4 flex flex-col gap-3">
                 <div className="w-full bg-[#1e1c19] border border-[#35332e] rounded-3xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] relative overflow-hidden flex justify-between items-center">
-                    {/* Glow Effects */}
                     <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-500 ${timeLeft <= 30 ? 'bg-red-500' : 'bg-blue-500'}`}></div>
                     <div className={`absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-500 ${lives === 1 ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
 
-                    {/* تایمر (راست) */}
+                    {/* تایمر */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
                             زمان <Timer size={12}/>
@@ -354,7 +411,7 @@ export default function PuzzleRush() {
                         </span>
                     </div>
 
-                    {/* امتیاز بزرگ (وسط) */}
+                    {/* امتیاز */}
                     <motion.div 
                         key={score}
                         initial={{ scale: 1.2, opacity: 0.8 }}
@@ -369,7 +426,7 @@ export default function PuzzleRush() {
                         </span>
                     </motion.div>
 
-                    {/* جان‌ها (چپ) */}
+                    {/* جان‌ها */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2 flex items-center gap-1">
                             جان <HeartCrack size={12} className="text-red-500"/>
@@ -387,7 +444,6 @@ export default function PuzzleRush() {
                     </div>
                 </div>
 
-                {/* Progress Bar */}
                 <div className="w-full h-1.5 bg-[#262421] rounded-full overflow-hidden shadow-inner">
                     <motion.div 
                         className={`h-full ${timeLeft <= 10 ? 'bg-red-500' : timeLeft <= 30 ? 'bg-orange-500' : 'bg-blue-500'}`}
@@ -397,7 +453,6 @@ export default function PuzzleRush() {
                     />
                 </div>
 
-                {/* دکمه پایان زودهنگام */}
                 <button 
                     onClick={() => endGame('lives')}
                     className="mt-1 py-3 w-full bg-[#1e1c19] hover:bg-red-500/10 text-zinc-500 hover:text-red-400 border border-[#35332e] hover:border-red-500/30 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-colors active:scale-95"
@@ -407,7 +462,7 @@ export default function PuzzleRush() {
                 </button>
             </div>
 
-            {/* --- مودال پایان بازی هوشمند --- */}
+            {/* --- مودال پایان بازی --- */}
             <AnimatePresence>
                 {status === 'gameover' && (
                     <motion.div 
