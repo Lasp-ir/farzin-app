@@ -44,9 +44,14 @@ async function importData() {
 
 async function insertBatch(data) {
     try {
-        await prisma.puzzle.createMany({ data: data, skipDuplicates: true });
+        await prisma.puzzle.createMany({
+            data: data
+            // خط skipDuplicates رو از اینجا پاک کردیم
+        });
     } catch (error) {
-        console.error('❌ خطا در تزریق بسته:', error);
+        // برای اینکه ارورها الکی طولانی نشن، فقط پیامش رو چاپ می‌کنیم
+        console.error('❌ خطا در تزریق بسته:', error.message);
     }
 }
+
 importData();
