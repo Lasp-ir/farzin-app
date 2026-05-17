@@ -18,6 +18,7 @@ import LichessLobby from './pages/LichessLobby';
 import LichessLiveGame from './pages/LichessLiveGame';
 import PuzzleBoard from "./pages/PuzzleBoard";
 import PuzzleRush from './pages/PuzzleRush';
+import AdminDashboard from './pages/AdminDashboard';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/puzzles" element={<Puzzles />} />
           <Route path="/puzzle/rush" element={<PuzzleRush />} />
           <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           
         </Routes>
         
