@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, RefreshCw, ArrowRight, ShieldAlert, 
     CheckCircle2, Target, RotateCcw, Zap,
-    SkipBack, SkipForward, Rewind, FastForward, Check, X
+    SkipBack, SkipForward, Rewind, FastForward, Check, X, Lightbulb
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
 
@@ -44,6 +44,10 @@ export default function PuzzleBoard() {
     
     const [feedback, setFeedback] = useState<{square: string, type: 'correct'|'wrong'} | null>(null);
     
+    // --- متغیرهای سیستم راهنمایی ---
+    const [usedHint, setUsedHint] = useState(false);
+    const [hintSquare, setHintSquare] = useState<string | null>(null);
+    
     const [history, setHistory] = useState<{fen: string, lastMove: any}[]>([]);
     const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -61,6 +65,8 @@ export default function PuzzleBoard() {
         setOptionSquares({});
         setLastMoveSquares({});
         setFeedback(null);
+        setUsedHint(false); // ریست کردن وضعیت راهنمایی
+        setHintSquare(null);
         
         try {
             let data;
@@ -155,6 +161,7 @@ export default function PuzzleBoard() {
             
             setClickedSquare(null);
             setOptionSquares({});
+            setHintSquare(null); // پاک کردن راهنمایی در صورت وجود
             
             const newHistory = [...history, { fen: newGame.fen(), lastMove: {from: sourceSquare, to: targetSquare} }];
             setHistory(newHistory);
@@ -207,6 +214,7 @@ export default function PuzzleBoard() {
                     setFeedback({ square: targetSquare, type: 'wrong' });
                     setOptionSquares({});
                     setClickedSquare(null);
+                    setHintSquare(null);
                 }
             } catch (e) {}
             return false;
@@ -242,6 +250,30 @@ export default function PuzzleBoard() {
         } else {
             setClickedSquare(null);
             setOptionSquares({});
+        }
+    };
+
+    // --- منطق دکمه راهنمایی ---
+    const handleHint = () => {
+        if (status !== 'playing' || historyIndex < history.length - 1) return;
+        
+        setUsedHint(true); // تقلب ثبت شد!
+        const expectedMove = puzzleMoves[currentMoveIndex];
+        if (!expectedMove) return;
+
+        const fromSq = expectedMove.substring(0, 2);
+        const toSq = expectedMove.substring(2, 4);
+        const prom = expectedMove.length > 4 ? expectedMove[4] : 'q';
+
+        if (!hintSquare || hintSquare !== fromSq) {
+            // بار اول: مهره رو هایلایت کن
+            setHintSquare(fromSq);
+            setClickedSquare(fromSq);
+            highlightLegalMoves(fromSq);
+        } else {
+            // بار دوم: حرکت رو انجام بده
+            setHintSquare(null);
+            attemptMove(fromSq, toSq, prom);
         }
     };
 
@@ -316,12 +348,21 @@ export default function PuzzleBoard() {
         const col = square.charCodeAt(0) - 97; 
         const row = parseInt(square[1]) - 1; 
         const isWhite = playerColor === 'white';
-        // در حالت ltr، x=0 همیشه سمت چپ است.
         return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
     };
 
+    // اعمال استایل ویژه برای خونه‌ای که راهنمایی شده
+    let finalCustomSquares = { ...lastMoveSquares, ...optionSquares };
+    if (hintSquare) {
+        finalCustomSquares[hintSquare] = {
+            ...finalCustomSquares[hintSquare],
+            boxShadow: 'inset 0 0 25px 5px rgba(59, 130, 246, 0.8)',
+            backgroundColor: 'rgba(59, 130, 246, 0.4)'
+        };
+    }
+
     return (
-        <div className="min-h-[100dvh] bg-[#161512] text-zinc-200 flex flex-col items-center" dir="rtl">
+        <div className="min-h-[100dvh] bg-[#161512] text-zinc-200 flex flex-col items-center pb-10" dir="rtl">
             <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between bg-[#1e1c19] border-b border-[#35332e] sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="p-2 bg-[#262421] rounded-xl hover:text-white text-zinc-400 transition-colors">
                     <ChevronRight size={24} />
@@ -335,7 +376,7 @@ export default function PuzzleBoard() {
                         RATING: <span className="text-amber-400">{puzzleData?.rating || '---'}</span>
                     </span>
                 </div>
-                <button onClick={loadNewPuzzle} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-farzin-accent transition-colors">
+                <button onClick={loadNewPuzzle} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-farzin-accent transition-colors" title="بارگذاری مجدد">
                     <RefreshCw size={20} />
                 </button>
             </div>
@@ -346,8 +387,7 @@ export default function PuzzleBoard() {
                         <RefreshCw className="animate-spin text-farzin-accent" size={32} />
                     </div>
                 ) : (
-                    // 🔥 اضافه کردن dir="ltr" به کانتینر اصلی صفحه شطرنج
-                    <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
+                    <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? (usedHint ? 'border-blue-500/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]') : 'border-[#35332e]'}`}>
                         
                         <Chessboard 
                             id="FarzinPuzzleBoard" 
@@ -357,7 +397,7 @@ export default function PuzzleBoard() {
                             boardOrientation={playerColor}
                             customDarkSquareStyle={{ backgroundColor: '#779556' }}
                             customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                            customSquareStyles={{ ...lastMoveSquares, ...optionSquares }}
+                            customSquareStyles={finalCustomSquares}
                             animationDuration={250}
                             autoPromoteToQueen={true}
                         />
@@ -399,7 +439,7 @@ export default function PuzzleBoard() {
                 )}
             </div>
 
-            <div className="w-full max-w-md mt-6 px-4">
+            <div className="w-full max-w-md mt-6 px-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between bg-[#1e1c19] border border-[#35332e] rounded-2xl p-2">
                     <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                         <button onClick={goStart} disabled={historyIndex === 0 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
@@ -412,19 +452,39 @@ export default function PuzzleBoard() {
                         {status === 'playing' ? (
                             <><Zap size={14} className="text-yellow-500" /> نوبت شماست</>
                         ) : status === 'solved' ? (
-                            <><CheckCircle2 size={14} className="text-emerald-500" /> حل شد</>
+                            usedHint ? <><Lightbulb size={14} className="text-blue-500" /> با راهنمایی</> : <><CheckCircle2 size={14} className="text-emerald-500" /> حل شد</>
                         ) : (
                             <><ShieldAlert size={14} className="text-red-500" /> اشتباه</>
                         )}
                     </div>
                 </div>
+
+                {/* 🌟 دکمه‌های راهنمایی و رد شدن */}
+                {status === 'playing' && (
+                    <div className="flex gap-3 mt-2">
+                        <button 
+                            onClick={handleHint}
+                            className="flex-1 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                        >
+                            <Lightbulb size={18} />
+                            {hintSquare ? 'اجرای حرکت' : 'راهنمایی'}
+                        </button>
+                        <button 
+                            onClick={loadNewPuzzle}
+                            className="flex-1 py-3 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white border border-[#35332e] rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                        >
+                            <FastForward size={18} />
+                            رد شدن
+                        </button>
+                    </div>
+                )}
             </div>
 
             <AnimatePresence>
                 {status === 'wrong' && (
                     <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className="fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border border-red-500/30 shadow-[0_20px_50px_rgba(239,68,68,0.15)] rounded-2xl p-5 z-50 flex flex-col gap-4">
                         <div className="flex items-center gap-4 text-red-400">
-                            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shrink-0"><ShieldAlert size={24} /></div>
+                            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shrink-0 text-xl">💥</div>
                             <div className="flex flex-col">
                                 <span className="font-black text-lg text-white">حرکت اشتباه!</span>
                                 <span className="text-xs">این بهترین جواب برای این پوزیشن نیست.</span>
@@ -437,15 +497,21 @@ export default function PuzzleBoard() {
                 )}
 
                 {status === 'solved' && (
-                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className="fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border border-emerald-500/30 shadow-[0_20px_50px_rgba(34,197,94,0.15)] rounded-2xl p-5 z-50 flex flex-col gap-4">
-                        <div className="flex items-center gap-4 text-emerald-400">
-                            <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0"><CheckCircle2 size={24} /></div>
+                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className={`fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border shadow-[0_20px_50px_rgba(0,0,0,0.3)] rounded-2xl p-5 z-50 flex flex-col gap-4 ${usedHint ? 'border-blue-500/30' : 'border-emerald-500/30'}`}>
+                        <div className={`flex items-center gap-4 ${usedHint ? 'text-blue-400' : 'text-emerald-400'}`}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center border shrink-0 text-2xl ${usedHint ? 'bg-blue-500/10 border-blue-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                                {usedHint ? '💡' : '🏆'}
+                            </div>
                             <div className="flex flex-col">
-                                <span className="font-black text-lg text-white">آفرین! پازل حل شد</span>
-                                <span className="text-xs">+12 امتیاز ریتینگ (به زودی)</span>
+                                <span className="font-black text-lg text-white">
+                                    {usedHint ? 'با راهنمایی رد شدی' : 'آفرین! پازل حل شد'}
+                                </span>
+                                <span className="text-xs">
+                                    {usedHint ? 'برای این پازل امتیازی دریافت نمی‌کنی.' : '+12 امتیاز ریتینگ (به زودی)'}
+                                </span>
                             </div>
                         </div>
-                        <button onClick={loadNewPuzzle} className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg">
+                        <button onClick={loadNewPuzzle} className={`w-full py-3.5 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg ${usedHint ? 'bg-blue-500 hover:bg-blue-400' : 'bg-emerald-500 hover:bg-emerald-400'}`}>
                             <ArrowRight size={18} /> پازل بعدی
                         </button>
                     </motion.div>
