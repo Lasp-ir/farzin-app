@@ -1,16 +1,23 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db" 
 }
+
+// ==========================================
+// 🛡️ سیستم کاربران و احراز هویت
+// ==========================================
 model User {
   id               Int      @id @default(autoincrement())
   username         String   @unique
   email            String   @unique
   password         String
-  role             String   @default("user")
+  role             String   @default("user") // مقادیر: "user" یا "admin"
+  
+  // فیلدهای پازل (از قبل داشتی)
   puzzleRating     Int      @default(1200)
   puzzleStreak     Int      @default(0)
   maxStreak        Int      @default(0)
@@ -22,15 +29,75 @@ model User {
   failedPuzzles    String   @default("[]")
   connectedLichess String   @default("[]") 
   connectedChesscom String  @default("[]")
+  
+  // 🔥 فیلدهای جدید برای سیستم آموزشی و مالی
+  gems             Int      @default(0)
+  courses          UserCourse[] 
+  
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
 model Puzzle {
   puzzleId         String   @id @unique
   fen              String
   moves            String   
   rating           Int
   themes           String   
+  
   @@index([rating])
   @@index([themes])
+}
+
+// ==========================================
+// 📚 سیستم آموزشی آکادمی فرزین
+// ==========================================
+model Course {
+  id          String       @id @default(uuid())
+  title       String
+  instructor  String
+  category    String
+  level       String
+  duration    String
+  image       String
+  isPremium   Boolean      @default(true)
+  price       Int          @default(0)      
+  
+  lessons     Lesson[]
+  enrollments UserCourse[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Lesson {
+  id            String   @id @default(uuid())
+  title         String
+  videoUrl      String
+  duration      String
+  order         Int
+  isFreePreview Boolean  @default(false)
+  
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime @default(now())
+}
+
+// ارتباط بین یوزر و دوره (خریدها و پیشرفت)
+model UserCourse {
+  id        String   @id @default(uuid())
+  
+  userId    Int      // 🔥 نوع این فیلد با آیدی یوزر یکسان شد (Int)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  progress  Int      @default(0) // 0 to 100
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
 }
