@@ -6,9 +6,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, RefreshCw, ArrowRight, ShieldAlert, 
     CheckCircle2, Target, RotateCcw, Zap,
-    SkipBack, SkipForward, Rewind, FastForward, Check, X, Lightbulb, TrendingUp, TrendingDown
+    SkipBack, SkipForward, Rewind, FastForward, Check, X, Lightbulb, TrendingUp, TrendingDown, Eye, Tag
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
+
+// --- دیکشنری ترجمه تم‌های Lichess ---
+const THEME_DICTIONARY: Record<string, string> = {
+    mateIn1: 'مات در ۱', mateIn2: 'مات در ۲', mateIn3: 'مات در ۳', mateIn4: 'مات در ۴', mateIn5: 'مات در ۵+',
+    mate: 'مات', short: 'تاکتیک کوتاه', long: 'تاکتیک طولانی',
+    fork: 'چنگال (Fork)', pin: 'آچمز (Pin)', skewer: 'سیخ‌کباب (Skewer)',
+    sacrifice: 'قربانی مهره', discoveredAttack: 'حمله برخاسته',
+    endgame: 'آخر بازی', middlegame: 'وسط بازی', opening: 'گشایش',
+    crushing: 'برتری قاطع', advantage: 'کسب برتری',
+    defensiveMove: 'حرکت دفاعی', hangingPiece: 'مهره بی‌دفاع',
+    capturingDefender: 'حذف مدافع', promotion: 'ترفیع پیاده',
+    advancedPawn: 'پیاده رونده', backRankMate: 'مات عرض آخر',
+    attraction: 'کیشش (جذب)', clearance: 'پاکسازی مسیر', deflection: 'انحراف مدافع',
+    zugzwang: 'تسوگ‌تسوانگ', quietMove: 'حرکت آرام', xRayAttack: 'حمله اشعه ایکس',
+    doubleCheck: 'کیش دوگانه', smotheredMate: 'مات خفه',
+    enPassant: 'آن‌پاسان', castling: 'قلعه رفتن', master: 'بازی مسترها',
+    masterVsMaster: 'مستر مقابل مستر', superGM: 'سوپراستادبزرگ'
+};
 
 const sounds = {
     move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
@@ -44,18 +62,26 @@ export default function PuzzleBoard() {
     
     const [usedHint, setUsedHint] = useState(false);
     const [hintSquare, setHintSquare] = useState<string | null>(null);
-    
-    // 🔥 استیت جدید برای نگهداری تغییرات امتیاز دریافتی از بک‌اند
     const [scoreChange, setScoreChange] = useState<number | null>(null);
     
+    // 🔥 استیت‌های مربوط به سیستم مشاهده حل کامل
+    const [solutionViewed, setSolutionViewed] = useState(false);
+    const [isShowingSolution, setIsShowingSolution] = useState(false);
+
     const [history, setHistory] = useState<{fen: string, lastMove: any}[]>([]);
     const [historyIndex, setHistoryIndex] = useState(0);
+
+    // استخراج و ترجمه تم‌های پازل
+    const rawThemes = puzzleData?.themes || '';
+    const themeList = rawThemes.includes(',') ? rawThemes.split(',') : rawThemes.split(' ');
+    const translatedThemes = themeList.filter(Boolean).map((t: string) => THEME_DICTIONARY[t.trim()] || t.trim()).slice(0, 4);
 
     useEffect(() => {
         loadNewPuzzle();
     }, [mode]);
 
     const loadNewPuzzle = async () => {
+        if (isShowingSolution) return; // جلوگیری از لود در حین پخش انیمیشن جواب
         setIsLoading(true);
         setStatus('playing');
         setCurrentMoveIndex(0);
@@ -66,8 +92,9 @@ export default function PuzzleBoard() {
         setLastMoveSquares({});
         setFeedback(null);
         setUsedHint(false);
+        setSolutionViewed(false);
         setHintSquare(null);
-        setScoreChange(null); // ریست کردن امتیاز برای پازل جدید
+        setScoreChange(null); 
         
         try {
             let data;
@@ -134,7 +161,7 @@ export default function PuzzleBoard() {
     };
 
     const attemptMove = async (sourceSquare: string, targetSquare: string, promotion = 'q') => {
-        if (status !== 'playing' || historyIndex < history.length - 1) return false;
+        if (status !== 'playing' || historyIndex < history.length - 1 || isShowingSolution) return false;
 
         const expectedMove = puzzleMoves[currentMoveIndex];
         let userMoveStr = sourceSquare + targetSquare;
@@ -169,7 +196,6 @@ export default function PuzzleBoard() {
             setHistoryIndex(newHistory.length - 1);
 
             if (currentMoveIndex === puzzleMoves.length - 1) {
-                // 🔥 پازل با موفقیت تمام شد -> ارسال به بک‌اند
                 try {
                     const res = await puzzleService.submitResult(puzzleData.rating, 1200, true, usedHint);
                     setScoreChange(res.ratingChange);
@@ -211,7 +237,6 @@ export default function PuzzleBoard() {
                 const isValid = testGame.move({ from: sourceSquare, to: targetSquare, promotion });
                 
                 if (isValid) {
-                    // 🔥 حرکت اشتباه بود -> کسر امتیاز از طریق بک‌اند
                     try {
                         const res = await puzzleService.submitResult(puzzleData.rating, 1200, false, false);
                         setScoreChange(res.ratingChange);
@@ -242,7 +267,7 @@ export default function PuzzleBoard() {
 
     const handleSquareClick = (square: string) => {
         setFeedback(null); 
-        if (status !== 'playing' || historyIndex < history.length - 1) return;
+        if (status !== 'playing' || historyIndex < history.length - 1 || isShowingSolution) return;
 
         if (clickedSquare) {
             if (clickedSquare === square) {
@@ -268,7 +293,7 @@ export default function PuzzleBoard() {
     };
 
     const handleHint = () => {
-        if (status !== 'playing' || historyIndex < history.length - 1) return;
+        if (status !== 'playing' || historyIndex < history.length - 1 || isShowingSolution) return;
         
         setUsedHint(true); 
         const expectedMove = puzzleMoves[currentMoveIndex];
@@ -301,27 +326,79 @@ export default function PuzzleBoard() {
         }
     };
 
+    // 🔥 منطق پخش اتوماتیک پاسخ (مشاهده حل)
+    const handleShowSolution = async () => {
+        if (isShowingSolution) return;
+        setIsShowingSolution(true);
+        setSolutionViewed(true);
+        setFeedback(null);
+        setHintSquare(null);
+        setOptionSquares({});
+        setClickedSquare(null);
+        
+        // بازگشت به آخرین وضعیت درستِ قبل از اشتباه کاربر
+        let tempGame = new Chess(history[historyIndex].fen);
+        setGame(new Chess(tempGame.fen()));
+        setLastMoveSquares({});
+        
+        // یه مکث کوچیک برای ریست شدن چشم
+        await new Promise(r => setTimeout(r, 500));
+
+        // حلقه پخش حرکات درست
+        for (let i = currentMoveIndex; i < puzzleMoves.length; i++) {
+            await new Promise(r => setTimeout(r, 600)); // تاخیر بین هر حرکت اتوماتیک
+            
+            const expectedMove = puzzleMoves[i];
+            const fromSq = expectedMove.substring(0, 2);
+            const toSq = expectedMove.substring(2, 4);
+            const prom = expectedMove.length > 4 ? expectedMove[4] : 'q';
+            
+            const result = tempGame.move({ from: fromSq, to: toSq, promotion: prom });
+            
+            if(result.captured) playSound('capture');
+            else if(tempGame.isCheck()) playSound('check');
+            else playSound('move');
+
+            setGame(new Chess(tempGame.fen()));
+            setLastMoveSquares({
+                [fromSq]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+                [toSq]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
+            });
+            
+            // اضافه کردن به هیستوری تا کاربر بتونه بعدش عقب/جلو بره
+            setHistory(prev => {
+                const newHist = [...prev, { fen: tempGame.fen(), lastMove: {from: fromSq, to: toSq} }];
+                setHistoryIndex(newHist.length - 1);
+                return newHist;
+            });
+        }
+        
+        playSound('gameOver');
+        setStatus('solved');
+        setIsShowingSolution(false);
+    };
+
     const goStart = () => {
-        if (history.length > 0) {
+        if (history.length > 0 && !isShowingSolution) {
             setFeedback(null); setHistoryIndex(0); setGame(new Chess(history[0].fen)); setLastMoveSquares({}); setOptionSquares({}); setClickedSquare(null);
         }
     };
     const goBack = () => {
-        if (historyIndex > 0) {
+        if (historyIndex > 0 && !isShowingSolution) {
             setFeedback(null); const newIndex = historyIndex - 1; setHistoryIndex(newIndex); setGame(new Chess(history[newIndex].fen));
             if(history[newIndex].lastMove) { setLastMoveSquares({ [history[newIndex].lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [history[newIndex].lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } }); } else setLastMoveSquares({});
             setOptionSquares({}); setClickedSquare(null);
         }
     };
     const goForward = () => {
-        if (historyIndex < history.length - 1) {
+        if (historyIndex < history.length - 1 && !isShowingSolution) {
             setFeedback(null); const newIndex = historyIndex + 1; setHistoryIndex(newIndex); setGame(new Chess(history[newIndex].fen));
             if(history[newIndex].lastMove) { setLastMoveSquares({ [history[newIndex].lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [history[newIndex].lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } }); }
             setOptionSquares({}); setClickedSquare(null);
         }
     };
     const goEnd = () => {
-        if (history.length > 0) {
+        if (history.length > 0 && !isShowingSolution) {
             setFeedback(null); const newIndex = history.length - 1; setHistoryIndex(newIndex); setGame(new Chess(history[newIndex].fen));
             if(history[newIndex].lastMove) { setLastMoveSquares({ [history[newIndex].lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [history[newIndex].lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } }); }
             setOptionSquares({}); setClickedSquare(null);
@@ -359,8 +436,8 @@ export default function PuzzleBoard() {
                         RATING: <span className="text-amber-400">{puzzleData?.rating || '---'}</span>
                     </span>
                 </div>
-                <button onClick={loadNewPuzzle} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-farzin-accent transition-colors" title="بارگذاری مجدد">
-                    <RefreshCw size={20} />
+                <button onClick={loadNewPuzzle} disabled={isShowingSolution} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-farzin-accent disabled:opacity-50 transition-colors" title="بارگذاری مجدد">
+                    <RefreshCw size={20} className={isShowingSolution ? "animate-spin" : ""} />
                 </button>
             </div>
 
@@ -370,7 +447,7 @@ export default function PuzzleBoard() {
                         <RefreshCw className="animate-spin text-farzin-accent" size={32} />
                     </div>
                 ) : (
-                    <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? (usedHint ? 'border-blue-500/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]') : 'border-[#35332e]'}`}>
+                    <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? (solutionViewed ? 'border-zinc-500/80 shadow-[0_0_30px_rgba(113,113,122,0.3)]' : usedHint ? 'border-blue-500/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]') : 'border-[#35332e]'}`}>
                         
                         <Chessboard 
                             id="FarzinPuzzleBoard" 
@@ -425,16 +502,17 @@ export default function PuzzleBoard() {
             <div className="w-full max-w-md mt-6 px-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between bg-[#1e1c19] border border-[#35332e] rounded-2xl p-2">
                     <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
-                        <button onClick={goStart} disabled={historyIndex === 0 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
-                        <button onClick={goBack} disabled={historyIndex === 0 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipBack size={17} /></button>
-                        <button onClick={goForward} disabled={historyIndex === history.length - 1 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipForward size={17} /></button>
-                        <button onClick={goEnd} disabled={historyIndex === history.length - 1 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><FastForward size={17} /></button>
+                        <button onClick={goStart} disabled={historyIndex === 0 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
+                        <button onClick={goBack} disabled={historyIndex === 0 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipBack size={17} /></button>
+                        <button onClick={goForward} disabled={historyIndex === history.length - 1 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipForward size={17} /></button>
+                        <button onClick={goEnd} disabled={historyIndex === history.length - 1 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><FastForward size={17} /></button>
                     </div>
 
                     <div className="text-xs font-bold text-zinc-400 flex items-center gap-2">
                         {status === 'playing' ? (
                             <><Zap size={14} className="text-yellow-500" /> نوبت شماست</>
                         ) : status === 'solved' ? (
+                            solutionViewed ? <><Eye size={14} className="text-zinc-400" /> مشاهده حل</> : 
                             usedHint ? <><Lightbulb size={14} className="text-blue-500" /> با راهنمایی</> : <><CheckCircle2 size={14} className="text-emerald-500" /> حل شد</>
                         ) : (
                             <><ShieldAlert size={14} className="text-red-500" /> اشتباه</>
@@ -445,15 +523,15 @@ export default function PuzzleBoard() {
                 {status === 'playing' && (
                     <div className="flex gap-3 mt-2">
                         <button 
-                            onClick={handleHint}
-                            className="flex-1 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                            onClick={handleHint} disabled={isShowingSolution}
+                            className="flex-1 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
                         >
                             <Lightbulb size={18} />
                             {hintSquare ? 'اجرای حرکت' : 'راهنمایی'}
                         </button>
                         <button 
-                            onClick={loadNewPuzzle}
-                            className="flex-1 py-3 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white border border-[#35332e] rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                            onClick={loadNewPuzzle} disabled={isShowingSolution}
+                            className="flex-1 py-3 bg-[#262421] hover:bg-[#35332e] text-zinc-400 hover:text-white border border-[#35332e] rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
                         >
                             <FastForward size={18} />
                             رد شدن
@@ -473,7 +551,6 @@ export default function PuzzleBoard() {
                                     <span className="text-xs opacity-80">این بهترین جواب برای این پوزیشن نیست.</span>
                                 </div>
                             </div>
-                            {/* 🔥 نمایش امتیاز کسر شده */}
                             {scoreChange !== null && (
                                 <div className="flex flex-col items-center justify-center bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400">
                                     <TrendingDown size={14} className="mb-0.5" />
@@ -481,37 +558,55 @@ export default function PuzzleBoard() {
                                 </div>
                             )}
                         </div>
-                        <button onClick={handleRetry} className="w-full py-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
-                            <RotateCcw size={18} /> سعی مجدد
-                        </button>
+                        <div className="flex gap-2 w-full">
+                            <button onClick={handleRetry} className="flex-1 py-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                                <RotateCcw size={18} /> مجدد
+                            </button>
+                            {/* 🔥 دکمه جدید مشاهده حل در صورت اشتباه */}
+                            <button onClick={handleShowSolution} className="flex-1 py-3.5 bg-[#262421] hover:bg-[#35332e] text-zinc-300 border border-[#35332e] rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                                <Eye size={18} /> مشاهده حل
+                            </button>
+                        </div>
                     </motion.div>
                 )}
 
                 {status === 'solved' && (
-                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className={`fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border shadow-[0_20px_50px_rgba(0,0,0,0.3)] rounded-2xl p-5 z-50 flex flex-col gap-4 ${usedHint ? 'border-blue-500/30' : 'border-emerald-500/30'}`}>
+                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className={`fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border shadow-[0_20px_50px_rgba(0,0,0,0.3)] rounded-2xl p-5 z-50 flex flex-col gap-4 ${solutionViewed ? 'border-zinc-500/30' : usedHint ? 'border-blue-500/30' : 'border-emerald-500/30'}`}>
                         <div className="flex items-center justify-between w-full">
-                            <div className={`flex items-center gap-4 ${usedHint ? 'text-blue-400' : 'text-emerald-400'}`}>
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center border shrink-0 text-2xl ${usedHint ? 'bg-blue-500/10 border-blue-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                                    {usedHint ? '💡' : '🏆'}
+                            <div className={`flex items-center gap-4 ${solutionViewed ? 'text-zinc-400' : usedHint ? 'text-blue-400' : 'text-emerald-400'}`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center border shrink-0 text-2xl ${solutionViewed ? 'bg-zinc-500/10 border-zinc-500/20 text-xl' : usedHint ? 'bg-blue-500/10 border-blue-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                                    {solutionViewed ? '👁️' : usedHint ? '💡' : '🏆'}
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="font-black text-lg text-white">
-                                        {usedHint ? 'با راهنمایی رد شدی' : 'آفرین! پازل حل شد'}
+                                        {solutionViewed ? 'پاسخ پازل را دیدی' : usedHint ? 'با راهنمایی رد شدی' : 'آفرین! پازل حل شد'}
                                     </span>
                                     <span className="text-xs opacity-80">
-                                        {usedHint ? 'برای این پازل امتیازی دریافت نمی‌کنی.' : 'امتیاز ریتینگ به حساب شما واریز شد.'}
+                                        {solutionViewed || usedHint ? 'برای این پازل امتیازی دریافت نمی‌کنی.' : 'امتیاز ریتینگ به حساب شما واریز شد.'}
                                     </span>
                                 </div>
                             </div>
-                            {/* 🔥 نمایش امتیاز دریافت شده */}
-                            {scoreChange !== null && scoreChange > 0 && !usedHint && (
+                            {scoreChange !== null && scoreChange > 0 && !usedHint && !solutionViewed && (
                                 <div className="flex flex-col items-center justify-center bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20 text-emerald-400">
                                     <TrendingUp size={14} className="mb-0.5" />
                                     <span className="font-black text-sm" dir="ltr">+{scoreChange}</span>
                                 </div>
                             )}
                         </div>
-                        <button onClick={loadNewPuzzle} className={`w-full py-3.5 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg ${usedHint ? 'bg-blue-500 hover:bg-blue-400' : 'bg-emerald-500 hover:bg-emerald-400'}`}>
+
+                        {/* 🔥 نمایش تگ‌ها و تم‌های تاکتیکی پازل */}
+                        {translatedThemes.length > 0 && (
+                            <div className="w-full flex flex-wrap items-center gap-1.5 pt-3 mt-1 border-t border-[#35332e]">
+                                <Tag size={12} className="text-zinc-500 mr-1" />
+                                {translatedThemes.map((t, idx) => (
+                                    <span key={idx} className="bg-[#161512] text-zinc-400 border border-[#35332e] px-2.5 py-1 rounded-md text-[10px] font-bold">
+                                        {t}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        <button onClick={loadNewPuzzle} className={`w-full py-3.5 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg mt-1 ${solutionViewed ? 'bg-zinc-300 hover:bg-white' : usedHint ? 'bg-blue-500 hover:bg-blue-400' : 'bg-emerald-500 hover:bg-emerald-400'}`}>
                             <ArrowRight size={18} /> پازل بعدی
                         </button>
                     </motion.div>
