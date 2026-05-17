@@ -78,6 +78,7 @@ export default function Settings() {
     setSettings(prevSettings => {
       const newSettings = { ...prevSettings, [key]: value };
       localStorage.setItem('farzin_settings', JSON.stringify(newSettings));
+      window.dispatchEvent(new Event('farzin_settings_changed'));
       return newSettings;
     });
   };
