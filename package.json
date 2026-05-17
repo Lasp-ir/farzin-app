@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@lichess-org/stockfish-web": "^0.3.0",
+    "axios": "^1.16.1",
     "chess.js": "^1.4.0",
     "chessground": "^9.2.1",
     "framer-motion": "^12.38.0",
