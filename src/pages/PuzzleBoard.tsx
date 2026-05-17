@@ -42,7 +42,6 @@ export default function PuzzleBoard() {
     const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
     const [lastMoveSquares, setLastMoveSquares] = useState<Record<string, any>>({});
     
-    // فیدبک جدید به سبک AnalysisBoard
     const [feedback, setFeedback] = useState<{square: string, type: 'correct'|'wrong'} | null>(null);
     
     const [history, setHistory] = useState<{fen: string, lastMove: any}[]>([]);
@@ -139,7 +138,6 @@ export default function PuzzleBoard() {
         }
 
         if (userMoveStr === expectedMove) {
-            // ✅ حرکت درست
             const newGame = new Chess(game.fen());
             const result = newGame.move({ from: sourceSquare, to: targetSquare, promotion });
             
@@ -149,12 +147,10 @@ export default function PuzzleBoard() {
 
             setGame(newGame);
             
-            // رنگ سبز برای حرکت درست
             setLastMoveSquares({
                 [sourceSquare]: { backgroundColor: 'rgba(34, 197, 94, 0.5)' },
                 [targetSquare]: { backgroundColor: 'rgba(34, 197, 94, 0.5)' }
             });
-            // نمایش بج سبز
             setFeedback({ square: targetSquare, type: 'correct' });
             
             setClickedSquare(null);
@@ -196,7 +192,6 @@ export default function PuzzleBoard() {
             }
             return true;
         } else {
-            // ❌ حرکت اشتباه
             try {
                 const testGame = new Chess(game.fen());
                 const isValid = testGame.move({ from: sourceSquare, to: targetSquare, promotion });
@@ -204,17 +199,12 @@ export default function PuzzleBoard() {
                 if (isValid) {
                     setStatus('wrong');
                     playSound('error');
-                    
                     setGame(testGame);
-                    
-                    // رنگ قرمز برای حرکت غلط
                     setLastMoveSquares({
                         [sourceSquare]: { backgroundColor: 'rgba(239, 68, 68, 0.5)' },
                         [targetSquare]: { backgroundColor: 'rgba(239, 68, 68, 0.5)' }
                     });
-                    // نمایش بج قرمز
                     setFeedback({ square: targetSquare, type: 'wrong' });
-                    
                     setOptionSquares({});
                     setClickedSquare(null);
                 }
@@ -268,7 +258,6 @@ export default function PuzzleBoard() {
         }
     };
 
-    // --- نویگیشن جدید (کاملاً استاندارد LTR) ---
     const goStart = () => {
         if (history.length > 0) {
             setFeedback(null); setHistoryIndex(0); setGame(new Chess(history[0].fen)); setLastMoveSquares({}); setOptionSquares({}); setClickedSquare(null);
@@ -323,11 +312,11 @@ export default function PuzzleBoard() {
         }
     };
 
-    // محاسبه مختصات برای بج روی صفحه
     const getSquareCoordinates = (square: string) => {
         const col = square.charCodeAt(0) - 97; 
         const row = parseInt(square[1]) - 1; 
         const isWhite = playerColor === 'white';
+        // در حالت ltr، x=0 همیشه سمت چپ است.
         return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
     };
 
@@ -357,7 +346,8 @@ export default function PuzzleBoard() {
                         <RefreshCw className="animate-spin text-farzin-accent" size={32} />
                     </div>
                 ) : (
-                    <div className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
+                    // 🔥 اضافه کردن dir="ltr" به کانتینر اصلی صفحه شطرنج
+                    <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
                         
                         <Chessboard 
                             id="FarzinPuzzleBoard" 
@@ -372,7 +362,6 @@ export default function PuzzleBoard() {
                             autoPromoteToQueen={true}
                         />
 
-                        {/* 🌟 گرید نامرئی برای نمایش بج‌های AnalysisBoard */}
                         {feedback && (
                             <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8 z-20">
                                 {Array.from({ length: 64 }).map((_, i) => {
@@ -384,14 +373,12 @@ export default function PuzzleBoard() {
                                         const isCorrect = feedback.type === 'correct';
                                         return (
                                             <div key={i} className="relative w-full h-full flex items-center justify-center">
-                                                {/* هاله‌ی نورانی زیر بج */}
                                                 <motion.div 
                                                     animate={isCorrect ? { scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] } : { scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }} 
                                                     transition={{ duration: isCorrect ? 1.5 : 0.8, repeat: Infinity, ease: "easeInOut" }} 
                                                     className="absolute inset-0 z-0" 
                                                     style={{ background: isCorrect ? 'radial-gradient(circle, rgba(34,197,94,0) 10%, rgba(34,197,94,0.6) 60%, rgba(34,197,94,0) 100%)' : 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }} 
                                                 />
-                                                {/* خود بج دایره‌ای */}
                                                 <motion.div 
                                                     initial={{ scale: 0, opacity: 0 }} 
                                                     animate={{ scale: 1, opacity: 1 }} 
@@ -413,7 +400,6 @@ export default function PuzzleBoard() {
             </div>
 
             <div className="w-full max-w-md mt-6 px-4">
-                {/* 🌟 نوار کنترل استاندارد با چیدمان صفحه آنالیز */}
                 <div className="flex items-center justify-between bg-[#1e1c19] border border-[#35332e] rounded-2xl p-2">
                     <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                         <button onClick={goStart} disabled={historyIndex === 0 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
