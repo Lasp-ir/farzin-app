@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Volume2, MousePointer2, Palette, Cpu, Globe, 
   Activity, BrainCircuit, Link2, RefreshCw, ShieldCheck,
-  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, Crown, Users, Trash2, Check, PlusCircle
+  Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, 
+  Crown, Users, Trash2, Check, PlusCircle, CloudDownload, AlertTriangle, Loader2
 } from 'lucide-react';
 
 const defaultSettings = {
@@ -20,16 +21,18 @@ const defaultSettings = {
   language: 'fa',
 };
 
-// 🔥 تمام لینک‌های خارجی تصاویر برای جلوگیری از ارور تایم‌اوت حذف شدند
+// 🔥 کاتالوگ بی‌نهایت تم‌ها با لینک‌های فشرده برای کش‌کردن
 const boardThemes = [
   { id: 'green', name: 'سبز فرزین', light: '#ebecd0', dark: '#779556' },
-  { id: 'wood', name: 'چوب کالیفرنیا', light: '#f0d9b5', dark: '#b58863' },
-  { id: 'walnut', name: 'گردویی تیره', light: '#d0af88', dark: '#6e472a' },
-  { id: 'marble', name: 'مرمر ایتالیایی', light: '#e8ecef', dark: '#8f9ea8' },
-  { id: 'granite', name: 'سنگ گرانیت', light: '#c4c8cc', dark: '#50565a' },
-  { id: 'sand', name: 'ماسه صحرا', light: '#f4dfba', dark: '#d2a66e' },
-  { id: 'carbon', name: 'فیبر کربن', light: '#888888', dark: '#222222' },
-  { id: 'canvas', name: 'بوم نقاشی', light: '#f2ece4', dark: '#a59b8c' },
+  { id: 'wood', name: 'چوب کالیفرنیا', light: '#f0d9b5', dark: '#b58863', texture: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=60&w=250&auto=format&fit=crop' },
+  { id: 'walnut', name: 'گردویی تیره', light: '#d0af88', dark: '#6e472a', texture: 'https://images.unsplash.com/photo-1546484396-fb3fc6f95f98?q=60&w=250&auto=format&fit=crop' },
+  { id: 'marble', name: 'مرمر ایتالیایی', light: '#e8ecef', dark: '#8f9ea8', texture: 'https://images.unsplash.com/photo-1518712398506-64c9d9ff0e65?q=60&w=250&auto=format&fit=crop' },
+  { id: 'granite', name: 'سنگ گرانیت', light: '#c4c8cc', dark: '#50565a', texture: 'https://images.unsplash.com/photo-1508215885820-4585e5610d28?q=60&w=250&auto=format&fit=crop' },
+  { id: 'sand', name: 'ماسه صحرا', light: '#f4dfba', dark: '#d2a66e', texture: 'https://images.unsplash.com/photo-1545464197-e89bd74737dd?q=60&w=250&auto=format&fit=crop' },
+  { id: 'carbon', name: 'فیبر کربن', light: '#888888', dark: '#222222', texture: 'https://images.unsplash.com/photo-1585807469395-586b46b1076b?q=60&w=250&auto=format&fit=crop' },
+  { id: 'canvas', name: 'بوم نقاشی', light: '#f2ece4', dark: '#a59b8c', texture: 'https://images.unsplash.com/photo-1533035353720-f1c6a75cd8ab?q=60&w=250&auto=format&fit=crop' },
+  { id: 'leather', name: 'چرم کلاسیک', light: '#d1ccc0', dark: '#84817a', texture: 'https://images.unsplash.com/photo-1555529733-0e67056058bb?q=60&w=250&auto=format&fit=crop' },
+  { id: 'neon', name: 'سایبرپانک', light: '#2d3436', dark: '#000000', texture: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=60&w=250&auto=format&fit=crop' },
   { id: 'dark', name: 'گرافیت کلاسیک', light: '#bababa', dark: '#4a4a4a' },
   { id: 'glass', name: 'شیشه‌ای', light: '#dff9fb', dark: '#95afc0' },
   { id: 'sky', name: 'آبی آسمان', light: '#e0f7fa', dark: '#4fc3f7' },
@@ -38,19 +41,30 @@ const boardThemes = [
 const pieceThemes = [
   { id: 'neo', name: 'نئو (Neo)' },
   { id: 'classic', name: 'استانتون' },
-  { id: 'neo-wood', name: 'چوبی (Wood)' },
-  { id: 'glass', name: 'شیشه‌ای' },
-  { id: 'metal', name: 'فلزی (Metal)' },
-  { id: 'gothic', name: 'گوتیک' },
-  { id: 'icy_sea', name: 'دریای یخی' },
-  { id: 'nature', name: 'طبیعت' },
-  { id: 'space', name: 'فضایی' },
+  { id: 'neo-wood', name: 'چوبی (Wood)', downloadable: true },
+  { id: 'glass', name: 'شیشه‌ای', downloadable: true },
+  { id: 'metal', name: 'فلزی (Metal)', downloadable: true },
+  { id: 'gothic', name: 'گوتیک', downloadable: true },
+  { id: 'icy_sea', name: 'دریای یخی', downloadable: true },
+  { id: 'nature', name: 'طبیعت', downloadable: true },
+  { id: 'space', name: 'فضایی', downloadable: true },
+  { id: 'vintage', name: 'وینتیج', downloadable: true },
+  { id: 'bases', name: 'پایه‌ها', downloadable: true },
+  { id: 'neon', name: 'نئون (Neon)', downloadable: true },
+  { id: '8_bit', name: '۸-بیتی', downloadable: true },
+  { id: 'alpha', name: 'آلفا (Alpha)', downloadable: true },
 ];
 
 export default function Settings() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // 🌟 استیت‌های سیستم دانلود و کَش گرافیکی
+  const [downloadingBoard, setDownloadingBoard] = useState<string | null>(null);
+  const [downloadingPiece, setDownloadingPiece] = useState<string | null>(null);
+  const [downloadErrorModal, setDownloadErrorModal] = useState(false);
+  const [forceRenderCount, setForceRenderCount] = useState(0);
 
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'success'>('idle');
@@ -88,17 +102,63 @@ export default function Settings() {
     localStorage.setItem('farzin_active_tab', id);
   };
 
+  // 🔥 موتور پیشرفته دانلود و تبدیل به Base64
+  const fetchAsBase64 = async (url: string): Promise<string> => {
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) throw new Error('Fetch failed');
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+      });
+  };
+
+  const handleDownloadBoardTheme = async (theme: any) => {
+      setDownloadingBoard(theme.id);
+      try {
+          const base64data = await fetchAsBase64(theme.texture);
+          localStorage.setItem(`farzin_board_${theme.id}`, base64data);
+          setForceRenderCount(p => p + 1); // رفرش UI
+          updateSetting('boardTheme', theme.id);
+      } catch (err) {
+          setDownloadErrorModal(true);
+      } finally {
+          setDownloadingBoard(null);
+      }
+  };
+
+  const handleDownloadPieceTheme = async (theme: any) => {
+      setDownloadingPiece(theme.id);
+      try {
+          const pieces = ['wp', 'wn', 'wb', 'wr', 'wq', 'wk', 'bp', 'bn', 'bb', 'br', 'bq', 'bk'];
+          const promises = pieces.map(async (p) => {
+              const url = `https://images.chesscomfiles.com/chess-themes/pieces/${theme.id}/150/${p}.png`;
+              const data = await fetchAsBase64(url);
+              return { piece: p, data };
+          });
+          const results = await Promise.all(promises);
+          results.forEach(res => {
+              localStorage.setItem(`farzin_piece_${theme.id}_${res.piece}`, res.data);
+          });
+          setForceRenderCount(p => p + 1);
+          updateSetting('pieceTheme', theme.id);
+      } catch (err) {
+          setDownloadErrorModal(true);
+      } finally {
+          setDownloadingPiece(null);
+      }
+  };
+
   const handleSaveAccounts = () => {
       setIsSavingAccounts(true);
       const finalL = lichessAccounts.map(a => a.trim()).filter(Boolean);
       const finalC = chesscomAccounts.map(a => a.trim()).filter(Boolean);
-      
       localStorage.setItem('farzin_lichess_accounts', JSON.stringify(finalL));
       localStorage.setItem('farzin_chesscom_accounts', JSON.stringify(finalC));
-      
       setLichessAccounts(finalL.length > 0 ? finalL : ['']);
       setChesscomAccounts(finalC.length > 0 ? finalC : ['']);
-      
       setTimeout(() => { setIsSavingAccounts(false); }, 1000);
   };
 
@@ -171,74 +231,33 @@ export default function Settings() {
                 {activeTab === 'accounts' && (
                   <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-farzin-accent/30 to-transparent"></div>
-                    <div className="flex items-center gap-2 mb-6 text-farzin-accent">
-                        <Users size={18} />
-                        <h2 className="font-black text-xs uppercase tracking-widest">آیدی‌های متصل (حداکثر ۴)</h2>
-                    </div>
-                    
+                    <div className="flex items-center gap-2 mb-6 text-farzin-accent"><Users size={18} /><h2 className="font-black text-xs uppercase tracking-widest">آیدی‌های متصل (حداکثر ۴)</h2></div>
                     <div className="flex flex-col gap-6">
                         <div className="flex flex-col gap-3">
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                    <img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-6 h-6" alt="Lichess" />
-                                    <span className="font-bold text-white text-sm">اکانت‌های Lichess.org</span>
-                                </div>
-                                {lichessAccounts.length < 4 && (
-                                    <button onClick={() => setLichessAccounts([...lichessAccounts, ''])} className="text-xs text-sky-400 font-bold flex items-center gap-1 hover:text-sky-300">
-                                        <PlusCircle size={14}/> افزودن
-                                    </button>
-                                )}
-                            </div>
+                            <div className="flex items-center justify-between mb-1"><div className="flex items-center gap-2"><img src="https://lichess1.org/assets/images/logo/lichess-favicon-256.png" className="w-6 h-6" alt="Lichess" /><span className="font-bold text-white text-sm">اکانت‌های Lichess.org</span></div>{lichessAccounts.length < 4 && (<button onClick={() => setLichessAccounts([...lichessAccounts, ''])} className="text-xs text-sky-400 font-bold flex items-center gap-1 hover:text-sky-300"><PlusCircle size={14}/> افزودن</button>)}</div>
                             <div className="grid grid-cols-1 gap-3">
                                 {lichessAccounts.map((acc, index) => (
                                     <div key={`li-${index}`} className="relative group">
-                                        <input 
-                                            type="text" dir="ltr" placeholder={`Lichess ID ${index + 1}...`} value={acc}
-                                            onChange={(e) => { const n = [...lichessAccounts]; n[index] = e.target.value; setLichessAccounts(n); }}
-                                            className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors shadow-inner" 
-                                        />
-                                        <button onClick={() => { const n = lichessAccounts.filter((_, i) => i !== index); setLichessAccounts(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-red-400 transition-colors">
-                                            <Trash2 size={16}/>
-                                        </button>
+                                        <input type="text" dir="ltr" placeholder={`Lichess ID ${index + 1}...`} value={acc} onChange={(e) => { const n = [...lichessAccounts]; n[index] = e.target.value; setLichessAccounts(n); }} className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors shadow-inner" />
+                                        <button onClick={() => { const n = lichessAccounts.filter((_, i) => i !== index); setLichessAccounts(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
                         <div className="flex flex-col gap-3">
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                    <img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-6 h-6 rounded-md" alt="Chess.com" />
-                                    <span className="font-bold text-white text-sm">اکانت‌های Chess.com</span>
-                                </div>
-                                {chesscomAccounts.length < 4 && (
-                                    <button onClick={() => setChesscomAccounts([...chesscomAccounts, ''])} className="text-xs text-[#81b64c] font-bold flex items-center gap-1 hover:text-[#95cc5c]">
-                                        <PlusCircle size={14}/> افزودن
-                                    </button>
-                                )}
-                            </div>
+                            <div className="flex items-center justify-between mb-1"><div className="flex items-center gap-2"><img src="https://lichess1.org/assets/images/logo/chess-com.favicon.png" className="w-6 h-6 rounded-md" alt="Chess.com" /><span className="font-bold text-white text-sm">اکانت‌های Chess.com</span></div>{chesscomAccounts.length < 4 && (<button onClick={() => setChesscomAccounts([...chesscomAccounts, ''])} className="text-xs text-[#81b64c] font-bold flex items-center gap-1 hover:text-[#95cc5c]"><PlusCircle size={14}/> افزودن</button>)}</div>
                             <div className="grid grid-cols-1 gap-3">
                                 {chesscomAccounts.map((acc, index) => (
                                     <div key={`ch-${index}`} className="relative group">
-                                        <input 
-                                            type="text" dir="ltr" placeholder={`Chess.com ID ${index + 1}...`} value={acc}
-                                            onChange={(e) => { const n = [...chesscomAccounts]; n[index] = e.target.value; setChesscomAccounts(n); }}
-                                            className="w-full bg-[#161512] border border-[#35332e] focus:border-[#81b64c] rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors shadow-inner" 
-                                        />
-                                        <button onClick={() => { const n = chesscomAccounts.filter((_, i) => i !== index); setChesscomAccounts(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-red-400 transition-colors">
-                                            <Trash2 size={16}/>
-                                        </button>
+                                        <input type="text" dir="ltr" placeholder={`Chess.com ID ${index + 1}...`} value={acc} onChange={(e) => { const n = [...chesscomAccounts]; n[index] = e.target.value; setChesscomAccounts(n); }} className="w-full bg-[#161512] border border-[#35332e] focus:border-[#81b64c] rounded-xl py-3 pr-4 pl-10 text-sm text-white placeholder-zinc-600 outline-none transition-colors shadow-inner" />
+                                        <button onClick={() => { const n = chesscomAccounts.filter((_, i) => i !== index); setChesscomAccounts(n.length ? n : ['']); }} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <button 
-                            onClick={handleSaveAccounts}
-                            className={`w-full py-4 rounded-[18px] font-black text-sm transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(119,149,86,0.3)] mt-2 ${isSavingAccounts ? 'bg-[#35332e] text-zinc-400' : 'bg-farzin-accent text-white active:scale-[0.98]'}`}
-                        >
-                            {isSavingAccounts ? <RefreshCw size={18} className="animate-spin" /> : <><Check size={18} /> ذخیره تغییرات و همگام‌سازی</>}
-                        </button>
+                        <button onClick={handleSaveAccounts} className={`w-full py-4 rounded-[18px] font-black text-sm transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(119,149,86,0.3)] mt-2 ${isSavingAccounts ? 'bg-[#35332e] text-zinc-400' : 'bg-farzin-accent text-white active:scale-[0.98]'}`}>{isSavingAccounts ? <RefreshCw size={18} className="animate-spin" /> : <><Check size={18} /> ذخیره تغییرات و همگام‌سازی</>}</button>
                     </div>
                   </div>
                 )}
@@ -261,16 +280,38 @@ export default function Settings() {
 
                 {activeTab === 'appearance' && (
                   <div className="flex flex-col gap-6">
+                    {/* 🌟 بخش تم‌های تخته همراه با دانلودر */}
                     <div className="bg-[#1e1c19] pt-6 pb-4 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden">
                         <div className="flex items-center gap-2 mb-4 px-6 text-farzin-accent"><Palette size={18} /><h2 className="font-black text-xs uppercase tracking-widest">تم‌های تخته</h2></div>
                         <div className="flex overflow-x-auto gap-4 px-6 pb-4 pt-2 no-scrollbar snap-x snap-mandatory">
                             {boardThemes.map(t => {
                                 const isSelected = settings.boardTheme === t.id;
+                                const requiresDownload = !!t.texture;
+                                const isCached = requiresDownload && !!localStorage.getItem(`farzin_board_${t.id}`);
+                                const needsDownload = requiresDownload && !isCached;
+                                const isDownloadingThis = downloadingBoard === t.id;
+                                const storedTexture = isCached ? localStorage.getItem(`farzin_board_${t.id}`) : null;
+
                                 return (
-                                    <motion.button key={t.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => updateSetting('boardTheme', t.id)} className={`flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}>
+                                    <motion.button 
+                                        key={t.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} 
+                                        onClick={() => {
+                                            if (needsDownload) handleDownloadBoardTheme(t);
+                                            else updateSetting('boardTheme', t.id);
+                                        }} 
+                                        className={`relative flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}
+                                    >
                                         <div className="w-16 h-16 rounded-xl shadow-md border border-black/30 overflow-hidden grid grid-cols-2 grid-rows-2 relative">
-                                            {/* تگ img و لود عکس حذف شده است تا فقط رنگ‌های پایه رندر شوند */}
+                                            {/* نمایش بافت دانلود شده (در صورت وجود) */}
+                                            {storedTexture && <img src={storedTexture} className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay" alt={t.name} />}
                                             <div style={{ backgroundColor: t.light }}></div><div style={{ backgroundColor: t.dark }}></div><div style={{ backgroundColor: t.dark }}></div><div style={{ backgroundColor: t.light }}></div>
+                                            
+                                            {/* 🌟 آیکون ابر دانلود برای تم‌های دانلودنشده */}
+                                            {needsDownload && (
+                                                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-xl">
+                                                    {isDownloadingThis ? <Loader2 size={24} className="text-white animate-spin" /> : <CloudDownload size={24} className="text-white drop-shadow-md" />}
+                                                </div>
+                                            )}
                                         </div>
                                         <span className={`text-[11px] font-black truncate w-full text-center ${isSelected ? 'text-white' : 'text-zinc-500'}`}>{t.name}</span>
                                     </motion.button>
@@ -278,15 +319,39 @@ export default function Settings() {
                             })}
                         </div>
                     </div>
+
+                    {/* 🌟 بخش تم‌های مهره همراه با دانلودر */}
                     <div className="bg-[#1e1c19] pt-6 pb-4 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden">
                         <div className="flex items-center gap-2 mb-4 px-6 text-farzin-accent"><Crown size={18} /><h2 className="font-black text-xs uppercase tracking-widest">تم‌های مهره‌ها</h2></div>
                         <div className="flex overflow-x-auto gap-4 px-6 pb-4 pt-2 no-scrollbar snap-x snap-mandatory">
                             {pieceThemes.map(p => {
                                 const isSelected = settings.pieceTheme === p.id;
-                                const pieceUrl = `https://images.chesscomfiles.com/chess-themes/pieces/${p.id}/150/wn.png`;
+                                const isCached = !!localStorage.getItem(`farzin_piece_${p.id}_wp`);
+                                const needsDownload = p.downloadable && !isCached;
+                                const isDownloadingThis = downloadingPiece === p.id;
+                                
+                                const pieceUrl = isCached ? localStorage.getItem(`farzin_piece_${p.id}_wn`) : `https://images.chesscomfiles.com/chess-themes/pieces/${p.id}/150/wn.png`;
+                                
                                 return (
-                                    <motion.button key={p.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => updateSetting('pieceTheme', p.id)} className={`flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}>
-                                        <div className="w-16 h-16 rounded-xl shadow-inner border border-[#35332e] bg-[#22201d] flex items-center justify-center p-1"><img src={pieceUrl} alt={p.name} className="w-full h-full object-contain drop-shadow-md" /></div>
+                                    <motion.button 
+                                        key={p.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} 
+                                        onClick={() => {
+                                            if (needsDownload) handleDownloadPieceTheme(p);
+                                            else updateSetting('pieceTheme', p.id);
+                                        }} 
+                                        className={`relative flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}
+                                    >
+                                        <div className="w-16 h-16 rounded-xl shadow-inner border border-[#35332e] bg-[#22201d] flex items-center justify-center p-1 relative overflow-hidden">
+                                            {/* عکس مهره */}
+                                            {(!needsDownload || isDownloadingThis) && <img src={pieceUrl as string} alt={p.name} className={`w-full h-full object-contain drop-shadow-md ${isDownloadingThis ? 'opacity-30' : 'opacity-100'}`} />}
+                                            
+                                            {/* 🌟 آیکون ابر دانلود برای مهره‌های دانلودنشده */}
+                                            {needsDownload && (
+                                                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-xl">
+                                                    {isDownloadingThis ? <Loader2 size={24} className="text-white animate-spin" /> : <CloudDownload size={24} className="text-white drop-shadow-md" />}
+                                                </div>
+                                            )}
+                                        </div>
                                         <span className={`text-[11px] font-black truncate w-full text-center ${isSelected ? 'text-white' : 'text-zinc-500'}`}>{p.name}</span>
                                     </motion.button>
                                 );
@@ -348,6 +413,24 @@ export default function Settings() {
 
         </div>
       </motion.div>
+
+      {/* 🌟 مودال خطای دانلود (نیاز به VPN) */}
+      <AnimatePresence>
+        {downloadErrorModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md px-4" dir="rtl">
+                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm bg-[#1e1c19] border border-rose-500/30 rounded-[32px] shadow-[0_20px_60px_rgba(225,29,72,0.3)] overflow-hidden flex flex-col items-center p-8 text-center">
+                    <AlertTriangle size={56} className="text-rose-500 mb-4 drop-shadow-[0_0_15px_rgba(225,29,72,0.8)]" />
+                    <h2 className="text-2xl font-black text-white mb-2">دانلود ناموفق بود!</h2>
+                    <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                        برای دانلود این تم گرافیکی به اینترنت آزاد نیاز دارید. لطفاً فیلترشکن (VPN) خود را روشن کرده و مجدداً تلاش کنید.
+                    </p>
+                    <button onClick={() => setDownloadErrorModal(false)} className="w-full py-4 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-2xl transition-all shadow-[0_5px_20px_rgba(225,29,72,0.4)] active:scale-95">
+                        متوجه شدم
+                    </button>
+                </motion.div>
+            </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isFeedbackOpen && (
