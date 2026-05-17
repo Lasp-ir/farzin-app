@@ -49,7 +49,6 @@ export default function PuzzleBoard() {
     const [puzzleData, setPuzzleData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     
-    // 🔥 استیت جدید برای مدیریت هوشمند ارور ۴۰۴ (پیدا نشدن پازل)
     const [loadError, setLoadError] = useState(false);
     
     const [puzzleMoves, setPuzzleMoves] = useState<string[]>([]);
@@ -83,7 +82,7 @@ export default function PuzzleBoard() {
     const loadNewPuzzle = async () => {
         if (isShowingSolution) return;
         setIsLoading(true);
-        setLoadError(false); // ریست کردن ارور در شروع بارگذاری جدید
+        setLoadError(false);
         setStatus('playing');
         setCurrentMoveIndex(0);
         setHistory([]);
@@ -140,7 +139,6 @@ export default function PuzzleBoard() {
 
         } catch (error) {
             console.error("Error loading puzzle:", error);
-            // 🔥 مدیریت ارور در صورتی که پازلی تو دیتابیس پیدا نشه
             setLoadError(true);
             setIsLoading(false);
         }
@@ -164,7 +162,6 @@ export default function PuzzleBoard() {
     };
 
     const attemptMove = async (sourceSquare: string, targetSquare: string, promotion = 'q') => {
-        // 🔥 جلوگیری از هر حرکتی وقتی پازل لود نشده
         if (status !== 'playing' || historyIndex < history.length - 1 || isShowingSolution || loadError) return false;
 
         const expectedMove = puzzleMoves[currentMoveIndex];
@@ -297,7 +294,6 @@ export default function PuzzleBoard() {
     };
 
     const handleHint = () => {
-        // 🔥 جلوگیری از راهنمایی وقتی پازل لود نشده تا کرش نکنه
         if (status !== 'playing' || historyIndex < history.length - 1 || isShowingSolution || loadError) return;
         
         setUsedHint(true); 
@@ -422,9 +418,11 @@ export default function PuzzleBoard() {
     }
 
     return (
+        // 🔥 کل صفحه راست‌چین (RTL) است تا متون، دکمه بازگشت و هدر درست نمایش داده شوند
         <div className="min-h-[100dvh] bg-[#161512] text-zinc-200 flex flex-col items-center pb-10" dir="rtl">
             <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between bg-[#1e1c19] border-b border-[#35332e] sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="p-2 bg-[#262421] rounded-xl hover:text-white text-zinc-400 transition-colors">
+                    {/* 🔥 دکمه بازگشت در حالت RTL باید ChevronRight باشد */}
                     <ChevronRight size={24} />
                 </button>
                 <div className="flex flex-col items-center">
@@ -447,7 +445,6 @@ export default function PuzzleBoard() {
                         <RefreshCw className="animate-spin text-farzin-accent" size={32} />
                     </div>
                 ) : loadError ? (
-                    // 🔥 صفحه اختصاصی برای زمانی که پازل یافت نشد (ارور ۴۰۴)
                     <div className="aspect-square w-full bg-[#1e1c19] rounded-[4px] flex flex-col items-center justify-center border-4 border-[#35332e] text-center p-6 shadow-2xl">
                         <ShieldAlert size={48} className="text-zinc-600 mb-4 opacity-50" />
                         <h3 className="text-white font-black text-lg mb-2">پازلی یافت نشد!</h3>
@@ -459,6 +456,7 @@ export default function PuzzleBoard() {
                         </button>
                     </div>
                 ) : (
+                    // 🔥 فقط و فقط کانتینر دربرگیرنده‌ی شطرنج به صورت LTR (چپ‌چین) تنظیم شده است تا انیمیشن مهره‌ها باگ نخورد
                     <div dir="ltr" className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? (solutionViewed ? 'border-zinc-500/80 shadow-[0_0_30px_rgba(113,113,122,0.3)]' : usedHint ? 'border-blue-500/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]') : 'border-[#35332e]'}`}>
                         
                         <Chessboard 
@@ -513,6 +511,7 @@ export default function PuzzleBoard() {
 
             <div className="w-full max-w-md mt-6 px-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between bg-[#1e1c19] border border-[#35332e] rounded-2xl p-2">
+                    {/* نوار کنترل مدیاپلیر (عقب و جلو رفتن) به دلیل ماهیتش، در یک دیوِ جداگانه ltr نگه داشته می‌شود */}
                     <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                         <button onClick={goStart} disabled={loadError || historyIndex === 0 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
                         <button onClick={goBack} disabled={loadError || historyIndex === 0 || status === 'wrong' || isShowingSolution} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipBack size={17} /></button>
