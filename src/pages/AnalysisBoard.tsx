@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 
 import { useStockfish } from '../hooks/useStockfish';
-// 🔥 ایمپورت هوک مرکزی تم فرزین
 import { useChessTheme } from '../hooks/useChessTheme';
 import EvaluationGraph from '../components/EvaluationGraph';
 import OpeningExplorer from '../components/OpeningExplorer';
@@ -26,7 +25,6 @@ export default function AnalysisBoard() {
   const navigate = useNavigate();
   const initialData = location.state || { data: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', type: 'FEN', meta: null };
 
-  // 🔥 فراخوانی استایل‌های پویا از هوک تم
   const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -64,7 +62,8 @@ export default function AnalysisBoard() {
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
-  const [stableLines, setStableLines] = useState<any[]>([]);
+  // 🌟 استیت جادویی جدید: نگه داشتن FEN لاین برای جلوگیری از پرش علامت
+  const [stableData, setStableData] = useState<{ lines: any[], fen: string, nodeId: string } | null>(null);
 
   useEffect(() => {
     let rootFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -207,10 +206,7 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, isKingInDanger, easterEggState]);
 
-  useEffect(() => {
-    setStableLines([]);
-  }, [currentNodeId]);
-
+  // 🌟 آپدیت دیتای استیبل با مکانیزم ضد پرش
   useEffect(() => {
     if (lines && lines.length > 0) {
       engineCache.current[currentNodeId] = lines;
@@ -219,10 +215,10 @@ export default function AnalysisBoard() {
       const isMateVal = lines[0].isMate || lines[0].score === 10000 || lines[0].score === -10000;
       
       if (depth >= Math.min(6, engineSettings.maxDepth) || isMateVal) {
-          setStableLines(lines);
+          setStableData({ lines, fen: currentPosition, nodeId: currentNodeId });
       }
     }
-  }, [lines, currentNodeId, engineSettings.maxDepth]);
+  }, [lines, currentNodeId, currentPosition, engineSettings.maxDepth]);
 
   const calculateNodeCoachData = useCallback((nodeId: string, currentLines: any[], t: Record<string, MoveNode>) => {
     if (!engineSettings.coachMode || nodeId === 'root') return null;
@@ -370,6 +366,7 @@ export default function AnalysisBoard() {
       return Math.max(1, maxLen - 1);
   }, [activeMainline, allPaths]);
 
+  // 🌟 اصلاح 그래프 برای آخرین حرکت (جلوگیری از پرش گراف)
   const graphPoints = useMemo(() => {
       return activeMainline.map(node => {
           const isCurrent = node.id === currentNodeId;
@@ -381,7 +378,7 @@ export default function AnalysisBoard() {
           const cg = new Chess(node.fen);
           if (cg.isCheckmate()) {
               const fenTurn = node.fen.split(' ')[1] as 'w' | 'b';
-              ep = epFormula(fenTurn === 'b' ? 100 : -100);
+              ep = epFormula(fenTurn === 'b' ? 10000 : -10000); // 💥 اسکور عظیم برای مات جهت برخورد گراف به سقف
           } else if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
               ep = 0.5;
           } else if (nodeLines && nodeLines[0]) {
@@ -427,7 +424,7 @@ export default function AnalysisBoard() {
                 const cg = new Chess(node.fen);
                 
                 if (cg.isCheckmate()) {
-                    ep = epFormula(node.fen.split(' ')[1] === 'b' ? 100 : -100);
+                    ep = epFormula(node.fen.split(' ')[1] === 'b' ? 10000 : -10000);
                 } else if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
                     ep = 0.5;
                 } else if (nodeLines && nodeLines[0]) {
@@ -436,7 +433,7 @@ export default function AnalysisBoard() {
                     const prevLines = engineCache.current[path[i-1].id];
                     const pg = new Chess(path[i-1].fen);
                     if (pg.isCheckmate()) {
-                        ep = epFormula(path[i-1].fen.split(' ')[1] === 'b' ? 100 : -100);
+                        ep = epFormula(path[i-1].fen.split(' ')[1] === 'b' ? 10000 : -10000);
                     } else if (pg.isDraw() || pg.isStalemate() || pg.isThreefoldRepetition() || pg.isInsufficientMaterial()) {
                         ep = 0.5;
                     } else if (prevLines && prevLines[0]) {
@@ -451,14 +448,15 @@ export default function AnalysisBoard() {
     return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
   }, [graphPoints, activeMainline, allPaths, maxX]);
 
+  // 🌟 جلوگیری از نمایش اشتباه فلش‌های موتور در هنگام تغییر حرکت
   const engineArrows = useMemo(() => {
-    if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !stableLines || stableLines.length === 0) return [];
+    if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !stableData || stableData.nodeId !== currentNodeId || stableData.lines.length === 0) return [];
     
     const arrowMap = new Map<string, any>();
-    const bestScore = stableLines[0].score;
-    const bestIsMate = stableLines[0].isMate;
+    const bestScore = stableData.lines[0].score;
+    const bestIsMate = stableData.lines[0].isMate;
 
-    stableLines.slice(0, engineSettings.multiPv).forEach((line, index) => {
+    stableData.lines.slice(0, engineSettings.multiPv).forEach((line, index) => {
         const rawPv = line.pv || '';
         let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
         const match = actualPv.match(/[a-h][1-8][a-h][1-8]/);
@@ -493,7 +491,7 @@ export default function AnalysisBoard() {
         }
     });
     return Array.from(arrowMap.values());
-  }, [stableLines, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused, easterEggState]);
+  }, [stableData, currentNodeId, arrowSettings, engineSettings.multiPv, arrowColors, isEnginePaused, easterEggState]);
 
   const showToast = (msg: string) => { setToastMessage(msg); setTimeout(() => setToastMessage(null), 3000); };
   const openSettingsModal = () => { setTempSettings(engineSettings); setIsSettingsModalOpen(true); };
@@ -749,19 +747,47 @@ export default function AnalysisBoard() {
     return customSq;
   }, [tree, currentNodeId]);
 
+  // 🌟 محاسبه نرم شده برای Eval Text (اکنون کاملا وابسته به دیتای پایدار است)
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
-      if (!stableLines || stableLines.length === 0 || !stableLines[0]) return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '...', isMate: false };
+      const cg = new Chess(currentPosition);
       
-      const main = stableLines[0]; 
-      const aScore = isBlackTurn ? -main.score : main.score; 
-      const aMate = isBlackTurn ? -(main.mateIn || 0) : (main.mateIn || 0);
+      // 1. اولویت بالا: بررسی حالات قطعی بازی مثل مات برای جلوگیری از پرش در حرکت آخر
+      if (cg.isCheckmate()) {
+          const isWhiteWin = cg.turn() === 'b';
+          return {
+              absoluteScore: isWhiteWin ? 100 : -100,
+              absoluteMate: isWhiteWin ? 1 : -1,
+              overallEvalText: isWhiteWin ? '+M' : '-M',
+              isMate: true
+          };
+      }
+      if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
+          return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
+      }
+
+      // 2. استفاده از داده‌های پایدار (Stable Data) برای جلوگیری از تغییر علامت حین فکر کردن موتور
+      if (!stableData || !stableData.lines || stableData.lines.length === 0) {
+          return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
+      }
+
+      const main = stableData.lines[0];
+      
+      // 🔥 کلید حل باگ پرش: نوبت بر اساس FEN ارزیابی شده تعیین می‌شود نه FEN لحظه‌ای گرافیک
+      const evaluatedTurn = stableData.fen.split(' ')[1];
+      const isBlack = evaluatedTurn === 'b';
+      
+      let aScore = isBlack ? -main.score : main.score; 
+      let aMate = isBlack ? -(main.mateIn || 0) : (main.mateIn || 0);
       
       let text = '0.00'; 
-      if (main.isMate) text = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`; 
-      else text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+      if (main.isMate || main.mateIn) {
+          text = aMate > 0 ? `+M${Math.abs(aMate)}` : `-M${Math.abs(aMate)}`;
+      } else {
+          text = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+      }
       
-      return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: main.isMate };
-  }, [stableLines, isBlackTurn]);
+      return { absoluteScore: aScore, absoluteMate: aMate, overallEvalText: text, isMate: !!(main.isMate || main.mateIn) };
+  }, [stableData, currentPosition]);
 
   const evalPercentage = useMemo(() => { if (isMate) return absoluteMate > 0 ? 95 : 5; return Math.max(5, Math.min(95, 50 + (absoluteScore * 10))); }, [absoluteScore, isMate, absoluteMate]);
   
@@ -934,13 +960,19 @@ export default function AnalysisBoard() {
                  )
              ) : (
                 <div className="flex flex-col gap-0.5" dir="ltr" style={{ fontFamily: "'JetBrains Mono', Consolas, monospace" }}>
-                  {stableLines.length > 0 ? stableLines.slice(0, engineSettings.multiPv).map((line, idx) => {
+                  {stableData?.nodeId === currentNodeId && stableData.lines.length > 0 ? stableData.lines.slice(0, engineSettings.multiPv).map((line, idx) => {
                       const rawPv = line.pv || ''; let actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv; const match = actualPv.match(/[a-h][1-8][a-h][1-8]/); if (match && !rawPv.includes(' pv ')) actualPv = actualPv.substring(actualPv.indexOf(match[0]));
                       const uciMoves = actualPv.trim().split(' ').slice(0, 15); const sanMoves: string[] = [];
                       try { const tempGame = new Chess(currentPosition); for (const uci of uciMoves) { if (!uci || uci.length < 4) break; const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) }; if (uci.length > 4) moveParams.promotion = uci[4]; const result = tempGame.move(moveParams); if (result) sanMoves.push(result.san); else { sanMoves.push(uci); break; } } } catch (e) {}
                       const mainMove = sanMoves[0] || '...'; const restMoves = sanMoves.slice(1).join(' ');
-                      const aScore = isBlackTurn ? -line.score : line.score; const aMate = isBlackTurn ? -(line.mateIn || 0) : (line.mateIn || 0);
-                      let scoreText = ''; if (line.isMate) scoreText = aMate > 0 ? `+M${aMate}` : `-M${Math.abs(aMate)}`; else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+                      
+                      // 🔥 محاسبه اسکور لاین با توجه به FEN خودش (بدون پرش)
+                      const evaluatedTurn = stableData.fen.split(' ')[1];
+                      const isBlack = evaluatedTurn === 'b';
+                      const aScore = isBlack ? -line.score : line.score; 
+                      const aMate = isBlack ? -(line.mateIn || 0) : (line.mateIn || 0);
+
+                      let scoreText = ''; if (line.isMate) scoreText = aMate > 0 ? `+M${Math.abs(aMate)}` : `-M${Math.abs(aMate)}`; else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
                       const badgeStyle = getBadgeStyle(aScore, line.isMate, aMate); const lineColor = arrowColors[idx] ? arrowColors[idx].hex : '#a1a1aa';
                       return (
                           <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-1.5 py-1 rounded transition-all bg-[#1e1c19] shadow-sm`} style={{ borderLeft: `3px solid ${lineColor}` }}>
@@ -968,11 +1000,9 @@ export default function AnalysisBoard() {
                         <div id="farzin-board-container" className="w-full aspect-square rounded-md relative z-10 flex">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
-                              // 🔥 اعمال تم‌های گرافیکی روی تخته
                               customDarkSquareStyle={darkSquareStyle} 
                               customLightSquareStyle={lightSquareStyle} 
                               customPieces={customPieces}
-                              // ------------------------------------
                               arePiecesDraggable={true} onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin}
                               onSquareClick={handleSquareClick} onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
                               onSquareRightClick={() => { setClickedSquare(null); setOptionSquares({}); }}
@@ -1016,6 +1046,7 @@ export default function AnalysisBoard() {
                     </div>
                     
                     <div className="w-3.5 shrink-0 bg-[#262421] rounded-lg overflow-hidden flex flex-col relative border border-[#35332e] shadow-inner">
+                        {/* حرکت نوار با انیمیشن روان به خاطر stableData */}
                         <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                         <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center">
                             <span className="text-[7px] font-mono font-black text-zinc-800 rotate-90 mt-5 absolute">{overallEvalText}</span>
