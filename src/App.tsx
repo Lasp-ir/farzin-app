@@ -16,6 +16,7 @@ import AnalysisBoard from './pages/AnalysisBoard';
 import GameReport from './pages/GameReport';
 import LichessLobby from './pages/LichessLobby';
 import LichessLiveGame from './pages/LichessLiveGame';
+import PuzzleBoard from "./pages/PuzzleBoard";
 
 import PaywallModal from './components/PaywallModal';
 
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/report" element={<GameReport />} />
           <Route path="/play/online/lobby" element={<LichessLobby />} />
           <Route path="/play/online/game/:gameId" element={<LichessLiveGame />} />
+          <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
         </Routes>
         
         <PaywallModal />

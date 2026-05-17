@@ -57,7 +57,8 @@ export default function Puzzles() {
   const handleModeClick = (mode: any) => {
     if (mode.isFree || isUserPremium) {
       console.log('Direct entry to:', mode.id);
-      // navigate(`/puzzle/${mode.id}`);
+      // 🔥 هدایت به صفحه بازی با پاس دادن آیدی (نوع پازل)
+      navigate(`/puzzle/${mode.id}`); 
     } else {
       setSelectedProMode(mode);
     }
@@ -66,8 +67,10 @@ export default function Puzzles() {
   const handleUseQuota = () => {
     if (selectedProMode && consumeQuota(selectedProMode.type)) {
       console.log('Started mode with quota:', selectedProMode.id);
+      const targetId = selectedProMode.id; // ذخیره آیدی قبل از null کردن
       setSelectedProMode(null);
-      // navigate(`/puzzle/${selectedProMode.id}`);
+      // 🔥 هدایت کاربر بعد از مصرف سهمیه
+      navigate(`/puzzle/${targetId}`); 
     }
   };
 
