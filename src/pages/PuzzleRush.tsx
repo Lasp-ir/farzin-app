@@ -24,16 +24,18 @@ const playSound = (type: keyof typeof sounds) => {
     audio.play().catch(e => console.log('Audio blocked:', e));
 };
 
-// 🔥 تابع مبدل اعداد انگلیسی به فارسی
+// تابع مبدل اعداد انگلیسی به فارسی
 const toPersianDigits = (num: number | string) => {
     const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
     return num.toString().replace(/\d/g, (x) => persianDigits[parseInt(x)]);
 };
 
+// فونت اختصاصی و هیجان‌انگیز بازی
+const GAME_FONT = "'Lalezar', system-ui, sans-serif";
+
 export default function PuzzleRush() {
     const navigate = useNavigate();
 
-    // --- استیت‌های اصلی ---
     const [status, setStatus] = useState<'setup' | 'playing' | 'gameover'>('setup');
     const [timeMode, setTimeMode] = useState<number>(180); 
     const [endReason, setEndReason] = useState<'time' | 'lives' | null>(null);
@@ -46,14 +48,12 @@ export default function PuzzleRush() {
     const [streak, setStreak] = useState(0);
     const [resultsHistory, setResultsHistory] = useState<('correct' | 'wrong')[]>([]);
 
-    // --- استیت‌های شطرنج ---
     const [game, setGame] = useState(new Chess());
     const [puzzleMoves, setPuzzleMoves] = useState<string[]>([]);
     const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
     const [playerColor, setPlayerColor] = useState<'white' | 'black'>('white');
     const [isLoading, setIsLoading] = useState(false);
     
-    // --- استیت‌های UI ---
     const [lastMoveSquares, setLastMoveSquares] = useState<Record<string, any>>({});
     const [wrongSquare, setWrongSquare] = useState<string | null>(null);
     const [correctSquare, setCorrectSquare] = useState<string | null>(null);
@@ -220,7 +220,6 @@ export default function PuzzleRush() {
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
-        // 🔥 تبدیل خروجی تایمر به اعداد فارسی
         return toPersianDigits(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
     };
 
@@ -234,6 +233,9 @@ export default function PuzzleRush() {
     if (status === 'setup') {
         return (
             <div className="min-h-[100dvh] bg-[#0c0b0a] text-zinc-200 flex flex-col items-center pb-10 relative overflow-hidden" dir="rtl">
+                {/* تزریق فونت سینمایی و زیبای لاله‌زار */}
+                <style>{`@import url('https://fonts.googleapis.com/css2?family=Lalezar&display=swap');`}</style>
+                
                 <div className="absolute top-[-20%] left-[-20%] w-[70vw] h-[70vw] rounded-full bg-yellow-500/5 blur-[120px] pointer-events-none animate-pulse"></div>
                 <div className="absolute bottom-[-20%] right-[-20%] w-[70vw] h-[70vw] rounded-full bg-orange-500/5 blur-[120px] pointer-events-none animate-pulse" style={{ animationDelay: '2s' }}></div>
 
@@ -270,32 +272,21 @@ export default function PuzzleRush() {
                     </p>
 
                     <div className="flex flex-col gap-4 w-full">
-                        {/* ۳۰ ثانیه */}
-                        <motion.button 
-                            whileHover={{ scale: 1.02, y: -2, boxShadow: '0 10px 25px -5px rgba(239,68,68,0.2)' }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => startGame(30)}
-                            className="w-full flex items-center justify-between bg-[#141312] border border-white/5 hover:border-red-500/40 p-4.5 rounded-[24px] group transition-all"
-                        >
+                        <button onClick={() => startGame(30)} className="w-full flex items-center justify-between bg-[#141312] border border-white/5 hover:border-red-500/40 p-4.5 rounded-[24px] group transition-all">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center border border-red-500/20 text-red-400 group-hover:bg-red-500 group-hover:text-white transition-all shadow-inner">
                                     <Skull size={22} />
                                 </div>
                                 <div className="flex flex-col text-right">
+                                    {/* فونت استاندارد برای بخش‌های معمولی */}
                                     <span className="font-black text-white text-lg group-hover:text-red-400 transition-colors">{toPersianDigits('30')} ثانیه جنون‌آمیز</span>
                                     <span className="text-[10px] text-zinc-500 font-black mt-0.5">سرعت فوق جتی (هاردکور)</span>
                                 </div>
                             </div>
                             <ChevronLeft size={18} className="text-zinc-600 group-hover:text-white transition-colors" />
-                        </motion.button>
+                        </button>
 
-                        {/* ۱ دقیقه */}
-                        <motion.button 
-                            whileHover={{ scale: 1.02, y: -2, boxShadow: '0 10px 25px -5px rgba(249,115,22,0.2)' }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => startGame(60)}
-                            className="w-full flex items-center justify-between bg-[#141312] border border-white/5 hover:border-orange-500/40 p-4.5 rounded-[24px] group transition-all"
-                        >
+                        <button onClick={() => startGame(60)} className="w-full flex items-center justify-between bg-[#141312] border border-white/5 hover:border-orange-500/40 p-4.5 rounded-[24px] group transition-all">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400 group-hover:bg-orange-500 group-hover:text-white transition-all shadow-inner">
                                     <Flame size={22} fill="currentColor" />
@@ -306,15 +297,9 @@ export default function PuzzleRush() {
                                 </div>
                             </div>
                             <ChevronLeft size={18} className="text-zinc-600 group-hover:text-white transition-colors" />
-                        </motion.button>
+                        </button>
 
-                        {/* ۳ دقیقه */}
-                        <motion.button 
-                            whileHover={{ scale: 1.03, y: -2, boxShadow: '0 15px 30px -5px rgba(234,179,8,0.25)' }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => startGame(180)}
-                            className="w-full flex items-center justify-between bg-gradient-to-r from-yellow-500/10 to-[#141312] border border-yellow-500/20 hover:border-yellow-400 p-5 rounded-[24px] group transition-all"
-                        >
+                        <button onClick={() => startGame(180)} className="w-full flex items-center justify-between bg-gradient-to-r from-yellow-500/10 to-[#141312] border border-yellow-500/20 hover:border-yellow-400 p-5 rounded-[24px] group transition-all shadow-[0_5px_20px_rgba(234,179,8,0.1)]">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 text-yellow-400 group-hover:bg-yellow-400 group-hover:text-[#161512] transition-all shadow-md">
                                     <Clock size={22} />
@@ -325,7 +310,7 @@ export default function PuzzleRush() {
                                 </div>
                             </div>
                             <ChevronLeft size={18} className="text-yellow-500/50 group-hover:text-white transition-colors" />
-                        </motion.button>
+                        </button>
                     </div>
                 </motion.div>
             </div>
@@ -333,12 +318,12 @@ export default function PuzzleRush() {
     }
 
     // ==========================================
-    // رندر گیم‌پلی
+    // رندر گیم‌پلی با فونت‌های داینامیک
     // ==========================================
     return (
         <div className="min-h-[100dvh] bg-[#0c0b0a] text-zinc-200 flex flex-col items-center pb-8" dir="rtl">
+            <style>{`@import url('https://fonts.googleapis.com/css2?family=Lalezar&display=swap');`}</style>
             
-            {/* هدر بالایی */}
             <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between sticky top-0 z-10 bg-[#0c0b0a]/90 backdrop-blur-md border-b border-white/5">
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setStatus('setup')} className="p-2.5 bg-[#1e1c19] rounded-xl hover:text-white text-zinc-400 transition-colors border border-white/5">
                     <ChevronRight size={22} />
@@ -350,14 +335,14 @@ export default function PuzzleRush() {
                         رگبار سرعتی پازل
                     </span>
                     <span className="text-[10px] text-zinc-500 font-black mt-0.5 flex items-center gap-1">
-                        امتیاز پازل فعلی: <Target size={11} className="text-blue-400" /> <span className="text-blue-400 font-mono font-bold" dir="ltr">{toPersianDigits(currentDifficulty)}</span>
+                        {/* فونت استاندارد برای اطلاعات جانبی */}
+                        امتیاز پازل فعلی: <Target size={11} className="text-blue-400" /> <span className="text-blue-400 font-bold" dir="ltr">{toPersianDigits(currentDifficulty)}</span>
                     </span>
                 </div>
 
                 <div className="w-10"></div> 
             </div>
 
-            {/* تخته شطرنج */}
             <div className="w-full max-w-md mt-6 px-4 relative z-0">
                 {isLoading && status === 'playing' && (
                     <div className="absolute inset-0 z-20 bg-[#0c0b0a]/60 backdrop-blur-sm flex items-center justify-center rounded-2xl">
@@ -394,7 +379,8 @@ export default function PuzzleRush() {
                             transition={{ type: "spring", stiffness: 400, damping: 15 }}
                             className="flex flex-col items-center"
                         >
-                            <div className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent font-black text-3xl italic tracking-wider flex items-center gap-2 drop-shadow-[0_4px_20px_rgba(249,115,22,0.4)]">
+                            {/* 🔥 اعمال فونت گیمینگ Lalezar روی متن کامبو */}
+                            <div style={{ fontFamily: GAME_FONT, paddingTop: '6px' }} className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent text-3xl tracking-wide flex items-center gap-2 drop-shadow-[0_4px_20px_rgba(249,115,22,0.4)]">
                                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="text-orange-500">
                                     <Flame size={28} fill="currentColor" />
                                 </motion.div>
@@ -437,15 +423,22 @@ export default function PuzzleRush() {
                     <div className={`absolute top-0 right-0 w-28 h-28 rounded-full blur-[60px] opacity-20 pointer-events-none transition-colors duration-500 ${timeLeft <= 20 ? 'bg-red-500' : 'bg-blue-400'}`}></div>
                     <div className={`absolute bottom-0 left-0 w-28 h-28 rounded-full blur-[60px] opacity-20 pointer-events-none transition-colors duration-500 ${lives === 1 ? 'bg-red-500 animate-pulse' : 'bg-yellow-400'}`}></div>
 
+                    {/* تایمر */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-black tracking-wider uppercase mb-1 flex items-center gap-1">
                             زمان باقی‌مانده
                         </span>
-                        <span className={`font-mono text-2xl font-black ${timeLeft <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' : timeLeft <= 30 ? 'text-orange-400' : 'text-zinc-200'}`} dir="ltr">
+                        {/* 🔥 اعمال فونت گیمینگ Lalezar روی تایمر */}
+                        <span 
+                            style={{ fontFamily: GAME_FONT, paddingTop: '4px' }} 
+                            className={`text-3xl tracking-widest ${timeLeft <= 10 ? 'text-red-500 animate-pulse drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' : timeLeft <= 30 ? 'text-orange-400' : 'text-zinc-200'}`} 
+                            dir="ltr"
+                        >
                             {formatTime(timeLeft)}
                         </span>
                     </div>
 
+                    {/* امتیاز */}
                     <motion.div 
                         key={score}
                         initial={{ scale: 1.3 }}
@@ -453,14 +446,19 @@ export default function PuzzleRush() {
                         transition={{ type: "spring", stiffness: 300, damping: 12 }}
                         className="flex flex-col items-center z-10 w-24 border-x border-white/5 px-2"
                     >
-                        <span className="text-[10px] text-yellow-400 font-black tracking-wider uppercase mb-1 flex items-center gap-1">
+                        <span className="text-[10px] text-yellow-400 font-black tracking-wider uppercase flex items-center gap-1">
                             امتیاز پازل
                         </span>
-                        <span className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] font-mono leading-none pt-1">
+                        {/* 🔥 اعمال فونت گیمینگ Lalezar روی امتیاز بزرگ داشبورد */}
+                        <span 
+                            style={{ fontFamily: GAME_FONT, paddingTop: '8px' }} 
+                            className="text-6xl text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] leading-none"
+                        >
                             {toPersianDigits(score)}
                         </span>
                     </motion.div>
 
+                    {/* جان‌ها */}
                     <div className="flex flex-col items-center z-10 w-20">
                         <span className="text-[10px] text-zinc-500 font-black tracking-wider uppercase mb-2">
                             فرصت‌های خطا
@@ -532,7 +530,11 @@ export default function PuzzleRush() {
                             <div className="p-7 flex flex-col gap-5 items-center">
                                 <div className="flex flex-col items-center w-full bg-[#0c0b0a] rounded-2xl py-5 border border-white/5 shadow-inner">
                                     <span className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">پازل‌های حل شده</span>
-                                    <span className="text-6xl font-mono font-black bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400 drop-shadow-md">
+                                    {/* 🔥 اعمال فونت گیمینگ Lalezar روی امتیاز پایانی */}
+                                    <span 
+                                        style={{ fontFamily: GAME_FONT, paddingTop: '10px' }} 
+                                        className="text-7xl bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400 drop-shadow-md leading-none"
+                                    >
                                         {toPersianDigits(score)}
                                     </span>
                                 </div>
