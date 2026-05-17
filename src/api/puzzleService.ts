@@ -37,5 +37,20 @@ export const puzzleService = {
             console.error(`Error fetching puzzle for theme ${themeName}:`, error);
             throw error;
         }
+    },
+    // ارسال نتیجه پازل به بک‌اند برای دریافت امتیاز
+    submitResult: async (puzzleRating: number, userRating: number, isCorrect: boolean, usedHint: boolean) => {
+        try {
+            const response = await axios.post(`${API_URL}/submit`, {
+                puzzleRating,
+                userRating,
+                isCorrect,
+                usedHint
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error submitting puzzle result:', error);
+            throw error;
+        }
     }
 };
