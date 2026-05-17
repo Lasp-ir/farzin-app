@@ -9,7 +9,6 @@ import {
   Eye, Zap as Flash, History, Compass, Map
 } from 'lucide-react';
 
-// 🔥 دیکشنری جامع تم‌های تاکتیکی با آیکون‌های اختصاصی
 const ALL_THEMES = [
   { id: 'mateIn1', title: 'مات در ۱', icon: <Target size={16} /> },
   { id: 'mateIn2', title: 'مات در ۲', icon: <Crosshair size={16} /> },
@@ -38,7 +37,10 @@ export default function Puzzles() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const [selectedProMode, setSelectedProMode] = useState<any>(null);
-  const isUserPremium = false; 
+  
+  // 🔥 GOD MODE ACTIVE: برای تست تمام محدودیت‌ها برداشته شد
+  // هر وقت خواستی برگرده به حالت عادی، این رو بکن false
+  const isUserPremium = true; 
 
   const defaultQuotas = { mistakes: 3, rated: 5, themes: 5, rush: 1 };
   const [quotas, setQuotas] = useState(() => {
@@ -67,6 +69,7 @@ export default function Puzzles() {
   };
 
   const handleModeClick = (mode: any) => {
+    // در حالت God Mode این شرط همیشه برقراره
     if (mode.isFree || isUserPremium) {
       navigate(`/puzzle/${mode.id}`); 
     } else {
@@ -82,7 +85,6 @@ export default function Puzzles() {
     }
   };
 
-  // فیلتر کردن تم‌ها بر اساس سرچ
   const filteredThemes = useMemo(() => {
     if (!searchQuery.trim()) return ALL_THEMES;
     return ALL_THEMES.filter(t => t.title.includes(searchQuery));
@@ -111,10 +113,17 @@ export default function Puzzles() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-24 overflow-x-hidden" 
+        className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-24 overflow-x-hidden relative" 
         dir="rtl"
       >
-        {/* --- Header (Glassmorphism) --- */}
+        {/* 🔥 نشانگر God Mode برای برنامه‌نویس */}
+        {isUserPremium && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-red-600/90 text-white px-3 py-1 rounded-full text-[10px] font-black tracking-widest border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse pointer-events-none">
+            GOD MODE ACTIVE 🚀
+          </div>
+        )}
+
+        {/* --- Header --- */}
         <div className="w-full max-w-2xl px-5 py-4 flex items-center justify-between z-30 sticky top-0 bg-[#161512]/80 backdrop-blur-xl border-b border-[#35332e]">
           <button onClick={() => navigate(-1)} className="text-zinc-400 hover:text-white transition-colors active:scale-90 bg-[#262421] p-2.5 rounded-xl border border-[#35332e]">
             <ChevronRight size={22} />
@@ -229,7 +238,6 @@ export default function Puzzles() {
                       )}
                   </div>
 
-                  {/* Search Bar */}
                   <div className="relative w-full">
                       <div className="absolute inset-y-0 right-0 pl-3 pr-4 flex items-center pointer-events-none">
                           <Search size={16} className="text-zinc-500" />
@@ -249,7 +257,6 @@ export default function Puzzles() {
                   </div>
               </div>
               
-              {/* Themes Grid */}
               <div className="grid grid-cols-2 gap-2 mt-2 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
                   <AnimatePresence>
                       {filteredThemes.length === 0 ? (
@@ -258,7 +265,7 @@ export default function Puzzles() {
                               <span className="text-xs font-bold">تاکتیکی پیدا نشد!</span>
                           </motion.div>
                       ) : (
-                          filteredThemes.map((theme, idx) => (
+                          filteredThemes.map((theme) => (
                               <motion.button
                                   layout
                                   initial={{ opacity: 0, scale: 0.9 }}
@@ -286,7 +293,7 @@ export default function Puzzles() {
 
       {/* --- پاپ‌آپ استراتژیک Freemium --- */}
       <AnimatePresence>
-        {selectedProMode && (
+        {selectedProMode && !isUserPremium && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
