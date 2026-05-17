@@ -20,6 +20,19 @@ import { isBookPosition } from '../utils/ecoParser';
 import type { MoveNode } from '../utils/analysisConfig';
 import { COACH_COLORS, COLOR_PALETTES, getAbsScore, epFormula, getPieceValue, EditablePlayer } from '../utils/analysisConfig';
 
+// 🔥 فیلتر جادویی بررسی قانونی بودن حرکت پیشنهادی موتور
+const isLineValidForPosition = (linePv: string, fen: string) => {
+    if (!linePv) return false;
+    const uciMoves = linePv.trim().split(' ');
+    const firstUci = uciMoves[0];
+    if (!firstUci || firstUci.length < 4) return false;
+    try {
+        const temp = new Chess(fen);
+        const m = temp.move({ from: firstUci.slice(0, 2), to: firstUci.slice(2, 4), promotion: firstUci[4] || 'q' });
+        return m !== null;
+    } catch(e) { return false; }
+};
+
 export default function AnalysisBoard() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,8 +75,8 @@ export default function AnalysisBoard() {
 
   const { isReady, engineStatus, lines, analyze, stop, setOption } = useStockfish() as any;
 
-  // 🌟 استیت جادویی جدید: نگه داشتن FEN لاین برای جلوگیری از پرش علامت
   const [stableData, setStableData] = useState<{ lines: any[], fen: string, nodeId: string } | null>(null);
+  const acceptedNodeIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let rootFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -76,45 +89,22 @@ export default function AnalysisBoard() {
       try {
         const game = new Chess();
         game.loadPgn(initialData.data);
-        
         const headers = game.header();
         setPlayerMeta(prev => ({
-          white: { 
-              name: headers.White && headers.White !== '?' ? headers.White : prev.white.name, 
-              elo: headers.WhiteElo && headers.WhiteElo !== '?' ? headers.WhiteElo : prev.white.elo, 
-              title: prev.white.title 
-          },
-          black: { 
-              name: headers.Black && headers.Black !== '?' ? headers.Black : prev.black.name, 
-              elo: headers.BlackElo && headers.BlackElo !== '?' ? headers.BlackElo : prev.black.elo, 
-              title: prev.black.title 
-          }
+          white: { name: headers.White && headers.White !== '?' ? headers.White : prev.white.name, elo: headers.WhiteElo && headers.WhiteElo !== '?' ? headers.WhiteElo : prev.white.elo, title: prev.white.title },
+          black: { name: headers.Black && headers.Black !== '?' ? headers.Black : prev.black.name, elo: headers.BlackElo && headers.BlackElo !== '?' ? headers.BlackElo : prev.black.elo, title: prev.black.title }
         }));
-
         const history = game.history({ verbose: true });
         const buildGame = new Chess(); 
-        
         for (const move of history) {
           buildGame.move(move);
           const newFen = buildGame.fen();
           const newId = `${endNodeId}-${move.san}`;
-          
-          initialTree[newId] = {
-            id: newId,
-            san: move.san,
-            fen: newFen,
-            move: move,
-            parentId: endNodeId,
-            childrenIds: [],
-            depth: initialTree[endNodeId].depth + 1
-          };
-          
+          initialTree[newId] = { id: newId, san: move.san, fen: newFen, move: move, parentId: endNodeId, childrenIds: [], depth: initialTree[endNodeId].depth + 1 };
           initialTree[endNodeId].childrenIds.push(newId);
           endNodeId = newId;
         }
-      } catch (e) {
-        console.error("PGN Parse Error:", e);
-      }
+      } catch (e) {}
     } else if (initialData.type === 'FEN' && initialData.data) {
       rootFen = initialData.data;
       initialTree['root'].fen = rootFen;
@@ -128,13 +118,7 @@ export default function AnalysisBoard() {
   const currentPosition = tree[currentNodeId]?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   
   const activeGame = useMemo(() => {
-    try {
-        return new Chess(currentPosition);
-    } catch (e) {
-        const fallback = new Chess();
-        fallback.clear();
-        return fallback;
-    }
+    try { return new Chess(currentPosition); } catch (e) { const f = new Chess(); f.clear(); return f; }
   }, [currentPosition]);
   
   const isBlackTurn = activeGame.turn() === 'b';
@@ -142,45 +126,32 @@ export default function AnalysisBoard() {
   const materialAdvantage = useMemo(() => {
       const fenBoard = currentPosition.split(' ')[0];
       const counts = { w: { p:0, n:0, b:0, r:0, q:0 }, b: { p:0, n:0, b:0, r:0, q:0 } };
-      
       for (let char of fenBoard) {
          if (/[pnbrq]/.test(char)) counts.b[char as keyof typeof counts.b]++;
          if (/[PNBRQ]/.test(char)) counts.w[char.toLowerCase() as keyof typeof counts.w]++;
       }
-      
       let whiteAdv = { score: 0, pieces: [] as string[] };
       let blackAdv = { score: 0, pieces: [] as string[] };
-      
       ['q', 'r', 'b', 'n', 'p'].forEach(p => {
          const diff = counts.w[p as keyof typeof counts.w] - counts.b[p as keyof typeof counts.b];
-         if (diff > 0) {
-             for(let i=0; i<diff; i++) whiteAdv.pieces.push(p);
-         } else if (diff < 0) {
-             for(let i=0; i<-diff; i++) blackAdv.pieces.push(p);
-         }
+         if (diff > 0) { for(let i=0; i<diff; i++) whiteAdv.pieces.push(p); } 
+         else if (diff < 0) { for(let i=0; i<-diff; i++) blackAdv.pieces.push(p); }
       });
-      
       let wScore = 0; whiteAdv.pieces.forEach(p => wScore += getPieceValue(p));
       let bScore = 0; blackAdv.pieces.forEach(p => bScore += getPieceValue(p));
-      
       if (wScore > bScore) { whiteAdv.score = wScore - bScore; blackAdv.score = 0; }
       else if (bScore > wScore) { blackAdv.score = bScore - wScore; whiteAdv.score = 0; }
-      
       return { white: whiteAdv, black: blackAdv };
   }, [currentPosition]);
 
   const isKingInDanger = useMemo(() => {
       try {
           const parts = currentPosition.split(' ');
-          const turn = parts[1];
-          parts[1] = turn === 'w' ? 'b' : 'w';
+          parts[1] = parts[1] === 'w' ? 'b' : 'w';
           parts[3] = '-'; 
-          const temp = new Chess();
-          temp.load(parts.join(' ')); 
+          const temp = new Chess(); temp.load(parts.join(' ')); 
           return temp.isCheck(); 
-      } catch (e) {
-          return false;
-      }
+      } catch (e) { return false; }
   }, [currentPosition]);
 
   useEffect(() => {
@@ -190,13 +161,10 @@ export default function AnalysisBoard() {
         if (stop) stop(); 
         return;
     }
-
     if (easterEggState !== 'idle') return;
-
     if (isReady && currentPosition) {
-      if (isEnginePaused) {
-          if (stop) stop(); 
-      } else {
+      if (isEnginePaused) { if (stop) stop(); } 
+      else {
           analyze(currentPosition, engineSettings.maxDepth);
           if (engineSettings.maxTime > 0 && stop) {
             const timer = setTimeout(() => stop(), engineSettings.maxTime * 1000);
@@ -206,17 +174,30 @@ export default function AnalysisBoard() {
     }
   }, [currentPosition, isReady, analyze, stop, engineSettings.maxDepth, engineSettings.maxTime, isEnginePaused, isKingInDanger, easterEggState]);
 
-  // 🌟 آپدیت دیتای استیبل با مکانیزم ضد پرش
+  // 🚀 راه‌حل قطعی لیچس: فیلتر کردن دیتای کهنه و تطبیق دقیق
   useEffect(() => {
-    if (lines && lines.length > 0) {
-      engineCache.current[currentNodeId] = lines;
-      
-      const depth = lines[0].depth || 0;
-      const isMateVal = lines[0].isMate || lines[0].score === 10000 || lines[0].score === -10000;
-      
-      if (depth >= Math.min(6, engineSettings.maxDepth) || isMateVal) {
-          setStableData({ lines, fen: currentPosition, nodeId: currentNodeId });
-      }
+    if (!lines || lines.length === 0) return;
+    const depth = lines[0].depth || 0;
+
+    // ۱. مسدود کردن دیتای کهنه (Stale Engine Cache)
+    if (currentNodeId !== acceptedNodeIdRef.current) {
+        // موتور بعد از حرکت جدید همیشه از عمق ۱ شروع میکنه.
+        // اگر عمق بالاست، این دیتا قطعا مال حرکت قبله! دورش بنداز.
+        if (depth > 3) return; 
+        acceptedNodeIdRef.current = currentNodeId; // قفل شدن روی حرکت جدید
+    }
+
+    const rawPv = lines[0].pv || '';
+    const actualPv = rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv;
+
+    // ۲. تایید نهایی: آیا این خط با قوانین پوزیشن جدید سازگاره؟
+    if (!isLineValidForPosition(actualPv, currentPosition)) return;
+
+    engineCache.current[currentNodeId] = lines;
+    const isMateVal = lines[0].isMate || lines[0].score === 10000 || lines[0].score === -10000;
+    
+    if (depth >= Math.min(6, engineSettings.maxDepth) || isMateVal) {
+        setStableData({ lines, fen: currentPosition, nodeId: currentNodeId });
     }
   }, [lines, currentNodeId, currentPosition, engineSettings.maxDepth]);
 
@@ -263,7 +244,6 @@ export default function AnalysisBoard() {
     const epC = getPlayerEP(absScoreC); 
 
     let classificationKey: keyof typeof COACH_COLORS = 'good';
-    
     let bestUciMove = '';
     if (parentLines && parentLines[0]) {
         const rawParentPv = parentLines[0].pv || '';
@@ -279,9 +259,7 @@ export default function AnalysisBoard() {
 
     const fenIsBook = isBookPosition(node.fen);
 
-    if (fenIsBook) {
-        classificationKey = 'book';
-    }
+    if (fenIsBook) { classificationKey = 'book'; }
     else if (isMate || userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
     else if (epB < 0.10) classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
     else {
@@ -366,19 +344,20 @@ export default function AnalysisBoard() {
       return Math.max(1, maxLen - 1);
   }, [activeMainline, allPaths]);
 
-  // 🌟 اصلاح 그래프 برای آخرین حرکت (جلوگیری از پرش گراف)
   const graphPoints = useMemo(() => {
       return activeMainline.map(node => {
           const isCurrent = node.id === currentNodeId;
-          const nodeLines = isCurrent ? lines : engineCache.current[node.id];
+          // 🔥 عدم استفاده از خطوط خام موتور. فقط از داده‌های ایمن استفاده کن
+          const nodeLines = (isCurrent && stableData?.nodeId === currentNodeId) ? stableData.lines : engineCache.current[node.id];
           
           let ep = 0.5;
           let phase: 'opening' | 'middlegame' | 'endgame' = 'opening';
 
           const cg = new Chess(node.fen);
+          // مات قطعی گراف رو به سقف/کف میچسبونه
           if (cg.isCheckmate()) {
               const fenTurn = node.fen.split(' ')[1] as 'w' | 'b';
-              ep = epFormula(fenTurn === 'b' ? 10000 : -10000); // 💥 اسکور عظیم برای مات جهت برخورد گراف به سقف
+              ep = epFormula(fenTurn === 'b' ? 10000 : -10000); 
           } else if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
               ep = 0.5;
           } else if (nodeLines && nodeLines[0]) {
@@ -398,13 +377,11 @@ export default function AnalysisBoard() {
 
           return { node, ep, phase, coach: node.id === 'root' ? null : calculateNodeCoachData(node.id, nodeLines || [], tree) };
       });
-  }, [activeMainline, lines, currentNodeId, tree, calculateNodeCoachData]);
+  }, [activeMainline, stableData, currentNodeId, tree, calculateNodeCoachData]);
 
   const { areaWhite, areaBlack, linePath, ghostPaths } = useMemo(() => {
     if (graphPoints.length === 0) return { areaWhite: '', areaBlack: '', linePath: '', ghostPaths: [] };
-    
     let wPath = `M 0,150 `, bPath = `M 0,150 `, lPath = ``;
-    
     graphPoints.forEach((pt, i) => {
         const x = (i / maxX) * 1000, y = 300 - (pt.ep * 300);
         lPath += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
@@ -422,7 +399,6 @@ export default function AnalysisBoard() {
                 const nodeLines = engineCache.current[node.id];
                 let ep = 0.5;
                 const cg = new Chess(node.fen);
-                
                 if (cg.isCheckmate()) {
                     ep = epFormula(node.fen.split(' ')[1] === 'b' ? 10000 : -10000);
                 } else if (cg.isDraw() || cg.isStalemate() || cg.isThreefoldRepetition() || cg.isInsufficientMaterial()) {
@@ -448,7 +424,6 @@ export default function AnalysisBoard() {
     return { areaWhite: wPath, areaBlack: bPath, linePath: lPath, ghostPaths: gPaths };
   }, [graphPoints, activeMainline, allPaths, maxX]);
 
-  // 🌟 جلوگیری از نمایش اشتباه فلش‌های موتور در هنگام تغییر حرکت
   const engineArrows = useMemo(() => {
     if (isEnginePaused || easterEggState !== 'idle' || !arrowSettings.showArrows || !stableData || stableData.nodeId !== currentNodeId || stableData.lines.length === 0) return [];
     
@@ -471,7 +446,6 @@ export default function AnalysisBoard() {
             if (bestIsMate && !line.isMate) alpha = 0.15; 
             else if (!bestIsMate && !line.isMate) alpha = Math.max(0.15, 0.85 - (Math.abs(bestScore - line.score) * 0.35));
         }
-        
         const rgbaColor = `rgba(${selectedColor.rgb}, ${alpha})`;
         const mainArrowKey = `${firstMove.from}-${firstMove.to}`;
         if (!arrowMap.has(mainArrowKey)) arrowMap.set(mainArrowKey, [firstMove.from, firstMove.to, rgbaColor]);
@@ -519,58 +493,34 @@ export default function AnalysisBoard() {
     return pgn + movesString.trim() + " *";
   };
 
-  const copyMainlinePgn = () => {
-    navigator.clipboard.writeText(getPgnString()); 
-    showToast('آنالیز با موفقیت در کلیپ‌بورد کپی شد');
-  };
+  const copyMainlinePgn = () => { navigator.clipboard.writeText(getPgnString()); showToast('آنالیز در کلیپ‌بورد کپی شد'); };
 
   const downloadFile = (content: string, filename: string) => {
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const a = document.createElement('a'); a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   const handleShare = (platform: string) => {
       const pgn = getPgnString();
       const text = encodeURIComponent(`بررسی آنالیز شطرنج در فرزین:\n\n${pgn}`);
-      
       switch(platform) {
-          case 'telegram':
-              window.open(`https://t.me/share/url?url=${text}`, '_blank');
-              break;
-          case 'whatsapp':
-              window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-              break;
-          case 'twitter':
-              window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
-              break;
-          case 'txt':
-              downloadFile(pgn, 'farzin_analysis.txt');
-              break;
-          case 'pgn':
-              downloadFile(pgn, 'farzin_analysis.pgn');
-              break;
+          case 'telegram': window.open(`https://t.me/share/url?url=${text}`, '_blank'); break;
+          case 'whatsapp': window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank'); break;
+          case 'twitter': window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank'); break;
+          case 'txt': downloadFile(pgn, 'farzin_analysis.txt'); break;
+          case 'pgn': downloadFile(pgn, 'farzin_analysis.pgn'); break;
       }
       setIsShareModalOpen(false);
   };
 
-  const handleSaveAnalysis = () => {
-    if(!saveName.trim()) return; setIsSaveModalOpen(false); showToast(`آنالیز "${saveName}" با موفقیت ذخیره شد`); setSaveName("");
-  };
+  const handleSaveAnalysis = () => { if(!saveName.trim()) return; setIsSaveModalOpen(false); showToast(`آنالیز ذخیره شد`); setSaveName(""); };
 
   const confirmResetAnalysis = () => {
       const rootFen = initialData.type === 'FEN' ? initialData.data : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
       setTree({ 'root': { id: 'root', san: 'Start', fen: rootFen, move: null, parentId: null, childrenIds: [], depth: 0 } });
-      setCurrentNodeId('root');
-      engineCache.current = {}; 
-      setIsResetModalOpen(false); 
-      showToast('آنالیز با موفقیت پاک شد');
+      setCurrentNodeId('root'); engineCache.current = {}; setIsResetModalOpen(false); showToast('آنالیز پاک شد');
   };
 
   const addMoveToTree = (moveParams: {from: string, to: string, promotion?: string}) => {
@@ -604,8 +554,7 @@ export default function AnalysisBoard() {
       else if (e.key === 'ArrowUp') goStart();
       else if (e.key === 'ArrowDown') goEnd();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentNodeId, tree, easterEggState]);
 
   const [clickedSquare, setClickedSquare] = useState<string | null>(null);
@@ -632,44 +581,31 @@ export default function AnalysisBoard() {
   
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => { 
     setOptionSquares({}); setClickedSquare(null); 
-    
     if (easterEggState === 'prompt') {
         const targetPiece = activeGame.get(targetSquare as any);
         if (targetPiece && targetPiece.type === 'k' && targetPiece.color !== activeGame.turn()) {
             setEasterEggState('exploded');
-            
             setTimeout(() => {
                 const pieces = document.querySelectorAll('[data-piece]');
                 pieces.forEach((p: any) => {
-                    const x = (Math.random() - 0.5) * 2000;
-                    const y = (Math.random() - 0.5) * 2000 - 200;
-                    const rot = (Math.random() - 0.5) * 1080;
-                    const scale = Math.random() * 4 + 1;
-                    
-                    const shouldFade = Math.random() > 0.4; 
-                    
+                    const x = (Math.random() - 0.5) * 2000; const y = (Math.random() - 0.5) * 2000 - 200;
+                    const rot = (Math.random() - 0.5) * 1080; const scale = Math.random() * 4 + 1;
                     p.style.transition = 'transform 3s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.5s ease-in-out';
                     p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
-                    if (shouldFade) p.style.opacity = '0';
+                    if (Math.random() > 0.4) p.style.opacity = '0';
                 });
-                
                 const board = document.getElementById('farzin-board-container');
                 if (board) {
-                    board.style.transition = 'all 3s cubic-bezier(0.25, 1, 0.5, 1)';
-                    board.style.transform = 'rotate(5deg) scale(0.85) translateY(30px)';
+                    board.style.transition = 'all 3s cubic-bezier(0.25, 1, 0.5, 1)'; board.style.transform = 'rotate(5deg) scale(0.85) translateY(30px)';
                     board.style.filter = 'contrast(1.5) sepia(1) hue-rotate(-50deg) drop-shadow(0 0 80px rgba(225,29,72,0.8)) blur(1px)';
                 }
-                
                 setTimeout(() => setEasterEggState('resolved'), 3500);
             }, 100);
-            
             return true; 
         }
         return false; 
     }
-    
     if (easterEggState !== 'idle') return false;
-
     return addMoveToTree({ from: sourceSquare, to: targetSquare, promotion: piece[1]?.toLowerCase() ?? 'q' }); 
   };
   
@@ -678,8 +614,7 @@ export default function AnalysisBoard() {
     if (clickedSquare === square) { setClickedSquare(null); setOptionSquares({}); return; }
     if (clickedSquare) {
       if (activeGame.moves({ square: clickedSquare as any, verbose: true }).find(m => m.to === square)) {
-        addMoveToTree({ from: clickedSquare, to: square, promotion: 'q' });
-        setClickedSquare(null); setOptionSquares({}); return;
+        addMoveToTree({ from: clickedSquare, to: square, promotion: 'q' }); setClickedSquare(null); setOptionSquares({}); return;
       }
     }
     const pieceOnSquare = activeGame.get(square as any);
@@ -690,72 +625,54 @@ export default function AnalysisBoard() {
   const executeVariation = (startNodeId: string, uciMovesString: string) => {
     const uciMoves = uciMovesString.trim().split(' ').slice(0, 12);
     if (uciMoves.length === 0) return;
-    let tempGame = new Chess(tree[startNodeId].fen);
-    let currId = startNodeId;
-    let newNodes: Record<string, MoveNode> = {};
+    let tempGame = new Chess(tree[startNodeId].fen); let currId = startNodeId; let newNodes: Record<string, MoveNode> = {};
     for (const uci of uciMoves) {
         if (!uci || uci.length < 4) break;
-        const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) };
-        if (uci.length > 4) moveParams.promotion = uci[4];
-        const move = tempGame.move(moveParams);
-        if (!move) break;
-        const nextFen = tempGame.fen();
-        const nextId = `${currId}-${move.san}`;
+        const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) }; if (uci.length > 4) moveParams.promotion = uci[4];
+        const move = tempGame.move(moveParams); if (!move) break;
+        const nextFen = tempGame.fen(); const nextId = `${currId}-${move.san}`;
         newNodes[nextId] = { id: nextId, san: move.san, fen: nextFen, move: move, parentId: currId, childrenIds: [], depth: (tree[currId]?.depth || 0) + 1 };
         if (currId !== startNodeId) newNodes[currId].childrenIds.push(nextId);
         currId = nextId;
     }
     setTree(prev => {
-        let updatedTree = { ...prev, ...newNodes };
-        const firstNewId = Object.keys(newNodes)[0];
-        if (firstNewId && !updatedTree[startNodeId].childrenIds.includes(firstNewId)) {
-            updatedTree[startNodeId] = { ...updatedTree[startNodeId], childrenIds: [...updatedTree[startNodeId].childrenIds, firstNewId] };
-        }
+        let updatedTree = { ...prev, ...newNodes }; const firstNewId = Object.keys(newNodes)[0];
+        if (firstNewId && !updatedTree[startNodeId].childrenIds.includes(firstNewId)) { updatedTree[startNodeId] = { ...updatedTree[startNodeId], childrenIds: [...updatedTree[startNodeId].childrenIds, firstNewId] }; }
         return updatedTree;
     });
-    const firstNewId = Object.keys(newNodes)[0];
-    if (firstNewId) setCurrentNodeId(firstNewId);
-    setActiveTab('notation');
+    const firstNewId = Object.keys(newNodes)[0]; if (firstNewId) setCurrentNodeId(firstNewId); setActiveTab('notation');
   };
 
   const handleShowMe = (useBestMove: boolean) => {
-    const parentId = tree[currentNodeId]?.parentId;
-    if (!parentId) return;
+    const parentId = tree[currentNodeId]?.parentId; if (!parentId) return;
     if (useBestMove) {
-        const parentLines = engineCache.current[parentId];
-        if (!parentLines || !parentLines[0]) return;
-        const rawPv = parentLines[0].pv || '';
-        executeVariation(parentId, rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv);
+        const parentLines = engineCache.current[parentId]; if (!parentLines || !parentLines[0]) return;
+        const rawPv = parentLines[0].pv || ''; executeVariation(parentId, rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv);
     } else {
         if (!lines || !lines[0]) return;
-        const rawPv = lines[0].pv || '';
-        executeVariation(currentNodeId, rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv);
+        const rawPv = lines[0].pv || ''; executeVariation(currentNodeId, rawPv.includes(' pv ') ? rawPv.split(' pv ')[1] : rawPv);
     }
   };
 
   const getSquareCoordinates = (square: string) => {
-    const col = square.charCodeAt(0) - 97; 
-    const row = parseInt(square[1]) - 1; 
-    const isWhite = boardOrientation === 'white';
-    return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
+    const col = square.charCodeAt(0) - 97; const row = parseInt(square[1]) - 1; 
+    const isWhite = boardOrientation === 'white'; return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
   };
 
   const moveSquares = useMemo(() => {
-    const node = tree[currentNodeId];
-    if (!node || node.id === 'root' || !node.move) return {};
-    let customSq: any = { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
-    return customSq;
+    const node = tree[currentNodeId]; if (!node || node.id === 'root' || !node.move) return {};
+    return { [node.move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }, [node.move.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' } };
   }, [tree, currentNodeId]);
 
-  // 🌟 محاسبه نرم شده برای Eval Text (اکنون کاملا وابسته به دیتای پایدار است)
+  // 🔥 محاسبه اسکور فوق‌العاده نرم با اولویت مات قطعی و داده‌های پایدار
   const { absoluteScore, absoluteMate, overallEvalText, isMate } = useMemo(() => {
       const cg = new Chess(currentPosition);
       
-      // 1. اولویت بالا: بررسی حالات قطعی بازی مثل مات برای جلوگیری از پرش در حرکت آخر
+      // ۱. پیروزی قطعی: جلوگیری از پرسش از موتور
       if (cg.isCheckmate()) {
-          const isWhiteWin = cg.turn() === 'b';
+          const isWhiteWin = cg.turn() === 'b'; 
           return {
-              absoluteScore: isWhiteWin ? 100 : -100,
+              absoluteScore: isWhiteWin ? 10000 : -10000,
               absoluteMate: isWhiteWin ? 1 : -1,
               overallEvalText: isWhiteWin ? '+M' : '-M',
               isMate: true
@@ -765,19 +682,17 @@ export default function AnalysisBoard() {
           return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       }
 
-      // 2. استفاده از داده‌های پایدار (Stable Data) برای جلوگیری از تغییر علامت حین فکر کردن موتور
+      // ۲. داده‌های استیبل و بدون پرش
       if (!stableData || !stableData.lines || stableData.lines.length === 0) {
           return { absoluteScore: 0, absoluteMate: 0, overallEvalText: '0.00', isMate: false };
       }
 
       const main = stableData.lines[0];
-      
-      // 🔥 کلید حل باگ پرش: نوبت بر اساس FEN ارزیابی شده تعیین می‌شود نه FEN لحظه‌ای گرافیک
       const evaluatedTurn = stableData.fen.split(' ')[1];
       const isBlack = evaluatedTurn === 'b';
       
-      let aScore = isBlack ? -main.score : main.score; 
-      let aMate = isBlack ? -(main.mateIn || 0) : (main.mateIn || 0);
+      const aScore = isBlack ? -main.score : main.score; 
+      const aMate = isBlack ? -(main.mateIn || 0) : (main.mateIn || 0);
       
       let text = '0.00'; 
       if (main.isMate || main.mateIn) {
@@ -797,17 +712,13 @@ export default function AnalysisBoard() {
   };
   const overallBadgeStyle = getBadgeStyle(absoluteScore, isMate, absoluteMate);
   const isOpeningPhase = currentNodeId === 'root' || (Object.keys(tree).length < 15);
-  
   const displayEngineStatus = (isOpeningPhase && activeTab === 'explorer') ? 'reading books...' : (isReady ? `Farzin 1.0 (NNUE)` : engineStatus);
 
   const renderTreeNodes = useCallback((nodeId: string, forceShowMoveNumber: boolean = false): React.ReactNode[] => {
-    const node = tree[nodeId];
-    if (!node || node.childrenIds.length === 0) return [];
+    const node = tree[nodeId]; if (!node || node.childrenIds.length === 0) return [];
     const result: React.ReactNode[] = [];
-    const mainChildId = node.childrenIds[0];
-    const mainChild = tree[mainChildId];
-    const moveNum = Math.ceil(mainChild.depth / 2);
-    const isWhite = mainChild.depth % 2 !== 0;
+    const mainChildId = node.childrenIds[0]; const mainChild = tree[mainChildId];
+    const moveNum = Math.ceil(mainChild.depth / 2); const isWhite = mainChild.depth % 2 !== 0;
     
     let prefix = ''; if (isWhite) prefix = `${moveNum}. `; else if (forceShowMoveNumber) prefix = `${moveNum}... `;
     
@@ -851,24 +762,12 @@ export default function AnalysisBoard() {
             </div>
           </motion.div>
         )}
-
         {easterEggState === 'resolved' && (
           <motion.div initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="fixed bottom-0 inset-x-0 z-[300] flex justify-center p-6 bg-black/90 backdrop-blur-xl border-t border-purple-500/30 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
             <div className="w-full max-w-md flex flex-col items-center gap-6 text-center">
               <span className="text-5xl drop-shadow-[0_0_15px_rgba(168,85,247,0.8)]">👽</span>
-              <div className="flex flex-col gap-2">
-                <h2 className="text-white font-black text-2xl">حالا دیدی چی میشه؟</h2>
-                <p className="text-zinc-400 font-bold">خیالت راحت شد؟ قانون‌شکنی عواقب داره!</p>
-              </div>
-              <button 
-                onClick={() => {
-                    setEasterEggState('idle');
-                    navigate('/analysis'); 
-                }} 
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] active:scale-95 text-lg"
-              >
-                آره ببخشید، فهمیدم!
-              </button>
+              <div className="flex flex-col gap-2"><h2 className="text-white font-black text-2xl">حالا دیدی چی میشه؟</h2><p className="text-zinc-400 font-bold">خیالت راحت شد؟ قانون‌شکنی عواقب داره!</p></div>
+              <button onClick={() => { setEasterEggState('idle'); navigate('/analysis'); }} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] active:scale-95 text-lg">آره ببخشید، فهمیدم!</button>
             </div>
           </motion.div>
         )}
@@ -888,9 +787,7 @@ export default function AnalysisBoard() {
       <div className={`flex-none w-full px-4 py-2 flex items-center justify-between z-10 bg-[#161512] border-b border-[#35332e] transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
         <button onClick={() => navigate(-1)} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] transition-colors text-zinc-400"><ChevronRight size={20} /></button>
         <div className="flex flex-col items-center">
-            <h1 className="font-black text-sm text-white flex items-center gap-2">
-              <Activity size={14} className="text-farzin-accent" /> آزمایشگاه فرزین
-            </h1>
+            <h1 className="font-black text-sm text-white flex items-center gap-2"><Activity size={14} className="text-farzin-accent" /> آزمایشگاه فرزین</h1>
         </div>
         <div className="flex gap-1.5">
             <button onClick={openSettingsModal} className="p-1.5 bg-[#1e1c19] border border-[#35332e] rounded-lg hover:bg-[#262421] hover:text-white text-zinc-400 transition-colors" title="تنظیمات موتور"><Settings size={16}/></button>
@@ -908,11 +805,7 @@ export default function AnalysisBoard() {
                       <span className="font-mono text-[9px] font-bold text-zinc-300" dir="ltr">{isEnginePaused ? 'Paused' : displayEngineStatus}</span>
                       {!isEnginePaused && lines[0] && <span className="text-[9px] text-zinc-500 font-mono ml-1 border-l border-[#35332e] pl-1.5">D{lines[0].depth}</span>}
                   </div>
-                  <button 
-                      onClick={() => setIsEnginePaused(!isEnginePaused)}
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors border ${isEnginePaused ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`}
-                      title={isEnginePaused ? "شروع محاسبه موتور" : "توقف موتور (صرفه‌جویی در باتری)"}
-                  >
+                  <button onClick={() => setIsEnginePaused(!isEnginePaused)} className={`w-6 h-6 rounded flex items-center justify-center transition-colors border ${isEnginePaused ? 'bg-farzin-accent/20 border-farzin-accent/50 text-farzin-accent hover:bg-farzin-accent hover:text-white' : 'bg-[#262421] border-[#35332e] text-zinc-400 hover:text-white'}`} title={isEnginePaused ? "شروع محاسبه موتور" : "توقف موتور"}>
                       {isEnginePaused ? <Play size={12} className="ml-0.5" fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
                   </button>
               </div>
@@ -958,6 +851,16 @@ export default function AnalysisBoard() {
                          )}
                      </motion.div>
                  )
+             ) : new Chess(currentPosition).isCheckmate() ? (
+                 <div className="flex flex-col items-center justify-center py-4 bg-emerald-500/10 rounded-xl border border-emerald-500/30">
+                     <span className="text-xl mb-1">🏆</span>
+                     <span className="text-xs font-black text-emerald-400">کیش و مات! بازی تمام شد.</span>
+                 </div>
+             ) : new Chess(currentPosition).isDraw() || new Chess(currentPosition).isStalemate() ? (
+                 <div className="flex flex-col items-center justify-center py-4 bg-zinc-500/10 rounded-xl border border-zinc-500/30">
+                     <span className="text-xl mb-1">🤝</span>
+                     <span className="text-xs font-black text-zinc-400">تساوی! بازی تمام شد.</span>
+                 </div>
              ) : (
                 <div className="flex flex-col gap-0.5" dir="ltr" style={{ fontFamily: "'JetBrains Mono', Consolas, monospace" }}>
                   {stableData?.nodeId === currentNodeId && stableData.lines.length > 0 ? stableData.lines.slice(0, engineSettings.multiPv).map((line, idx) => {
@@ -966,14 +869,13 @@ export default function AnalysisBoard() {
                       try { const tempGame = new Chess(currentPosition); for (const uci of uciMoves) { if (!uci || uci.length < 4) break; const moveParams: any = { from: uci.slice(0,2), to: uci.slice(2,4) }; if (uci.length > 4) moveParams.promotion = uci[4]; const result = tempGame.move(moveParams); if (result) sanMoves.push(result.san); else { sanMoves.push(uci); break; } } } catch (e) {}
                       const mainMove = sanMoves[0] || '...'; const restMoves = sanMoves.slice(1).join(' ');
                       
-                      // 🔥 محاسبه اسکور لاین با توجه به FEN خودش (بدون پرش)
                       const evaluatedTurn = stableData.fen.split(' ')[1];
                       const isBlack = evaluatedTurn === 'b';
                       const aScore = isBlack ? -line.score : line.score; 
                       const aMate = isBlack ? -(line.mateIn || 0) : (line.mateIn || 0);
 
-                      let scoreText = ''; if (line.isMate) scoreText = aMate > 0 ? `+M${Math.abs(aMate)}` : `-M${Math.abs(aMate)}`; else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
-                      const badgeStyle = getBadgeStyle(aScore, line.isMate, aMate); const lineColor = arrowColors[idx] ? arrowColors[idx].hex : '#a1a1aa';
+                      let scoreText = ''; if (line.isMate || line.mateIn) scoreText = aMate > 0 ? `+M${Math.abs(aMate)}` : `-M${Math.abs(aMate)}`; else scoreText = aScore > 0 ? `+${aScore.toFixed(2)}` : aScore.toFixed(2);
+                      const badgeStyle = getBadgeStyle(aScore, line.isMate || !!line.mateIn, aMate); const lineColor = arrowColors[idx] ? arrowColors[idx].hex : '#a1a1aa';
                       return (
                           <div key={idx} className={`flex items-center gap-2 text-[10.5px] truncate px-1.5 py-1 rounded transition-all bg-[#1e1c19] shadow-sm`} style={{ borderLeft: `3px solid ${lineColor}` }}>
                               <span className={`w-10 text-center font-black tracking-tighter rounded border px-1 py-0.5 shrink-0 ${badgeStyle}`}>{scoreText}</span>
@@ -1000,38 +902,25 @@ export default function AnalysisBoard() {
                         <div id="farzin-board-container" className="w-full aspect-square rounded-md relative z-10 flex">
                           <Chessboard 
                               position={currentPosition} boardOrientation={boardOrientation}
-                              customDarkSquareStyle={darkSquareStyle} 
-                              customLightSquareStyle={lightSquareStyle} 
-                              customPieces={customPieces}
+                              customDarkSquareStyle={darkSquareStyle} customLightSquareStyle={lightSquareStyle} customPieces={customPieces}
                               arePiecesDraggable={true} onPieceDrop={onDrop} onPieceDragBegin={onPieceDragBegin}
                               onSquareClick={handleSquareClick} onPieceClick={(piece: string, square: string) => handleSquareClick(square)}
                               onSquareRightClick={() => { setClickedSquare(null); setOptionSquares({}); }}
-                              customSquareStyles={{...moveSquares, ...optionSquares}} 
-                              customArrows={engineArrows} animationDuration={200}
+                              customSquareStyles={{...moveSquares, ...optionSquares}} customArrows={engineArrows} animationDuration={200}
                           />
 
                           {!isEnginePaused && engineSettings.coachMode && coachData && tree[currentNodeId] && tree[currentNodeId].id !== 'root' && (
                             <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8">
                                 {Array.from({ length: 64 }).map((_, i) => {
-                                    const x = i % 8;
-                                    const y = Math.floor(i / 8);
-                                    const targetSquare = tree[currentNodeId].move?.to;
-                                    
+                                    const x = i % 8; const y = Math.floor(i / 8); const targetSquare = tree[currentNodeId].move?.to;
                                     if (!targetSquare) return <div key={i} />;
                                     const coords = getSquareCoordinates(targetSquare);
-                                    
                                     if (x === coords.x && y === coords.y) {
                                         return (
                                             <div key={i} className="relative w-full h-full flex items-center justify-center">
-                                                {coachData.key === 'brilliant' && (
-                                                    <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(45,212,191,0) 10%, rgba(45,212,191,0.6) 60%, rgba(45,212,191,0) 100%)' }} />
-                                                )}
-                                                {coachData.key === 'great' && (
-                                                    <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0) 10%, rgba(59,130,246,0.5) 60%, rgba(59,130,246,0) 100%)' }} />
-                                                )}
-                                                {coachData.key === 'blunder' && (
-                                                    <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }} />
-                                                )}
+                                                {coachData.key === 'brilliant' && (<motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(45,212,191,0) 10%, rgba(45,212,191,0.6) 60%, rgba(45,212,191,0) 100%)' }} />)}
+                                                {coachData.key === 'great' && (<motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0) 10%, rgba(59,130,246,0.5) 60%, rgba(59,130,246,0) 100%)' }} />)}
+                                                {coachData.key === 'blunder' && (<motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 z-0" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }} />)}
                                                 <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 400, damping: 20 }} className="absolute -top-[6px] -right-[6px] w-[22px] h-[22px] rounded-full flex items-center justify-center text-white shadow-[0_4px_10px_rgba(0,0,0,0.6)] border border-black/40 z-10" style={{ backgroundColor: coachData.color }}>
                                                     {typeof coachData.icon === 'function' ? coachData.icon({size: 13}) : <coachData.icon size={13} strokeWidth={3} />}
                                                 </motion.div>
@@ -1046,7 +935,6 @@ export default function AnalysisBoard() {
                     </div>
                     
                     <div className="w-3.5 shrink-0 bg-[#262421] rounded-lg overflow-hidden flex flex-col relative border border-[#35332e] shadow-inner">
-                        {/* حرکت نوار با انیمیشن روان به خاطر stableData */}
                         <div className="w-full bg-[#35332e] transition-all duration-300 ease-out" style={{ height: `${100 - evalPercentage}%` }}></div>
                         <div className="w-full bg-zinc-200 transition-all duration-300 ease-out flex-1 flex flex-col justify-start items-center">
                             <span className="text-[7px] font-mono font-black text-zinc-800 rotate-90 mt-5 absolute">{overallEvalText}</span>
@@ -1055,11 +943,10 @@ export default function AnalysisBoard() {
                 </div>
             </div>
 
-            <EditablePlayer color={boardOrientation === 'white' ? 'w' : 'b'} data={boardOrientation === 'white' ? playerMeta.white : playerMeta.black} material={boardOrientation === 'white' ? materialAdvantage.white : materialAdvantage.black} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'white' : 'black']: d}))} />
+            <EditablePlayer color={boardOrientation === 'white' ? 'b' : 'w'} data={boardOrientation === 'white' ? playerMeta.black : playerMeta.white} material={boardOrientation === 'white' ? materialAdvantage.black : materialAdvantage.white} onUpdate={(d: any) => setPlayerMeta(p => ({...p, [boardOrientation === 'white' ? 'black' : 'white']: d}))} />
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col bg-[#161512] border-t lg:border-t-0 lg:border-r border-[#35332e] relative z-10 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] lg:shadow-none rounded-t-2xl lg:rounded-none mt-2 lg:mt-0">
-            
             <div className="flex-none flex px-2 pt-1 border-b border-[#35332e] bg-[#1a1916] overflow-x-auto no-scrollbar rounded-t-2xl lg:rounded-none">
                 <button onClick={() => setActiveTab('notation')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'notation' ? 'border-farzin-accent text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><List size={14} /> ثبت حرکات</button>
                 <button onClick={() => setActiveTab('graph')} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'graph' ? 'border-sky-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}><TrendingUp size={14} /> گراف ارزیابی</button>
@@ -1072,13 +959,8 @@ export default function AnalysisBoard() {
                         <AnimatePresence mode="wait">
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm font-mono leading-loose" dir="ltr">
                                 {Object.keys(tree).length <= 1 ? (
-                                  <div className="flex flex-col items-center justify-center mt-10 text-zinc-600 gap-3">
-                                      <List size={28} className="opacity-50" />
-                                      <span className="text-xs font-sans">هیچ حرکتی ثبت نشده است</span>
-                                  </div>
-                                ) : (
-                                  renderTreeNodes('root')
-                                )}
+                                  <div className="flex flex-col items-center justify-center mt-10 text-zinc-600 gap-3"><List size={28} className="opacity-50" /><span className="text-xs font-sans">هیچ حرکتی ثبت نشده است</span></div>
+                                ) : (renderTreeNodes('root'))}
                             </motion.div>
                         </AnimatePresence>
                     </div>
@@ -1086,42 +968,20 @@ export default function AnalysisBoard() {
                 
                 {activeTab === 'graph' && (
                     <div className="flex-1 relative rounded-xl border border-[#35332e] overflow-hidden bg-[#161512] flex items-center p-3">
-                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
-                            <path d={areaWhite} fill="#fff" />
-                            <path d={areaBlack} fill="#000" />
-                            <path d={linePath} fill="none" stroke="#fff" strokeWidth="4" />
-                        </svg>
+                        <svg viewBox="0 0 1000 300" preserveAspectRatio="none" className="absolute inset-0 w-full h-full opacity-20 pointer-events-none"><path d={areaWhite} fill="#fff" /><path d={areaBlack} fill="#000" /><path d={linePath} fill="none" stroke="#fff" strokeWidth="4" /></svg>
                         <div className="absolute inset-0 backdrop-blur-[2px] bg-black/40 z-10" />
-                        
                         <div className="relative z-20 flex items-center justify-between w-full gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.3)] shrink-0">
-                                    <TrendingUp size={20} />
-                                </div>
-                                <div className="flex flex-col text-right">
-                                    <span className="text-xs font-bold text-white">تحلیل گرافیکی</span>
-                                    <span className="text-[9px] text-zinc-400">سیگموئید و فازها</span>
-                                </div>
+                                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center border border-sky-500/50 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.3)] shrink-0"><TrendingUp size={20} /></div>
+                                <div className="flex flex-col text-right"><span className="text-xs font-bold text-white">تحلیل گرافیکی</span><span className="text-[9px] text-zinc-400">سیگموئید و فازها</span></div>
                             </div>
-                            <button 
-                                onClick={() => setGraphMode('fullscreen')} 
-                                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg font-bold text-[10px] transition-colors shadow-lg active:scale-95 shrink-0"
-                            >
-                                باز کردن <Maximize2 size={12} />
-                            </button>
+                            <button onClick={() => setGraphMode('fullscreen')} className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg font-bold text-[10px] transition-colors shadow-lg active:scale-95 shrink-0">باز کردن <Maximize2 size={12} /></button>
                         </div>
                     </div>
                 )}
                 
                 {activeTab === 'explorer' && (
-                    <div className="flex-1 flex flex-col min-h-0">
-                        <OpeningExplorer 
-                            fen={currentPosition} 
-                            onMoveSelect={(uci) => {
-                                addMoveToTree({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-                            }} 
-                        />
-                    </div>
+                    <div className="flex-1 flex flex-col min-h-0"><OpeningExplorer fen={currentPosition} onMoveSelect={(uci) => { addMoveToTree({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }); }} /></div>
                 )}
             </div>
 
@@ -1134,22 +994,10 @@ export default function AnalysisBoard() {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                    <button 
-                        onClick={() => {
-                            if (Object.keys(tree).length <= 1) {
-                                showToast('اول یه حرکتی روی تخته بزن! 😅');
-                                return;
-                            }
-                            navigate('/report', { state: { data: getPgnString(), meta: playerMeta } });
-                        }} 
-                        className="relative flex items-center h-[34px] gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 rounded-lg text-[11px] font-black transition-all shadow-[0_0_10px_rgba(119,149,86,0.5)] hover:shadow-[0_0_15px_rgba(119,149,86,0.8)] active:scale-95 group"
-                    >
+                    <button onClick={() => { if (Object.keys(tree).length <= 1) { showToast('اول یه حرکتی روی تخته بزن! 😅'); return; } navigate('/report', { state: { data: getPgnString(), meta: playerMeta } }); }} className="relative flex items-center h-[34px] gap-1.5 bg-farzin-accent hover:bg-[#68824b] text-white px-3 rounded-lg text-[11px] font-black transition-all shadow-[0_0_10px_rgba(119,149,86,0.5)] hover:shadow-[0_0_15px_rgba(119,149,86,0.8)] active:scale-95 group">
                         <PieChart size={14} className="group-hover:scale-110 transition-transform" /> 
                         گزارش بازی
-                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                        </span>
+                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span></span>
                     </button>
                     <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
                         <button onClick={goStart} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] transition-colors h-full flex items-center"><Rewind size={17} /></button>
