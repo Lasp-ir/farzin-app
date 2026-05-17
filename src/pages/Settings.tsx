@@ -20,15 +20,16 @@ const defaultSettings = {
   language: 'fa',
 };
 
+// 🔥 تمام لینک‌های خارجی تصاویر برای جلوگیری از ارور تایم‌اوت حذف شدند
 const boardThemes = [
   { id: 'green', name: 'سبز فرزین', light: '#ebecd0', dark: '#779556' },
-  { id: 'wood', name: 'چوب کالیفرنیا', light: '#f0d9b5', dark: '#b58863', texture: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=200&auto=format&fit=crop' },
-  { id: 'walnut', name: 'گردویی تیره', light: '#d0af88', dark: '#6e472a', texture: 'https://images.unsplash.com/photo-1546484396-fb3fc6f95f98?q=80&w=200&auto=format&fit=crop' },
-  { id: 'marble', name: 'مرمر ایتالیایی', light: '#e8ecef', dark: '#8f9ea8', texture: 'https://images.unsplash.com/photo-1518712398506-64c9d9ff0e65?q=80&w=200&auto=format&fit=crop' },
-  { id: 'granite', name: 'سنگ گرانیت', light: '#c4c8cc', dark: '#50565a', texture: 'https://images.unsplash.com/photo-1508215885820-4585e5610d28?q=80&w=200&auto=format&fit=crop' },
-  { id: 'sand', name: 'ماسه صحرا', light: '#f4dfba', dark: '#d2a66e', texture: 'https://images.unsplash.com/photo-1545464197-e89bd74737dd?q=80&w=200&auto=format&fit=crop' },
-  { id: 'carbon', name: 'فیبر کربن', light: '#888888', dark: '#222222', texture: 'https://images.unsplash.com/photo-1585807469395-586b46b1076b?q=80&w=200&auto=format&fit=crop' },
-  { id: 'canvas', name: 'بوم نقاشی', light: '#f2ece4', dark: '#a59b8c', texture: 'https://images.unsplash.com/photo-1533035353720-f1c6a75cd8ab?q=80&w=200&auto=format&fit=crop' },
+  { id: 'wood', name: 'چوب کالیفرنیا', light: '#f0d9b5', dark: '#b58863' },
+  { id: 'walnut', name: 'گردویی تیره', light: '#d0af88', dark: '#6e472a' },
+  { id: 'marble', name: 'مرمر ایتالیایی', light: '#e8ecef', dark: '#8f9ea8' },
+  { id: 'granite', name: 'سنگ گرانیت', light: '#c4c8cc', dark: '#50565a' },
+  { id: 'sand', name: 'ماسه صحرا', light: '#f4dfba', dark: '#d2a66e' },
+  { id: 'carbon', name: 'فیبر کربن', light: '#888888', dark: '#222222' },
+  { id: 'canvas', name: 'بوم نقاشی', light: '#f2ece4', dark: '#a59b8c' },
   { id: 'dark', name: 'گرافیت کلاسیک', light: '#bababa', dark: '#4a4a4a' },
   { id: 'glass', name: 'شیشه‌ای', light: '#dff9fb', dark: '#95afc0' },
   { id: 'sky', name: 'آبی آسمان', light: '#e0f7fa', dark: '#4fc3f7' },
@@ -55,7 +56,6 @@ export default function Settings() {
   const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [feedbackData, setFeedbackData] = useState({ text: '', name: '', phone: '', email: '' });
 
-  // 🌟 استیت‌های سیستم مولتی‌اکانت داینامیک
   const [lichessAccounts, setLichessAccounts] = useState<string[]>(() => {
       const saved = JSON.parse(localStorage.getItem('farzin_lichess_accounts') || '[]');
       return saved.length > 0 ? saved : [''];
@@ -96,7 +96,6 @@ export default function Settings() {
       localStorage.setItem('farzin_lichess_accounts', JSON.stringify(finalL));
       localStorage.setItem('farzin_chesscom_accounts', JSON.stringify(finalC));
       
-      // حفظ حداقل یک فیلد خالی اگر کاربر همه را پاک کرد
       setLichessAccounts(finalL.length > 0 ? finalL : ['']);
       setChesscomAccounts(finalC.length > 0 ? finalC : ['']);
       
@@ -178,7 +177,6 @@ export default function Settings() {
                     </div>
                     
                     <div className="flex flex-col gap-6">
-                        {/* Lichess */}
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
@@ -207,7 +205,6 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {/* Chess.com */}
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
@@ -246,7 +243,6 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* بقیه تب‌ها (گیم‌پلی، تم‌ها و ...) */}
                 {activeTab === 'gameplay' && (
                   <div className="flex flex-col gap-4">
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
@@ -273,7 +269,7 @@ export default function Settings() {
                                 return (
                                     <motion.button key={t.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => updateSetting('boardTheme', t.id)} className={`flex-shrink-0 flex flex-col items-center gap-3 p-3 w-[110px] rounded-[20px] border-2 transition-colors snap-center ${isSelected ? 'border-farzin-accent bg-[#262421] shadow-[0_5px_15px_rgba(119,149,86,0.2)]' : 'border-transparent bg-[#161512] shadow-inner'}`}>
                                         <div className="w-16 h-16 rounded-xl shadow-md border border-black/30 overflow-hidden grid grid-cols-2 grid-rows-2 relative">
-                                            {t.texture && <img src={t.texture} className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay" alt={t.name} />}
+                                            {/* تگ img و لود عکس حذف شده است تا فقط رنگ‌های پایه رندر شوند */}
                                             <div style={{ backgroundColor: t.light }}></div><div style={{ backgroundColor: t.dark }}></div><div style={{ backgroundColor: t.dark }}></div><div style={{ backgroundColor: t.light }}></div>
                                         </div>
                                         <span className={`text-[11px] font-black truncate w-full text-center ${isSelected ? 'text-white' : 'text-zinc-500'}`}>{t.name}</span>
