@@ -5,7 +5,8 @@ import { Chess } from 'chess.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, RefreshCw, ArrowRight, ShieldAlert, 
-    CheckCircle2, Target, RotateCcw, ArrowLeft, ArrowRight as ArrowRightIcon, Zap
+    CheckCircle2, Target, RotateCcw, Zap,
+    SkipBack, SkipForward, Rewind, FastForward, Check, X
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
 
@@ -24,10 +25,6 @@ const playSound = (type: keyof typeof sounds) => {
     audio.play().catch(e => console.log('Audio blocked:', e));
 };
 
-// --- آیکون‌های SVG برای تیک و ضربدر روی صفحه ---
-const checkIcon = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round' style='filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.6));'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E")`;
-const crossIcon = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round' style='filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.6));'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E")`;
-
 export default function PuzzleBoard() {
     const { mode } = useParams();
     const navigate = useNavigate();
@@ -41,11 +38,12 @@ export default function PuzzleBoard() {
     const [status, setStatus] = useState<'playing' | 'solved' | 'wrong'>('playing');
     const [playerColor, setPlayerColor] = useState<'white' | 'black'>('white');
     
-    // استایل‌های صفحه
     const [clickedSquare, setClickedSquare] = useState<string | null>(null);
     const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
     const [lastMoveSquares, setLastMoveSquares] = useState<Record<string, any>>({});
-    const [feedbackIcon, setFeedbackIcon] = useState<{square: string, source: string, type: 'correct'|'wrong'} | null>(null);
+    
+    // فیدبک جدید به سبک AnalysisBoard
+    const [feedback, setFeedback] = useState<{square: string, type: 'correct'|'wrong'} | null>(null);
     
     const [history, setHistory] = useState<{fen: string, lastMove: any}[]>([]);
     const [historyIndex, setHistoryIndex] = useState(0);
@@ -63,7 +61,7 @@ export default function PuzzleBoard() {
         setClickedSquare(null);
         setOptionSquares({});
         setLastMoveSquares({});
-        setFeedbackIcon(null);
+        setFeedback(null);
         
         try {
             let data;
@@ -74,21 +72,17 @@ export default function PuzzleBoard() {
 
             setPuzzleData(data);
             
-            // قدم ۱: ساخت بازی با FEN اولیه
             const newGame = new Chess(data.fen);
             const moves = data.moves.split(' ');
             setPuzzleMoves(moves);
 
-            // 🧠 تعیین رنگ بازیکن قبل از رندر شدن صفحه برای جلوگیری از پرش
             const pColor = newGame.turn() === 'w' ? 'black' : 'white';
             setPlayerColor(pColor);
             setGame(newGame);
             setHistory([{ fen: newGame.fen(), lastMove: null }]);
 
-            // پایان لودینگ تا صفحه با حالت اولیه رسم بشه
             setIsLoading(false);
 
-            // قدم ۲: حرکت حریف بعد از یک مکث طبیعی
             setTimeout(() => {
                 const firstMove = moves[0];
                 const from = firstMove.substring(0, 2);
@@ -155,9 +149,14 @@ export default function PuzzleBoard() {
 
             setGame(newGame);
             
-            // نمایش تیک سبز
-            setFeedbackIcon({ square: targetSquare, source: sourceSquare, type: 'correct' });
-            setLastMoveSquares({});
+            // رنگ سبز برای حرکت درست
+            setLastMoveSquares({
+                [sourceSquare]: { backgroundColor: 'rgba(34, 197, 94, 0.5)' },
+                [targetSquare]: { backgroundColor: 'rgba(34, 197, 94, 0.5)' }
+            });
+            // نمایش بج سبز
+            setFeedback({ square: targetSquare, type: 'correct' });
+            
             setClickedSquare(null);
             setOptionSquares({});
             
@@ -169,7 +168,7 @@ export default function PuzzleBoard() {
                 setTimeout(() => {
                     setStatus('solved');
                     playSound('gameOver');
-                }, 500);
+                }, 600);
             } else {
                 setTimeout(() => {
                     const compMove = puzzleMoves[currentMoveIndex + 1];
@@ -184,7 +183,7 @@ export default function PuzzleBoard() {
                     else playSound('move');
 
                     setGame(nextGame);
-                    setFeedbackIcon(null); // پاک کردن تیک
+                    setFeedback(null); 
                     setLastMoveSquares({
                         [from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
                         [to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
@@ -193,7 +192,7 @@ export default function PuzzleBoard() {
                     
                     setHistory(prev => [...prev, { fen: nextGame.fen(), lastMove: {from, to} }]);
                     setHistoryIndex(newHistory.length);
-                }, 700);
+                }, 800);
             }
             return true;
         } else {
@@ -205,8 +204,17 @@ export default function PuzzleBoard() {
                 if (isValid) {
                     setStatus('wrong');
                     playSound('error');
-                    // نمایش ضربدر قرمز (بدون ثبت حرکت روی صفحه)
-                    setFeedbackIcon({ square: targetSquare, source: sourceSquare, type: 'wrong' });
+                    
+                    setGame(testGame);
+                    
+                    // رنگ قرمز برای حرکت غلط
+                    setLastMoveSquares({
+                        [sourceSquare]: { backgroundColor: 'rgba(239, 68, 68, 0.5)' },
+                        [targetSquare]: { backgroundColor: 'rgba(239, 68, 68, 0.5)' }
+                    });
+                    // نمایش بج قرمز
+                    setFeedback({ square: targetSquare, type: 'wrong' });
+                    
                     setOptionSquares({});
                     setClickedSquare(null);
                 }
@@ -216,13 +224,12 @@ export default function PuzzleBoard() {
     };
 
     const onDrop = (sourceSquare: string, targetSquare: string) => {
-        setFeedbackIcon(null);
+        setFeedback(null);
         return attemptMove(sourceSquare, targetSquare);
     };
 
     const handleSquareClick = (square: string) => {
-        setFeedbackIcon(null); // با هر کلیک جدید، فیدبک قبلی پاک میشه
-        
+        setFeedback(null); 
         if (status !== 'playing' || historyIndex < history.length - 1) return;
 
         if (clickedSquare) {
@@ -232,9 +239,7 @@ export default function PuzzleBoard() {
                 return;
             }
             const moves = game.moves({ square: clickedSquare as any, verbose: true });
-            const move = moves.find(m => m.to === square);
-
-            if (move) {
+            if (moves.find(m => m.to === square)) {
                 attemptMove(clickedSquare, square);
                 return;
             }
@@ -252,7 +257,9 @@ export default function PuzzleBoard() {
 
     const handleRetry = () => {
         setStatus('playing');
-        setFeedbackIcon(null);
+        setFeedback(null);
+        setGame(new Chess(history[historyIndex].fen)); 
+        
         if (history[historyIndex].lastMove) {
             setLastMoveSquares({
                 [history[historyIndex].lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
@@ -261,9 +268,16 @@ export default function PuzzleBoard() {
         }
     };
 
+    // --- نویگیشن جدید (کاملاً استاندارد LTR) ---
+    const goStart = () => {
+        if (history.length > 0) {
+            setFeedback(null); setHistoryIndex(0); setGame(new Chess(history[0].fen)); setLastMoveSquares({}); setOptionSquares({}); setClickedSquare(null);
+        }
+    };
+
     const goBack = () => {
         if (historyIndex > 0) {
-            setFeedbackIcon(null);
+            setFeedback(null);
             const newIndex = historyIndex - 1;
             setHistoryIndex(newIndex);
             setGame(new Chess(history[newIndex].fen));
@@ -273,14 +287,13 @@ export default function PuzzleBoard() {
                     [history[newIndex].lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
                 });
             } else setLastMoveSquares({});
-            setOptionSquares({});
-            setClickedSquare(null);
+            setOptionSquares({}); setClickedSquare(null);
         }
     };
 
     const goForward = () => {
         if (historyIndex < history.length - 1) {
-            setFeedbackIcon(null);
+            setFeedback(null);
             const newIndex = historyIndex + 1;
             setHistoryIndex(newIndex);
             setGame(new Chess(history[newIndex].fen));
@@ -290,26 +303,33 @@ export default function PuzzleBoard() {
                     [history[newIndex].lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
                 });
             }
-            setOptionSquares({});
-            setClickedSquare(null);
+            setOptionSquares({}); setClickedSquare(null);
         }
     };
 
-    // --- ساخت استایل‌های ترکیبی برای رندر صفحه ---
-    let finalCustomSquares = { ...lastMoveSquares, ...optionSquares };
-    if (feedbackIcon) {
-        finalCustomSquares[feedbackIcon.square] = {
-            ...finalCustomSquares[feedbackIcon.square],
-            backgroundImage: feedbackIcon.type === 'correct' ? checkIcon : crossIcon,
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center',
-            backgroundSize: '60%',
-            backgroundColor: feedbackIcon.type === 'correct' ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)',
-        };
-        if (feedbackIcon.type === 'wrong') {
-            finalCustomSquares[feedbackIcon.source] = { backgroundColor: 'rgba(239, 68, 68, 0.5)' };
+    const goEnd = () => {
+        if (history.length > 0) {
+            setFeedback(null);
+            const newIndex = history.length - 1;
+            setHistoryIndex(newIndex);
+            setGame(new Chess(history[newIndex].fen));
+            if(history[newIndex].lastMove) {
+                setLastMoveSquares({
+                    [history[newIndex].lastMove.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+                    [history[newIndex].lastMove.to]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' }
+                });
+            }
+            setOptionSquares({}); setClickedSquare(null);
         }
-    }
+    };
+
+    // محاسبه مختصات برای بج روی صفحه
+    const getSquareCoordinates = (square: string) => {
+        const col = square.charCodeAt(0) - 97; 
+        const row = parseInt(square[1]) - 1; 
+        const isWhite = playerColor === 'white';
+        return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
+    };
 
     return (
         <div className="min-h-[100dvh] bg-[#161512] text-zinc-200 flex flex-col items-center" dir="rtl">
@@ -337,7 +357,8 @@ export default function PuzzleBoard() {
                         <RefreshCw className="animate-spin text-farzin-accent" size={32} />
                     </div>
                 ) : (
-                    <div className={`rounded-[4px] overflow-hidden shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
+                    <div className={`rounded-[4px] relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
+                        
                         <Chessboard 
                             id="FarzinPuzzleBoard" 
                             position={game.fen()} 
@@ -346,19 +367,61 @@ export default function PuzzleBoard() {
                             boardOrientation={playerColor}
                             customDarkSquareStyle={{ backgroundColor: '#779556' }}
                             customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-                            customSquareStyles={finalCustomSquares}
-                            animationDuration={300}
+                            customSquareStyles={{ ...lastMoveSquares, ...optionSquares }}
+                            animationDuration={250}
                             autoPromoteToQueen={true}
                         />
+
+                        {/* 🌟 گرید نامرئی برای نمایش بج‌های AnalysisBoard */}
+                        {feedback && (
+                            <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8 z-20">
+                                {Array.from({ length: 64 }).map((_, i) => {
+                                    const x = i % 8;
+                                    const y = Math.floor(i / 8);
+                                    const coords = getSquareCoordinates(feedback.square);
+                                    
+                                    if (x === coords.x && y === coords.y) {
+                                        const isCorrect = feedback.type === 'correct';
+                                        return (
+                                            <div key={i} className="relative w-full h-full flex items-center justify-center">
+                                                {/* هاله‌ی نورانی زیر بج */}
+                                                <motion.div 
+                                                    animate={isCorrect ? { scale: [1, 1.25, 1], opacity: [0.6, 1, 0.6] } : { scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }} 
+                                                    transition={{ duration: isCorrect ? 1.5 : 0.8, repeat: Infinity, ease: "easeInOut" }} 
+                                                    className="absolute inset-0 z-0" 
+                                                    style={{ background: isCorrect ? 'radial-gradient(circle, rgba(34,197,94,0) 10%, rgba(34,197,94,0.6) 60%, rgba(34,197,94,0) 100%)' : 'radial-gradient(circle, rgba(239,68,68,0) 10%, rgba(239,68,68,0.8) 60%, rgba(239,68,68,0) 100%)' }} 
+                                                />
+                                                {/* خود بج دایره‌ای */}
+                                                <motion.div 
+                                                    initial={{ scale: 0, opacity: 0 }} 
+                                                    animate={{ scale: 1, opacity: 1 }} 
+                                                    transition={{ type: "spring", stiffness: 400, damping: 20 }} 
+                                                    className="absolute -top-[6px] -right-[6px] w-[22px] h-[22px] rounded-full flex items-center justify-center text-white shadow-[0_4px_10px_rgba(0,0,0,0.6)] border border-black/40 z-10" 
+                                                    style={{ backgroundColor: isCorrect ? '#22c55e' : '#ef4444' }}
+                                                >
+                                                    {isCorrect ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}
+                                                </motion.div>
+                                            </div>
+                                        );
+                                    }
+                                    return <div key={i} />;
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
             <div className="w-full max-w-md mt-6 px-4">
+                {/* 🌟 نوار کنترل استاندارد با چیدمان صفحه آنالیز */}
                 <div className="flex items-center justify-between bg-[#1e1c19] border border-[#35332e] rounded-2xl p-2">
-                    <button onClick={goBack} disabled={historyIndex === 0} className="p-3 rounded-xl hover:bg-[#262421] disabled:opacity-30 transition-all">
-                        <ArrowRightIcon size={20} />
-                    </button>
+                    <div className="flex h-[34px] items-center bg-[#262421] rounded-lg border border-[#35332e] overflow-hidden shadow-sm" dir="ltr">
+                        <button onClick={goStart} disabled={historyIndex === 0 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors h-full flex items-center"><Rewind size={17} /></button>
+                        <button onClick={goBack} disabled={historyIndex === 0 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipBack size={17} /></button>
+                        <button onClick={goForward} disabled={historyIndex === history.length - 1 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><SkipForward size={17} /></button>
+                        <button onClick={goEnd} disabled={historyIndex === history.length - 1 || status === 'wrong'} className="p-1.5 px-2 text-zinc-400 hover:text-white hover:bg-[#35332e] disabled:opacity-30 transition-colors border-l border-[#35332e]/50 h-full flex items-center"><FastForward size={17} /></button>
+                    </div>
+
                     <div className="text-xs font-bold text-zinc-400 flex items-center gap-2">
                         {status === 'playing' ? (
                             <><Zap size={14} className="text-yellow-500" /> نوبت شماست</>
@@ -368,9 +431,6 @@ export default function PuzzleBoard() {
                             <><ShieldAlert size={14} className="text-red-500" /> اشتباه</>
                         )}
                     </div>
-                    <button onClick={goForward} disabled={historyIndex === history.length - 1} className="p-3 rounded-xl hover:bg-[#262421] disabled:opacity-30 transition-all">
-                        <ArrowLeft size={20} />
-                    </button>
                 </div>
             </div>
 
