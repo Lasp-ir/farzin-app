@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 
+// فیلترهای آفلاین برای بک‌آپ (سبک و سریع)
 const getSvgTexture = (type: string, opacity: number) => {
   const freq = type === 'wood' ? '0.01 0.15' : type === 'sand' ? '0.6' : '0.03';
   return `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${freq}' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='${opacity}'/%3E%3C/svg%3E")`;
@@ -27,18 +28,23 @@ export function useChessTheme() {
   }, []);
 
   const themeColors = useMemo(() => {
-    // 🔥 موتور رندر تم‌های پولی (VIP)
-    // اگر تم در دیتابیس دانلود شده بود، با افکت شیشه‌ای (Glassmorphism) رندرش کن
     const savedCustomBoard = localStorage.getItem(`farzin_board_${boardTheme}`);
+    
+    // 🚀 بهینه‌سازی حداکثری برای موبایل: استفاده از یک لایه عکس با ترکیب رنگی ساده (Blend Mode)
+    // این روش برای پردازنده موبایل مثل آب خوردنه و هیچ افت فریمی ایجاد نمیکنه
     if (savedCustomBoard && !['wood','walnut','marble','granite','sand','carbon','canvas','neon','leather'].includes(boardTheme)) {
         return {
             light: { 
-                background: `linear-gradient(rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.75)), url("${savedCustomBoard}")`, 
-                backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: 'inset 0 0 10px rgba(255,255,255,0.5)'
+                background: `rgba(255, 255, 255, 0.7) url("${savedCustomBoard}")`, 
+                backgroundSize: 'cover', 
+                backgroundPosition: 'center',
+                backgroundBlendMode: 'overlay' 
             },
             dark: { 
-                background: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("${savedCustomBoard}")`, 
-                backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: 'inset 0 0 15px rgba(0,0,0,0.7)'
+                background: `rgba(0, 0, 0, 0.6) url("${savedCustomBoard}")`, 
+                backgroundSize: 'cover', 
+                backgroundPosition: 'center',
+                backgroundBlendMode: 'overlay'
             }
         };
     }
@@ -82,7 +88,9 @@ export function useChessTheme() {
             height: squareWidth, 
             backgroundImage: `url("${pieceUrl}")`, 
             backgroundSize: '100%',
-            filter: 'drop-shadow(0 5px 8px rgba(0,0,0,0.5)) drop-shadow(0 2px 3px rgba(0,0,0,0.4))' // سایه‌های سه‌بعدی سنگین‌تر برای مهره‌های VIP
+            backgroundRepeat: 'no-repeat',
+            // 🚀 بازگشت به همان سایه ساده و سبک اولیه
+            filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.35))'
         }} />
       );
     });
