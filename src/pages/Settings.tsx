@@ -8,7 +8,6 @@ import {
   Send, MessageCircle, ExternalLink, MessageSquare, X, CheckCircle2, 
   Crown, Users, Trash2, Check, PlusCircle, CloudDownload, AlertTriangle, Loader2, Eye
 } from 'lucide-react';
-// 🔥 ایمپورت هوک تم برای پیش‌نمایش زنده
 import { useChessTheme } from '../hooks/useChessTheme';
 
 const defaultSettings = {
@@ -24,7 +23,6 @@ const defaultSettings = {
   language: 'fa',
 };
 
-// 🔥 تمامی تم‌های بی‌نظیر تخته با کیفیت بهینه
 const boardThemes = [
   { id: 'green', name: 'سبز فرزین', light: '#ebecd0', dark: '#779556' },
   { id: 'wood', name: 'چوب کلاسیک', light: '#f0d9b5', dark: '#b58863' },
@@ -47,7 +45,6 @@ const boardThemes = [
   { id: 'sky', name: 'آبی آسمان', light: '#e0f7fa', dark: '#4fc3f7' },
 ];
 
-// 🔥 مجموعه عظیم بهترین مهره‌های سایت Chess.com و منابع دیگه
 const pieceThemes = [
   { id: 'neo', name: 'نئو (Neo)' },
   { id: 'classic', name: 'استانتون' },
@@ -83,7 +80,6 @@ export default function Settings() {
   const [settings, setSettings] = useState(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 🌟 استخراج مستقیم تم از هوک برای نمایش زنده تخته
   const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
 
   const [downloadingBoard, setDownloadingBoard] = useState<string | null>(null);
@@ -120,6 +116,34 @@ export default function Settings() {
       window.dispatchEvent(new Event('farzin_settings_changed'));
       return newSettings;
     });
+  };
+
+  // 🔥 توابع فراموش شده اضافه شدند
+  const handleSaveAccounts = () => {
+      setIsSavingAccounts(true);
+      const finalL = lichessAccounts.map(a => a.trim()).filter(Boolean);
+      const finalC = chesscomAccounts.map(a => a.trim()).filter(Boolean);
+      
+      localStorage.setItem('farzin_lichess_accounts', JSON.stringify(finalL));
+      localStorage.setItem('farzin_chesscom_accounts', JSON.stringify(finalC));
+      
+      setLichessAccounts(finalL.length > 0 ? finalL : ['']);
+      setChesscomAccounts(finalC.length > 0 ? finalC : ['']);
+      
+      setTimeout(() => { setIsSavingAccounts(false); }, 1000);
+  };
+
+  const handleSendFeedback = () => {
+    if (!feedbackData.text.trim()) return;
+    setFeedbackStatus('sending');
+    setTimeout(() => {
+      setFeedbackStatus('success');
+      setTimeout(() => {
+        setIsFeedbackOpen(false);
+        setFeedbackStatus('idle');
+        setFeedbackData({ text: '', name: '', phone: '', email: '' });
+      }, 2000);
+    }, 1500);
   };
 
   const fetchAsBase64 = async (url: string): Promise<string> => {
@@ -214,11 +238,8 @@ export default function Settings() {
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.25, ease: "easeOut" }}>
                 
-                {/* 🌟 تب ظاهر و تم یکپارچه شده با Preview */}
                 {activeTab === 'appearance' && (
                   <div className="flex flex-col gap-6">
-                    
-                    {/* 🌟 بخش پیش‌نمایش زنده */}
                     <div className="bg-[#1e1c19] p-5 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden flex flex-col items-center">
                         <div className="flex items-center gap-2 mb-4 w-full px-2 text-farzin-accent">
                             <Eye size={18} />
@@ -235,7 +256,6 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* 🌟 لیست تم‌های تخته (رایگان و قابل دانلود) */}
                     <div className="bg-[#1e1c19] pt-6 pb-4 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden">
                         <div className="flex items-center gap-2 mb-4 px-6 text-farzin-accent"><Palette size={18} /><h2 className="font-black text-xs uppercase tracking-widest">انتخاب طرح تخته</h2></div>
                         <div className="flex overflow-x-auto gap-4 px-6 pb-4 pt-2 no-scrollbar snap-x snap-mandatory">
@@ -273,7 +293,6 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* 🌟 لیست تم‌های مهره (رایگان و قابل دانلود) */}
                     <div className="bg-[#1e1c19] pt-6 pb-4 rounded-[28px] border border-[#35332e] shadow-xl overflow-hidden">
                         <div className="flex items-center gap-2 mb-4 px-6 text-farzin-accent"><Crown size={18} /><h2 className="font-black text-xs uppercase tracking-widest">طراحی مهره‌ها</h2></div>
                         <div className="flex overflow-x-auto gap-4 px-6 pb-4 pt-2 no-scrollbar snap-x snap-mandatory">
@@ -311,7 +330,6 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* بقیه تب‌ها (گیم‌پلی، موتور و ...) */}
                 {activeTab === 'gameplay' && (
                   <div className="flex flex-col gap-4">
                     <div className="bg-[#1e1c19] p-6 rounded-[28px] border border-[#35332e] shadow-xl">
@@ -452,19 +470,31 @@ export default function Settings() {
         </div>
       </motion.div>
 
-      {/* 🌟 مودال خطای دانلود */}
       <AnimatePresence>
-        {downloadErrorModal && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md px-4" dir="rtl">
-                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm bg-[#1e1c19] border border-rose-500/30 rounded-[32px] shadow-[0_20px_60px_rgba(225,29,72,0.3)] overflow-hidden flex flex-col items-center p-8 text-center">
-                    <AlertTriangle size={56} className="text-rose-500 mb-4 drop-shadow-[0_0_15px_rgba(225,29,72,0.8)]" />
-                    <h2 className="text-2xl font-black text-white mb-2">دانلود ناموفق بود!</h2>
-                    <p className="text-zinc-400 text-sm leading-relaxed mb-8">
-                        برای دانلود این آیتم ویژه به اینترنت آزاد نیاز دارید. لطفاً فیلترشکن (VPN) خود را روشن کرده و مجدداً تلاش کنید.
-                    </p>
-                    <button onClick={() => setDownloadErrorModal(false)} className="w-full py-4 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-2xl transition-all shadow-[0_5px_20px_rgba(225,29,72,0.4)] active:scale-95">متوجه شدم</button>
-                </motion.div>
+        {isFeedbackOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" dir="rtl">
+            <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="w-full max-w-md bg-[#1e1c19] border border-[#35332e] rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#262421]">
+                <h3 className="font-black text-white flex items-center gap-2"><MessageSquare size={18} className="text-farzin-accent" />ارسال بازخورد</h3>
+                <button onClick={() => { if (feedbackStatus !== 'sending') setIsFeedbackOpen(false); }} className="p-2 bg-[#161512] rounded-full text-zinc-400 hover:text-white transition-colors"><X size={18} /></button>
+              </div>
+              <div className="p-5 flex flex-col gap-4">
+                {feedbackStatus === 'success' ? (
+                  <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-10 gap-4"><div className="w-16 h-16 bg-farzin-accent/20 rounded-full flex items-center justify-center"><CheckCircle2 size={32} className="text-farzin-accent" /></div><span className="font-black text-white text-lg">با موفقیت ارسال شد!</span><span className="text-xs text-zinc-400">از اینکه به بهبود فرزین کمک می‌کنید متشکریم.</span></motion.div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400 px-1">متن پیام (الزامی)</label><textarea value={feedbackData.text} onChange={(e) => setFeedbackData({...feedbackData, text: e.target.value})} placeholder="مشکل، پیشنهاد یا انتقاد خود را بنویسید..." className="w-full h-28 resize-none bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl p-3 text-sm text-white placeholder-zinc-600 outline-none transition-colors"></textarea></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400 px-1">نام (اختیاری)</label><input type="text" value={feedbackData.name} onChange={(e) => setFeedbackData({...feedbackData, name: e.target.value})} placeholder="نام شما" className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors" /></div>
+                      <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400 px-1">شماره تماس (اختیاری)</label><input type="tel" dir="ltr" value={feedbackData.phone} onChange={(e) => setFeedbackData({...feedbackData, phone: e.target.value})} placeholder="0912..." className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors text-right" /></div>
+                    </div>
+                    <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400 px-1">ایمیل (اختیاری)</label><input type="email" dir="ltr" value={feedbackData.email} onChange={(e) => setFeedbackData({...feedbackData, email: e.target.value})} placeholder="your@email.com" className="w-full bg-[#161512] border border-[#35332e] focus:border-farzin-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors text-right" /></div>
+                    <button onClick={handleSendFeedback} disabled={!feedbackData.text.trim() || feedbackStatus === 'sending'} className={`mt-2 w-full py-3.5 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 ${!feedbackData.text.trim() ? 'bg-[#35332e] text-zinc-500 cursor-not-allowed' : 'bg-farzin-accent text-white shadow-[0_4px_15px_rgba(119,149,86,0.4)] active:scale-[0.98]'}`}>{feedbackStatus === 'sending' ? <RefreshCw size={18} className="animate-spin" /> : <><Send size={16} />ارسال پیام</>}</button>
+                  </>
+                )}
+              </div>
             </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>
