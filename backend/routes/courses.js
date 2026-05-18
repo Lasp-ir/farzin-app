@@ -239,5 +239,25 @@ router.delete('/exercises/:exerciseId', async (req, res) => {
     res.status(500).json({ error: 'خطا در حذف تمرین' });
   }
 });
-
+// ویرایش اطلاعات یک جلسه
+router.put('/lessons/:lessonId', async (req, res) => {
+  try {
+    const { title, videoUrl, duration, order, isFreePreview } = req.body;
+    
+    const updatedLesson = await prisma.lesson.update({
+      where: { id: req.params.lessonId },
+      data: {
+        title,
+        videoUrl,
+        duration,
+        order: Number(order),
+        isFreePreview: Boolean(isFreePreview)
+      }
+    });
+    res.json(updatedLesson);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در ویرایش جلسه' });
+  }
+});
 module.exports = router;
