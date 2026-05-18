@@ -57,5 +57,57 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: 'خطا در حذف دوره' });
   }
 });
+// ==========================================
+// 🎥 API های مربوط به جلسات (Lessons)
+// ==========================================
+
+// 4️⃣ دریافت تمام جلسات یک دوره خاص
+router.get('/:courseId/lessons', async (req, res) => {
+  try {
+    const lessons = await prisma.lesson.findMany({
+      where: { courseId: req.params.courseId },
+      orderBy: { order: 'asc' } // مرتب‌سازی بر اساس شماره جلسه
+    });
+    res.json(lessons);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در دریافت جلسات دوره' });
+  }
+});
+
+// 5️⃣ اضافه کردن جلسه جدید به یک دوره
+router.post('/:courseId/lessons', async (req, res) => {
+  try {
+    const { title, videoUrl, duration, order, isFreePreview } = req.body;
+    
+    const newLesson = await prisma.lesson.create({
+      data: {
+        title,
+        videoUrl,
+        duration,
+        order: Number(order),
+        isFreePreview: Boolean(isFreePreview),
+        courseId: req.params.courseId
+      }
+    });
+    res.json(newLesson);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در ثبت جلسه جدید' });
+  }
+});
+
+// 6️⃣ حذف یک جلسه
+router.delete('/lessons/:lessonId', async (req, res) => {
+  try {
+    await prisma.lesson.delete({
+      where: { id: req.params.lessonId }
+    });
+    res.json({ message: 'جلسه با موفقیت حذف شد' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در حذف جلسه' });
+  }
+});
 
 module.exports = router;
