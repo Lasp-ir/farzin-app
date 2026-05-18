@@ -19,16 +19,13 @@ export default function Education() {
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState('all');
   
-  // 🌟 استیت‌های مدیریت دیتا از سرور
   const [courses, setCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // 🌟 استیت مربوط به پاپ‌آپ (Modal) معرفی دوره
   const [selectedCourseModal, setSelectedCourseModal] = useState<any>(null);
   const [modalTab, setModalTab] = useState<'about' | 'lessons'>('about');
 
-  // فرض می‌کنیم کاربر حساب رایگان دارد
   const isUserPremium = false; 
 
   const [dailyQuota, setDailyQuota] = useState(() => {
@@ -36,7 +33,6 @@ export default function Education() {
     return savedQuota !== null ? parseInt(savedQuota) : 1;
   });
 
-  // دریافت دوره‌ها از بک‌اند
   useEffect(() => {
     const fetchCourses = async () => {
       try {
@@ -44,95 +40,82 @@ export default function Education() {
         if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
         setCourses(data);
-      } catch (error) {
-        console.error("خطا در دریافت دوره‌ها از سرور:", error);
-      } finally {
+      } catch (error) { console.error("خطا در دریافت دوره‌ها", error); } 
+      finally {
         setIsLoading(false);
         setTimeout(() => setIsLoaded(true), 100);
       }
     };
-
     fetchCourses();
   }, []);
 
-  const filteredCourses = activeCategory === 'all' 
-    ? courses 
-    : courses.filter(c => c.category === activeCategory);
+  const filteredCourses = activeCategory === 'all' ? courses : courses.filter(c => c.category === activeCategory);
 
-  const inProgressCourse = courses.find(c => c.progress > 0 && c.progress < 100);
+  // 🔥 پیدا کردن آخرین دوره تماشا شده برای کارت بالای صفحه
+  const lastWatchedCourseId = localStorage.getItem('farzin_last_course');
+  const inProgressCourse = courses.find(c => c.id === lastWatchedCourseId) || courses[0]; // اگه هیچی ندیده بود، اولی رو پیشنهاد بده
 
   const handleCourseClick = (course: any) => {
     setSelectedCourseModal(course);
-    setModalTab('about'); // همیشه با تب معرفی باز بشه
+    setModalTab('about'); 
   };
 
-  const handleUseQuotaAndPlay = () => {
-    if (dailyQuota > 0) {
-        setDailyQuota(0);
-        localStorage.setItem('farzin_daily_quota', '0');
+  // 🔥 تابع هوشمند برای دکمه "شروع / ادامه"
+  const handleStartOrContinue = (course: any) => {
+    const savedProgress = JSON.parse(localStorage.getItem(`farzin_progress_${course.id}`) || 'null');
+    
+    if (savedProgress && savedProgress.lessonId) {
+        // ادامه آموزش از همون جلسه
+        navigate(`/course/${course.id}/play?lesson=${savedProgress.lessonId}`);
+    } else {
+        // شروع از اول
+        navigate(`/course/${course.id}/play`);
     }
-    navigate(`/course/${selectedCourseModal.id}/play`);
+  };
+
+  // 🔥 تابع کلیک روی یک جلسه خاص تو پاپ‌آپ
+  const handlePlaySpecificLesson = (courseId: string, lessonId: string) => {
+      navigate(`/course/${courseId}/play?lesson=${lessonId}`);
   };
 
   return (
     <>
-      <motion.div 
-        initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3, ease: "easeOut" }}
-        className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-24 overflow-x-hidden" dir="rtl"
-      >
+      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3, ease: "easeOut" }} className="min-h-screen bg-[#161512] text-zinc-200 flex flex-col items-center pb-24 overflow-x-hidden" dir="rtl">
         <div className="w-full max-w-2xl px-5 py-6 flex items-center justify-between z-20 sticky top-0 bg-[#161512]/90 backdrop-blur-xl border-b border-white/5">
-          <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white transition-transform active:scale-90 bg-[#1e1c19] p-2 rounded-xl border border-[#35332e]">
-            <ChevronRight size={24} />
-          </button>
-          <div className="flex flex-col items-center">
-              <h1 className="text-lg font-black tracking-tight text-white uppercase drop-shadow-md">آکادمی فرزین</h1>
-              <span className="text-[10px] text-amber-400 font-bold tracking-widest uppercase mt-0.5 flex items-center gap-1"><Crown size={10} /> Masterclass</span>
-          </div>
+          <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white transition-transform active:scale-90 bg-[#1e1c19] p-2 rounded-xl border border-[#35332e]"><ChevronRight size={24} /></button>
+          <div className="flex flex-col items-center"><h1 className="text-lg font-black tracking-tight text-white uppercase drop-shadow-md">آکادمی فرزین</h1><span className="text-[10px] text-amber-400 font-bold tracking-widest uppercase mt-0.5 flex items-center gap-1"><Crown size={10} /> Masterclass</span></div>
           <div className="w-10 flex justify-end">
             {!isUserPremium && (
-                <div className={`px-2 py-1 rounded-lg border text-[10px] font-black flex items-center gap-1 shadow-inner ${dailyQuota > 0 ? 'bg-farzin-accent/10 text-farzin-accent border-farzin-accent/30' : 'bg-zinc-800 text-zinc-500 border-[#35332e]'}`}>
-                    <Play size={10} fill="currentColor" />
-                    <span>{dailyQuota}/1</span>
-                </div>
+                <div className={`px-2 py-1 rounded-lg border text-[10px] font-black flex items-center gap-1 shadow-inner ${dailyQuota > 0 ? 'bg-farzin-accent/10 text-farzin-accent border-farzin-accent/30' : 'bg-zinc-800 text-zinc-500 border-[#35332e]'}`}><Play size={10} fill="currentColor" /><span>{dailyQuota}/1</span></div>
             )}
           </div>
         </div>
 
         {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center mt-20">
-                <Loader2 size={40} className="text-farzin-accent animate-spin mb-4" />
-                <span className="text-sm font-bold text-zinc-400">در حال اتصال به آکادمی...</span>
-            </div>
+            <div className="flex-1 flex flex-col items-center justify-center mt-20"><Loader2 size={40} className="text-farzin-accent animate-spin mb-4" /><span className="text-sm font-bold text-zinc-400">در حال اتصال به آکادمی...</span></div>
         ) : (
             <div className={`w-full max-w-2xl px-4 mt-4 flex flex-col gap-6 transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
               
-              {/* بخش ادامه یادگیری */}
+              {/* 🌟 کارت آخرین دوره (ادامه یادگیری) */}
               {inProgressCourse && (
-                  <div onClick={() => handleCourseClick(inProgressCourse)} className="relative w-full rounded-[28px] overflow-hidden border border-[#35332e] shadow-2xl group cursor-pointer active:scale-[0.98] transition-all duration-300">
+                  <div onClick={() => handleStartOrContinue(inProgressCourse)} className="relative w-full rounded-[28px] overflow-hidden border border-[#35332e] shadow-2xl group cursor-pointer active:scale-[0.98] transition-all duration-300">
                       <div className="absolute inset-0">
                           <img src={inProgressCourse.image} alt={inProgressCourse.title} className="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" />
                           <div className="absolute inset-0 bg-gradient-to-t from-[#161512] via-[#161512]/80 to-transparent"></div>
-                          <div className="absolute inset-0 bg-gradient-to-l from-black/60 to-transparent"></div>
                       </div>
                       
                       <div className="relative z-10 p-6 pt-24 flex flex-col justify-end h-full">
-                          <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 text-[10px] font-black tracking-widest text-white w-max mb-3 uppercase">ادامه یادگیری</span>
+                          <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 text-[10px] font-black tracking-widest text-white w-max mb-3 uppercase flex items-center gap-1"><PlayCircle size={14}/> {lastWatchedCourseId === inProgressCourse.id ? 'ادامه یادگیری' : 'پیشنهاد فرزین'}</span>
                           <h2 className="text-2xl font-black text-white drop-shadow-lg mb-2">{inProgressCourse.title}</h2>
-                          <div className="flex items-center gap-2 text-zinc-300 text-xs font-bold mb-5">
+                          <div className="flex items-center gap-2 text-zinc-300 text-xs font-bold mb-2">
                               <span className="text-farzin-accent">{inProgressCourse.instructor}</span>
                               <span className="w-1 h-1 rounded-full bg-zinc-600"></span>
                               <span className="flex items-center gap-1"><Clock size={12}/> {inProgressCourse.duration}</span>
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                              <div className="flex justify-between items-center text-[10px] font-bold"><span className="text-white">{inProgressCourse.progress}٪ تکمیل شده</span><span className="text-farzin-accent flex items-center gap-1"><PlayCircle size={12} fill="currentColor" /> ادامه پخش</span></div>
-                              <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden backdrop-blur-sm shadow-inner"><div className="h-full bg-farzin-accent rounded-full shadow-[0_0_10px_rgba(119,149,86,0.8)]" style={{ width: `${inProgressCourse.progress}%` }}></div></div>
                           </div>
                       </div>
                   </div>
               )}
 
-              {/* تب‌های دسته‌بندی */}
               <div className="relative flex overflow-x-auto gap-2 pb-4 pt-1 no-scrollbar px-1">
                 {categories.map(cat => {
                   const isActive = activeCategory === cat.id;
@@ -145,7 +128,6 @@ export default function Education() {
                 })}
               </div>
 
-              {/* لیست دوره‌ها */}
               <div className="flex flex-col gap-5">
                   <AnimatePresence mode="popLayout">
                       {filteredCourses.length > 0 ? filteredCourses.map((course, index) => {
@@ -186,7 +168,7 @@ export default function Education() {
         )}
       </motion.div>
 
-      {/* 🌟 پاپ‌آپ حرفه‌ای معرفی دوره (Course Landing Modal) */}
+      {/* 🌟 پاپ‌آپ حرفه‌ای (ثابت و اسکرول‌دار) */}
       <AnimatePresence>
         {selectedCourseModal && (
           <motion.div 
@@ -197,15 +179,13 @@ export default function Education() {
             <motion.div 
               initial={{ scale: 0.95, y: 30, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-3xl bg-[#161512] border border-[#35332e] rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[90vh]"
+              // 🔥 سایز فیکس شد: h-[85vh]
+              className="w-full max-w-3xl bg-[#161512] border border-[#35332e] rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col h-[85vh]"
             >
-                {/* بخش عکس کاور (Hero) */}
-                <div className="relative h-48 sm:h-64 w-full shrink-0">
+                <div className="relative h-48 sm:h-56 w-full shrink-0">
                     <img src={selectedCourseModal.image} className="w-full h-full object-cover opacity-80" alt={selectedCourseModal.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#161512] via-[#161512]/40 to-transparent"></div>
-                    
                     <button onClick={() => setSelectedCourseModal(null)} className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-md rounded-full text-white/80 hover:text-white transition-colors border border-white/10 z-10"><X size={20} /></button>
-                    
                     <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col items-start z-10">
                         {selectedCourseModal.isPremium && <span className="px-2 py-1 mb-2 bg-amber-500/20 text-amber-500 border border-amber-500/30 rounded-md text-[10px] font-black tracking-widest uppercase flex items-center gap-1 shadow-lg"><Crown size={12}/> ویژه VIP</span>}
                         <h2 className="font-black text-2xl sm:text-3xl text-white drop-shadow-xl">{selectedCourseModal.title}</h2>
@@ -216,7 +196,6 @@ export default function Education() {
                     </div>
                 </div>
 
-                {/* تب‌های معرفی و سرفصل‌ها */}
                 <div className="flex px-6 border-b border-[#35332e] bg-[#1a1916] shrink-0 gap-6">
                     <button onClick={() => setModalTab('about')} className={`py-4 text-sm font-bold transition-all relative ${modalTab === 'about' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>
                         معرفی دوره
@@ -228,8 +207,8 @@ export default function Education() {
                     </button>
                 </div>
 
-                {/* محتوای تب‌ها (اسکرول‌دار) */}
-                <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-[#161512]">
+                {/* 🔥 اسکرول نرم جلسات */}
+                <div className="p-6 flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-[#161512]">
                     {modalTab === 'about' && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-6">
                             <div className="flex flex-col gap-2">
@@ -250,11 +229,10 @@ export default function Education() {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-2">
                             {selectedCourseModal.lessons && selectedCourseModal.lessons.length > 0 ? (
                                 selectedCourseModal.lessons.map((lesson: any) => {
-                                    // چون کاملترین سیستم لاگین رو نداریم، فرض رو بر این میذاریم اگه دوره پولی بود و یوزر پریمیوم نبود، قفله (مگه اینکه ویدیوی رایگان باشه)
                                     const isLocked = selectedCourseModal.isPremium && !isUserPremium && !lesson.isFreePreview;
                                     
                                     return (
-                                        <div key={lesson.id} onClick={() => !isLocked && navigate(`/course/${selectedCourseModal.id}/play`)} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isLocked ? 'bg-[#1a1916] border-[#35332e] opacity-70' : 'bg-[#1e1c19] border-[#35332e] hover:border-farzin-accent cursor-pointer group'}`}>
+                                        <div key={lesson.id} onClick={() => !isLocked && handlePlaySpecificLesson(selectedCourseModal.id, lesson.id)} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isLocked ? 'bg-[#1a1916] border-[#35332e] opacity-70' : 'bg-[#1e1c19] border-[#35332e] hover:border-farzin-accent cursor-pointer group'}`}>
                                             <div className="flex items-center gap-4">
                                                 <div className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center text-sm font-black shadow-inner ${isLocked ? 'bg-[#262421] text-zinc-500' : 'bg-farzin-accent/20 text-farzin-accent'}`}>
                                                     {isLocked ? <Lock size={16} /> : <Play size={16} fill="currentColor" className="ml-0.5 group-hover:scale-110 transition-transform" />}
@@ -277,7 +255,6 @@ export default function Education() {
                     )}
                 </div>
 
-                {/* 🌟 بخش فوتر و دکمه‌های عملیاتی */}
                 <div className="p-5 border-t border-[#35332e] bg-[#121110] shrink-0 flex items-center justify-between">
                     <div className="flex flex-col hidden sm:flex">
                         <span className="text-xs text-zinc-500 font-bold">هزینه دوره:</span>
@@ -285,13 +262,8 @@ export default function Education() {
                     </div>
 
                     <div className="flex items-center gap-3 w-full sm:w-auto">
-                        {selectedCourseModal.isPremium && !isUserPremium && dailyQuota > 0 && (
-                            <button onClick={handleUseQuotaAndPlay} className="flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold text-sm bg-[#262421] hover:bg-[#35332e] text-white transition-all border border-[#35332e] whitespace-nowrap">
-                                استفاده از سهمیه ۱ ویدیوی رایگان
-                            </button>
-                        )}
-                        <button onClick={() => navigate(`/course/${selectedCourseModal.id}/play`)} className="flex-1 sm:flex-none px-8 py-3 rounded-xl bg-farzin-accent hover:bg-[#68824b] text-white font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_5px_15px_rgba(119,149,86,0.3)]">
-                            <Sparkles size={18} /> {selectedCourseModal.isPremium && !isUserPremium ? 'خرید و شروع' : 'ورود به کلاس'}
+                        <button onClick={() => handleStartOrContinue(selectedCourseModal)} className="flex-1 sm:flex-none px-8 py-3 rounded-xl bg-farzin-accent hover:bg-[#68824b] text-white font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_5px_15px_rgba(119,149,86,0.3)]">
+                            <Sparkles size={18} /> شروع / ادامه یادگیری
                         </button>
                     </div>
                 </div>
