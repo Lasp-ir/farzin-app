@@ -187,6 +187,57 @@ router.post('/:id/purchase', async (req, res) => {
   }
 });
 
+// ==========================================
+// ♟️ API های مدیریت تمرینات تعاملی (Lichess Style)
+// ==========================================
 
+// ۱. دریافت تمام تمرین‌های یک جلسه خاص
+router.get('/lessons/:lessonId/exercises', async (req, res) => {
+  try {
+    const exercises = await prisma.lessonExercise.findMany({
+      where: { lessonId: req.params.lessonId },
+      orderBy: { order: 'asc' }
+    });
+    res.json(exercises);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در دریافت تمرینات جلسه' });
+  }
+});
+
+// ۲. ایجاد تمرین جدید برای یک جلسه
+router.post('/lessons/:lessonId/exercises', async (req, res) => {
+  try {
+    const { fen, moves, description, hints, order } = req.body;
+    
+    const newExercise = await prisma.lessonExercise.create({
+      data: {
+        fen: fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        moves, // توالی حرکات مثل: "e2e4 e7e5 g1f3"
+        description: description || '',
+        hints: typeof hints === 'string' ? hints : JSON.stringify(hints || []), // ذخیره آرایه به صورت رشته JSON
+        order: Number(order) || 1,
+        lessonId: req.params.lessonId
+      }
+    });
+    res.json(newExercise);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در ثبت تمرین جدید' });
+  }
+});
+
+// ۳. حذف یک تمرین
+router.delete('/exercises/:exerciseId', async (req, res) => {
+  try {
+    await prisma.lessonExercise.delete({
+      where: { id: req.params.exerciseId }
+    });
+    res.json({ message: 'تمرین با موفقیت حذف شد' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در حذف تمرین' });
+  }
+});
 
 module.exports = router;
