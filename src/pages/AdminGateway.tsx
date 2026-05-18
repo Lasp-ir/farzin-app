@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    ShieldCheck, GraduationCap, ChevronLeft, 
+    ShieldCheck, GraduationCap, ChevronLeft, ChevronRight, // 👈 این ایمپورت اضافه شد
     UserPlus, Loader2, Crown, CheckCircle2 
 } from 'lucide-react';
 
