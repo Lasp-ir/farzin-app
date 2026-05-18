@@ -92,6 +92,7 @@ export default function CoursePlayer() {
                         key={activeLesson.id} // کلید مهم برای ری‌رندر شدن ویدیو جدید
                         controls 
                         autoPlay 
+                        crossOrigin="anonymous"
                         className="w-full h-full object-contain outline-none"
                         poster={course.image}
                     >
