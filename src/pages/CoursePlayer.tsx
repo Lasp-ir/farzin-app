@@ -129,13 +129,26 @@ export default function CoursePlayer() {
             )}
         </div>
         
+        {/* اطلاعات ویدیوی در حال پخش */}
         {activeLesson && (
-            <div className="p-6 bg-[#121110] shrink-0 border-t border-white/5">
-                <h2 className="text-xl font-black text-white mb-2">{activeLesson.order}. {activeLesson.title}</h2>
-                <div className="flex items-center gap-4 text-xs font-bold text-zinc-400">
-                    <span className="bg-[#1a1916] px-3 py-1.5 rounded-lg border border-[#35332e]">{activeLesson.duration}</span>
-                    <span className="flex items-center gap-1.5"><Crown size={14} className="text-amber-500"/> مدرس: {course.instructor}</span>
+            <div className="p-4 md:p-6 bg-[#121110] shrink-0 border-t border-[#35332e] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col">
+                    <h2 className="text-xl font-black text-white mb-2">{activeLesson.order}. {activeLesson.title}</h2>
+                    <div className="flex items-center gap-4 text-xs font-bold text-zinc-400">
+                        <span className="bg-[#1a1916] px-3 py-1.5 rounded-lg border border-[#35332e]">{activeLesson.duration}</span>
+                        <span className="flex items-center gap-1.5"><Crown size={14} className="text-amber-500"/> مدرس: {course.instructor}</span>
+                    </div>
                 </div>
+                
+                {/* 🌟 دکمه حل تمرینات */}
+                {!isVideoLocked && (
+                    <button 
+                        onClick={() => navigate(`/course/${courseId}/lesson/${activeLesson.id}/exercises`)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_5px_15px_rgba(16,185,129,0.3)] shrink-0"
+                    >
+                        <Target size={18} /> شروع تمرینات تعاملی
+                    </button>
+                )}
             </div>
         )}
       </div>

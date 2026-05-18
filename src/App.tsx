@@ -21,6 +21,7 @@ import PuzzleRush from './pages/PuzzleRush';
 import AdminDashboard from './pages/AdminDashboard';
 import CoursePlayer from './pages/CoursePlayer';
 import CourseDetail from './pages/CourseDetail';
+import LessonExercisePlayer from './pages/LessonExercisePlayer';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/course/:courseId/play" element={<CoursePlayer />} />
           <Route path="/course/:courseId" element={<CourseDetail />} />
+          <Route path="/course/:courseId/lesson/:lessonId/exercises" element={<LessonExercisePlayer />} />
           
 
         </Routes>
