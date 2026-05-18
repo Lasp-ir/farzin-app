@@ -23,6 +23,7 @@ import CoursePlayer from './pages/CoursePlayer';
 import CourseDetail from './pages/CourseDetail';
 import LessonExercisePlayer from './pages/LessonExercisePlayer';
 import AdminGateway from './pages/AdminGateway';
+import InstructorProfile from './pages/InstructorProfile';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/course/:courseId" element={<CourseDetail />} />
           <Route path="/course/:courseId/lesson/:lessonId/exercises" element={<LessonExercisePlayer />} />
           <Route path="/admin" element={<AdminGateway />} />
+          <Route path="/instructor/:name" element={<InstructorProfile />} />
 
 
         </Routes>

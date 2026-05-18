@@ -13,7 +13,8 @@ export default function InstructorProfile() {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const res = await fetch(`http://localhost:5000/api/courses/instructor-profile/${name}`);
+                // 🔥 استفاده از encodeURIComponent برای پشتیبانی بی‌نقص از نام‌های فارسی در URL
+                const res = await fetch(`http://localhost:5000/api/courses/instructor-profile/${encodeURIComponent(name || '')}`);
                 if (res.ok) setData(await res.json());
             } catch (err) { console.error(err); } finally { setIsLoading(false); }
         };
@@ -21,7 +22,7 @@ export default function InstructorProfile() {
     }, [name]);
 
     if (isLoading) return <div className="min-h-screen bg-[#0c0b0a] flex items-center justify-center"><Loader2 className="animate-spin text-farzin-accent" size={40}/></div>;
-    if (!data || !data.instructor) return <div className="min-h-screen bg-[#0c0b0a] text-white flex items-center justify-center">پروفایل استاد یافت نشد.</div>;
+    if (!data || !data.instructor) return <div className="min-h-screen bg-[#0c0b0a] text-white flex items-center justify-center flex-col gap-4"><span className="text-xl font-black">پروفایل استاد یافت نشد.</span><button onClick={()=>navigate(-1)} className="px-4 py-2 bg-[#262421] rounded-xl">بازگشت</button></div>;
 
     const { instructor, courses } = data;
 
@@ -68,7 +69,9 @@ export default function InstructorProfile() {
                     </h2>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                        {courses.map(course => {
+                        {courses.length === 0 ? (
+                            <div className="col-span-2 text-center text-zinc-500 py-10 font-bold border border-dashed border-[#35332e] rounded-2xl">هیچ دوره‌ای از این استاد یافت نشد.</div>
+                        ) : courses.map(course => {
                             const hasDiscount = course.discount > 0;
                             const finalPrice = hasDiscount ? Math.round(course.price * (1 - course.discount / 100)) : course.price;
 
@@ -88,7 +91,7 @@ export default function InstructorProfile() {
                                             <span className="bg-[#1e1c19] px-2 py-0.5 rounded border border-[#35332e]">{course.duration}</span>
                                         </div>
                                         
-                                        <div className="mt-auto flex items-center justify-between">
+                                        <div className="mt-auto flex items-center justify-between pt-2">
                                             {course.isPremium ? (
                                                 <div className="flex flex-col text-left">
                                                     {hasDiscount && (
