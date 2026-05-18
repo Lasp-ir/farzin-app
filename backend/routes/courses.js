@@ -24,7 +24,8 @@ router.get('/', async (req, res) => {
 // 2️⃣ اضافه کردن دوره جدید (مخصوص پنل ادمین)
 router.post('/', async (req, res) => {
   try {
-    const { title, instructor, category, level, duration, image, isPremium, price } = req.body;
+    // 🔥 اضافه شدن description و requirements به دریافت اطلاعات
+    const { title, instructor, category, level, duration, image, isPremium, price, description, requirements } = req.body;
     
     const newCourse = await prisma.course.create({
       data: {
@@ -34,6 +35,8 @@ router.post('/', async (req, res) => {
         level, 
         duration, 
         image: image || 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=400&auto=format&fit=crop', 
+        description: description || '',
+        requirements: requirements || '',
         isPremium, 
         price: Number(price) || 0
       }

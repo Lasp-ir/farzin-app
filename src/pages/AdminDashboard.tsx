@@ -17,12 +17,15 @@ export default function AdminDashboard() {
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 🔥 اضافه شدن description و requirements
   const [formData, setFormData] = useState({
       title: '', instructor: 'تیم فرزین', category: 'openings', 
-      level: 'متوسط', duration: '۲ ساعت', image: '', isPremium: true, price: 100
+      level: 'متوسط', duration: '۲ ساعت', image: '', 
+      description: '', requirements: '', 
+      isPremium: true, price: 100
   });
 
-  // 🌟 استیت‌های جدید برای مدیریت جلسات (Lessons)
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [courseLessons, setCourseLessons] = useState<any[]>([]);
@@ -54,7 +57,8 @@ export default function AdminDashboard() {
           });
           if (res.ok) {
               setIsAddModalOpen(false); fetchCourses();
-              setFormData({ title: '', instructor: 'تیم فرزین', category: 'openings', level: 'متوسط', duration: '۲ ساعت', image: '', isPremium: true, price: 100 });
+              // 🔥 ریست کردن فرم
+              setFormData({ title: '', instructor: 'تیم فرزین', category: 'openings', level: 'متوسط', duration: '۲ ساعت', image: '', description: '', requirements: '', isPremium: true, price: 100 });
           }
       } catch (err) { console.error(err); } finally { setIsSubmitting(false); }
   };
@@ -65,7 +69,6 @@ export default function AdminDashboard() {
       catch (err) { console.error(err); }
   };
 
-  // 🔥 توابع مدیریت جلسات
   const openLessonModal = async (course: any) => {
       setSelectedCourse(course);
       setIsLessonModalOpen(true);
@@ -75,10 +78,31 @@ export default function AdminDashboard() {
           if (res.ok) {
               const data = await res.json();
               setCourseLessons(data);
-              setLessonFormData(prev => ({ ...prev, order: data.length + 1 })); // ست کردن خودکار شماره جلسه بعدی
+              setLessonFormData(prev => ({ ...prev, order: data.length + 1 })); 
           }
       } catch (err) { console.error(err); } 
       finally { setIsLessonLoading(false); }
+  };
+
+  // 🪄 جادوی دریافت اتوماتیک مشخصات ویدیو
+  const handleVideoUrlChange = (url: string) => {
+      setLessonFormData(prev => ({ ...prev, videoUrl: url }));
+      
+      if (url.endsWith('.mp4') || url.endsWith('.webm') || url.includes('mp4')) {
+          const video = document.createElement('video');
+          video.src = url;
+          video.onloadedmetadata = () => {
+              const mins = Math.floor(video.duration / 60);
+              const secs = Math.floor(video.duration % 60);
+              const formattedDuration = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+              
+              setLessonFormData(prev => ({
+                  ...prev, 
+                  duration: formattedDuration,
+                  title: prev.title || 'ویدیوی جدید'
+              }));
+          };
+      }
   };
 
   const handleAddLesson = async (e: React.FormEvent) => {
@@ -92,7 +116,7 @@ export default function AdminDashboard() {
               const newLesson = await res.json();
               setCourseLessons([...courseLessons, newLesson]);
               setLessonFormData({ title: '', videoUrl: '', duration: '', order: courseLessons.length + 2, isFreePreview: false });
-              fetchCourses(); // آپدیت تعداد جلسات در لیست اصلی دوره‌ها
+              fetchCourses(); 
           }
       } catch (err) { console.error(err); } finally { setIsSubmitting(false); }
   };
@@ -106,28 +130,6 @@ export default function AdminDashboard() {
               fetchCourses();
           }
       } catch (err) { console.error(err); }
-  };
-
-  // 🪄 جادوی دریافت اتوماتیک مشخصات ویدیو
-  const handleVideoUrlChange = (url: string) => {
-      setLessonFormData(prev => ({ ...prev, videoUrl: url }));
-      
-      // فقط اگر لینک مستقیم ویدیو بود
-      if (url.endsWith('.mp4') || url.endsWith('.webm') || url.includes('mp4')) {
-          const video = document.createElement('video');
-          video.src = url;
-          video.onloadedmetadata = () => {
-              const mins = Math.floor(video.duration / 60);
-              const secs = Math.floor(video.duration % 60);
-              const formattedDuration = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-              
-              setLessonFormData(prev => ({
-                  ...prev, 
-                  duration: formattedDuration,
-                  title: prev.title || 'ویدیوی جدید' // اگر تایتل خالی بود پرش میکنه
-              }));
-          };
-      }
   };
 
   return (
@@ -215,8 +217,6 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-6">
-                          
-                          {/* لیست جلسات فعلی */}
                           <div className="flex flex-col gap-2">
                               <h3 className="text-sm font-bold text-zinc-400 mb-2 border-b border-[#35332e] pb-2">سرفصل‌های موجود</h3>
                               {isLessonLoading ? (
@@ -242,7 +242,6 @@ export default function AdminDashboard() {
                               )}
                           </div>
 
-                          {/* فرم ثبت جلسه جدید */}
                           <form onSubmit={handleAddLesson} className="flex flex-col gap-4 bg-[#121110] p-5 rounded-2xl border border-[#35332e]">
                               <h3 className="text-sm font-bold text-white flex items-center gap-2"><Plus size={16} className="text-emerald-500"/> افزودن جلسه جدید</h3>
                               
@@ -251,7 +250,7 @@ export default function AdminDashboard() {
                                   <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">مدت زمان</label><input required value={lessonFormData.duration} onChange={e=>setLessonFormData({...lessonFormData, duration: e.target.value})} placeholder="12:45" className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-sm text-white outline-none focus:border-blue-400" /></div>
                               </div>
 
-                              <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">لینک ویدیو (آپارات، یوتیوب یا سرور)</label><input required type="url" dir="ltr" value={lessonFormData.videoUrl} onChange={e => handleVideoUrlChange(e.target.value)} placeholder="https://..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-sm text-white outline-none focus:border-blue-400" /></div>
+                              <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">لینک ویدیو (آپارات، یوتیوب یا سرور)</label><input required type="url" dir="ltr" value={lessonFormData.videoUrl} onChange={e=>handleVideoUrlChange(e.target.value)} placeholder="https://..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-sm text-white outline-none focus:border-blue-400" /></div>
 
                               <div className="flex items-center justify-between mt-2">
                                   <label className="flex items-center gap-2 text-xs font-bold text-zinc-300 cursor-pointer">
@@ -275,51 +274,65 @@ export default function AdminDashboard() {
           )}
       </AnimatePresence>
 
-      {/* 🌟 مودال ساخت دوره جدید (بدون تغییر) */}
+      {/* 🌟 مودال ساخت دوره جدید */}
       <AnimatePresence>
           {isAddModalOpen && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" dir="rtl">
-                  <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl">
-                      <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#161512]">
+                  <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                      <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#161512] shrink-0">
                           <h2 className="font-black text-white text-lg">ایجاد دوره جدید</h2>
                           <button onClick={() => setIsAddModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
                       </div>
-                      <form onSubmit={handleCreateCourse} className="p-6 flex flex-col gap-4">
-                          <div className="grid grid-cols-2 gap-4">
-                              <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">عنوان دوره</label><input required value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
-                              <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">نام مدرس</label><input required value={formData.instructor} onChange={e=>setFormData({...formData, instructor: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
-                          </div>
-                          
-                          <div className="grid grid-cols-3 gap-4">
-                              <div className="flex flex-col gap-1.5">
-                                  <label className="text-xs font-bold text-zinc-400">دسته‌بندی</label>
-                                  <select value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-zinc-300 outline-none focus:border-farzin-accent">
-                                      <option value="openings">شروع بازی</option><option value="middlegame">وسط بازی</option><option value="tactics">تاکتیک‌ها</option><option value="endgame">آخر بازی</option>
-                                  </select>
+                      
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                          <form onSubmit={handleCreateCourse} className="flex flex-col gap-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">عنوان دوره</label><input required value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
+                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">نام مدرس</label><input required value={formData.instructor} onChange={e=>setFormData({...formData, instructor: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
                               </div>
-                              <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">سطح دوره</label><input value={formData.level} onChange={e=>setFormData({...formData, level: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
-                              <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">مدت زمان کل</label><input value={formData.duration} onChange={e=>setFormData({...formData, duration: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
-                          </div>
-
-                          <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">لینک کاور دوره (Image URL)</label><input type="url" dir="ltr" value={formData.image} onChange={e=>setFormData({...formData, image: e.target.value})} placeholder="https://..." className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
-
-                          <div className="flex items-center gap-6 mt-2 bg-[#121110] border border-[#35332e] p-4 rounded-xl">
-                              <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
-                                  <input type="checkbox" checked={formData.isPremium} onChange={e=>setFormData({...formData, isPremium: e.target.checked})} className="w-4 h-4 accent-amber-500" />
-                                  <Crown size={16} className="text-amber-500"/> دوره پولی (VIP)
-                              </label>
-                              {formData.isPremium && (
-                                  <div className="flex items-center gap-2">
-                                      <span className="text-xs text-zinc-400">قیمت (الماس):</span>
-                                      <input type="number" value={formData.price} onChange={e=>setFormData({...formData, price: Number(e.target.value)})} className="w-20 bg-[#1e1c19] border border-[#35332e] rounded-lg p-1.5 text-center text-sm text-amber-400 outline-none" />
+                              
+                              <div className="grid grid-cols-3 gap-4">
+                                  <div className="flex flex-col gap-1.5">
+                                      <label className="text-xs font-bold text-zinc-400">دسته‌بندی</label>
+                                      <select value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-zinc-300 outline-none focus:border-farzin-accent">
+                                          <option value="openings">شروع بازی</option><option value="middlegame">وسط بازی</option><option value="tactics">تاکتیک‌ها</option><option value="endgame">آخر بازی</option>
+                                      </select>
                                   </div>
-                              )}
-                          </div>
+                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">سطح دوره</label><input value={formData.level} onChange={e=>setFormData({...formData, level: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
+                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">مدت زمان کل</label><input value={formData.duration} onChange={e=>setFormData({...formData, duration: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
+                              </div>
 
-                          <button type="submit" disabled={isSubmitting} className="mt-4 w-full bg-farzin-accent hover:bg-[#68824b] text-white font-black py-4 rounded-xl flex justify-center items-center gap-2 transition-all">
-                              {isSubmitting ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={18} /> ثبت و انتشار دوره در آکادمی</>}
-                          </button>
-                      </form>
+                              <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">لینک کاور دوره (Image URL)</label><input type="url" dir="ltr" value={formData.image} onChange={e=>setFormData({...formData, image: e.target.value})} placeholder="https://..." className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent" /></div>
+
+                              {/* 🔥 فیلدهای جدید: توضیحات و پیش‌نیازها */}
+                              <div className="flex flex-col gap-1.5 mt-2">
+                                  <label className="text-xs font-bold text-zinc-400">توضیحات کامل دوره</label>
+                                  <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="در این دوره چه چیزهایی آموزش داده می‌شود؟" className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent min-h-[100px] resize-y" />
+                              </div>
+
+                              <div className="flex flex-col gap-1.5 mt-2">
+                                  <label className="text-xs font-bold text-zinc-400">پیش‌نیازهای دوره</label>
+                                  <textarea value={formData.requirements} onChange={e => setFormData({...formData, requirements: e.target.value})} placeholder="دانشجو قبل از این دوره چه چیزهایی باید بداند؟ (با خط تیره جدا کنید)" className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none focus:border-farzin-accent min-h-[80px] resize-y" />
+                              </div>
+
+                              <div className="flex items-center gap-6 mt-2 bg-[#121110] border border-[#35332e] p-4 rounded-xl">
+                                  <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
+                                      <input type="checkbox" checked={formData.isPremium} onChange={e=>setFormData({...formData, isPremium: e.target.checked})} className="w-4 h-4 accent-amber-500" />
+                                      <Crown size={16} className="text-amber-500"/> دوره پولی (VIP)
+                                  </label>
+                                  {formData.isPremium && (
+                                      <div className="flex items-center gap-2">
+                                          <span className="text-xs text-zinc-400">قیمت (الماس):</span>
+                                          <input type="number" value={formData.price} onChange={e=>setFormData({...formData, price: Number(e.target.value)})} className="w-20 bg-[#1e1c19] border border-[#35332e] rounded-lg p-1.5 text-center text-sm text-amber-400 outline-none" />
+                                      </div>
+                                  )}
+                              </div>
+
+                              <button type="submit" disabled={isSubmitting} className="mt-4 w-full bg-farzin-accent hover:bg-[#68824b] text-white font-black py-4 rounded-xl flex justify-center items-center gap-2 transition-all shrink-0">
+                                  {isSubmitting ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={18} /> ثبت و انتشار دوره در آکادمی</>}
+                              </button>
+                          </form>
+                      </div>
                   </motion.div>
               </motion.div>
           )}

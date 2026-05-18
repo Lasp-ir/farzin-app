@@ -50,21 +50,23 @@ model Puzzle {
 
 // 📚 جدول دوره‌های آموزشی
 model Course {
-  id          String       @id @default(uuid())
-  title       String
-  instructor  String
-  category    String
-  level       String
-  duration    String
-  image       String
-  isPremium   Boolean      @default(true)
-  price       Int          @default(0)
+  id           String       @id @default(uuid())
+  title        String
+  instructor   String
+  category     String
+  level        String
+  duration     String
+  image        String
+  description  String       @default("") // 🔥 توضیحات کامل دوره
+  requirements String       @default("") // 🔥 پیش‌نیازهای دوره
+  isPremium    Boolean      @default(true)
+  price        Int          @default(0)
   
-  lessons     Lesson[]
-  enrollments UserCourse[]
+  lessons      Lesson[]
+  enrollments  UserCourse[]
   
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 // 🎥 جدول جلسات هر دوره
