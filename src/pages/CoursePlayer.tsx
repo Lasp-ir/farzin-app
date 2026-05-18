@@ -66,7 +66,7 @@ export default function CoursePlayer() {
       {/* 🌟 بخش پلیر ویدیو (سمت راست) */}
       <div className="flex-1 flex flex-col min-h-0 relative">
         <div className="h-16 flex items-center px-4 border-b border-white/5 bg-[#121110] shrink-0 gap-4">
-            <button onClick={() => navigate('/education')} className="p-2 bg-[#1a1916] rounded-lg text-zinc-400 hover:text-white transition-colors"><ChevronRight size={20} /></button>
+            <button onClick={() => navigate(`/course/${courseId}`)} className="p-2 bg-[#1a1916] rounded-lg text-zinc-400 hover:text-white transition-colors"><ChevronRight size={20} /></button>
             <h1 className="font-black text-white">{course.title}</h1>
         </div>
 
