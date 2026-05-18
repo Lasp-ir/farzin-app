@@ -22,6 +22,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import CoursePlayer from './pages/CoursePlayer';
 import CourseDetail from './pages/CourseDetail';
 import LessonExercisePlayer from './pages/LessonExercisePlayer';
+import AdminGateway from './pages/AdminGateway';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -62,11 +63,12 @@ export default function App() {
           <Route path="/puzzles" element={<Puzzles />} />
           <Route path="/puzzle/rush" element={<PuzzleRush />} />
           <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/course/:courseId/play" element={<CoursePlayer />} />
           <Route path="/course/:courseId" element={<CourseDetail />} />
           <Route path="/course/:courseId/lesson/:lessonId/exercises" element={<LessonExercisePlayer />} />
-          
+          <Route path="/admin" element={<AdminGateway />} />
+
 
         </Routes>
         

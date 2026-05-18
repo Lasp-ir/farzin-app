@@ -280,4 +280,37 @@ router.put('/exercises/:exerciseId', async (req, res) => {
     res.status(500).json({ error: 'خطا در ویرایش تمرین' });
   }
 });
+// ==========================================
+// 🎓 API های مدیریت پروفایل اساتید
+// ==========================================
+
+// دریافت لیست تمام اساتید
+router.get('/instructors/all', async (req, res) => {
+  try {
+    const instructors = await prisma.instructor.findMany();
+    res.json(instructors);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در دریافت لیست اساتید' });
+  }
+});
+
+// ثبت نام استاد جدید
+router.post('/instructors/create', async (req, res) => {
+  try {
+    const { name, title, bio, avatar } = req.body;
+    const newInstructor = await prisma.instructor.create({
+      data: { 
+        name, 
+        title: title || 'مدرس فرزین', 
+        bio: bio || '', 
+        avatar: avatar || 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?q=80&w=150&auto=format&fit=crop' 
+      }
+    });
+    res.json(newInstructor);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در ساخت پروفایل استاد' });
+  }
+});
 module.exports = router;
