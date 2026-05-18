@@ -62,7 +62,7 @@ export default function App() {
           <Route path="/puzzle/rush" element={<PuzzleRush />} />
           <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/course/:courseId" element={<CoursePlayer />} />
+          <Route path="/course/:courseId/play" element={<CoursePlayer />} />
           <Route path="/course/:courseId" element={<CourseDetail />} />
           
 

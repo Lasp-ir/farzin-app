@@ -86,18 +86,19 @@ model Lesson {
 
 // 🎯 جدول پیشرفت کاربر در دوره‌ها
 model UserCourse {
-  id        String   @id @default(uuid())
+  id           String   @id @default(uuid())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
-  userId    Int      // متصل به آیدی عددی کاربر
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 🔥 فیلدهای جدید برای هوشمندسازی پخش
+  lastLessonId String?  // آیدی آخرین جلسه‌ای که کاربر دیده
+  lastTime     Float    @default(0) // ثانیه‌ای که کاربر از فیلم خارج شده
   
-  courseId  String
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  progress  Int      @default(0)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  progress     Int      @default(0) 
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt // برای تشخیص آخرین دوره دیده شده
 
   @@unique([userId, courseId])
 }

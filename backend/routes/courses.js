@@ -116,31 +116,39 @@ router.delete('/lessons/:lessonId', async (req, res) => {
 // 🛒 API های نمایش و خرید دوره
 // ==========================================
 
-// 7️⃣ دریافت اطلاعات کامل یک دوره + بررسی اینکه آیا کاربر خریدتش یا نه
+// 1. دریافت دیتای پلیر (اصلاح شده)
 router.get('/:id/player', async (req, res) => {
-  const userId = 1; // موقتاً فرض می‌کنیم یوزر شماره ۱ لاگین است
+  const userId = 1; 
   try {
     const course = await prisma.course.findUnique({
       where: { id: req.params.id },
       include: { lessons: { orderBy: { order: 'asc' } } }
     });
 
-    if (!course) return res.status(404).json({ error: 'دوره یافت نشد' });
-
-    // چک کردن اینکه آیا کاربر این دوره رو قبلاً خریده؟
     const enrollment = await prisma.userCourse.findUnique({
       where: { userId_courseId: { userId, courseId: course.id } }
     });
 
     res.json({
       course,
-      isEnrolled: !!enrollment, // اگر true باشه یعنی کاربر دوره رو خریده
-      progress: enrollment ? enrollment.progress : 0
+      isEnrolled: !!enrollment,
+      lastLessonId: enrollment?.lastLessonId || null,
+      lastTime: enrollment?.lastTime || 0
     });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'خطای سرور' });
-  }
+  } catch (error) { res.status(500).send(error); }
+});
+
+// 2. 🔥 API جدید برای ذخیره لحظه‌ای پیشرفت ویدیو
+router.post('/save-progress', async (req, res) => {
+  const userId = 1;
+  const { courseId, lessonId, lastTime, progress } = req.body;
+  try {
+    await prisma.userCourse.update({
+      where: { userId_courseId: { userId, courseId } },
+      data: { lastLessonId: lessonId, lastTime: Number(lastTime), progress: Number(progress) }
+    });
+    res.json({ success: true });
+  } catch (error) { res.status(500).send(error); }
 });
 
 // 8️⃣ خرید دوره با الماس
@@ -178,4 +186,7 @@ router.post('/:id/purchase', async (req, res) => {
     res.status(500).json({ error: 'خطا در پردازش خرید' });
   }
 });
+
+
+
 module.exports = router;
