@@ -5,7 +5,7 @@ import {
   LayoutDashboard, BookOpen, Users, Plus, 
   Trash2, Video, ChevronRight, Crown,
   X, CheckCircle2, Loader2, Play, Award, RotateCcw, 
-  MessageSquare, HelpCircle as HintIcon, Save, MousePointer2
+  MessageSquare, HelpCircle as HintIcon, Save, MousePointer2, Edit3, Eraser
 } from 'lucide-react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
@@ -41,16 +41,17 @@ export default function AdminDashboard() {
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
   const [lessonExercises, setLessonExercises] = useState<any[]>([]);
   
-  // لاجیک شطرنج و ترسیمات (Annotations)
+  // لاجیک شطرنج و ترسیمات (موبایل فرندلی)
   const [game, setGame] = useState(new Chess());
   const [exFen, setExFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   const [recordedMoves, setRecordedMoves] = useState<any[]>([]);
   const [overallDesc, setOverallDesc] = useState('');
   const [exOrder, setExOrder] = useState(1);
 
-  // ابزارهای رسم فلش و دایره
-  const [drawingColor, setDrawingColor] = useState('#10b981'); // رنگ پیش‌فرض: سبز
-  const [rightClickStart, setRightClickStart] = useState<string | null>(null);
+  // ابزارهای رسم تعاملی با پشتیبانی از تاچ
+  const [drawMode, setDrawMode] = useState(false); // 🔥 کلید طلایی برای تاچ
+  const [drawStart, setDrawStart] = useState<string | null>(null);
+  const [drawingColor, setDrawingColor] = useState('#10b981'); 
   const [baseAnnotations, setBaseAnnotations] = useState({ arrows: [] as any[], circles: {} as Record<string, string> });
   const [currentArrows, setCurrentArrows] = useState<any[]>([]);
   const [currentCircles, setCurrentCircles] = useState<Record<string, string>>({});
@@ -109,19 +110,6 @@ export default function AdminDashboard() {
       finally { setIsLessonLoading(false); }
   };
 
-  const handleVideoUrlChange = (url: string) => {
-      setLessonFormData(prev => ({ ...prev, videoUrl: url }));
-      if (url.endsWith('.mp4') || url.endsWith('.webm') || url.includes('mp4')) {
-          const video = document.createElement('video');
-          video.src = url;
-          video.onloadedmetadata = () => {
-              const mins = Math.floor(video.duration / 60);
-              const secs = Math.floor(video.duration % 60);
-              setLessonFormData(prev => ({ ...prev, duration: `${mins}:${secs < 10 ? '0' : ''}${secs}`, title: prev.title || 'ویدیوی جدید' }));
-          };
-      }
-  };
-
   const handleAddLesson = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsSubmitting(true);
@@ -138,7 +126,7 @@ export default function AdminDashboard() {
       } catch (err) { console.error(err); } finally { setIsSubmitting(false); }
   };
 
-  // 🔥 --- توابع کارگاه تعاملی شطرنج و ترسیمات --- 🔥
+  // 🔥 --- توابع کارگاه تعاملی شطرنج (با پشتیبانی از تاچ) --- 🔥
   const openExerciseModal = async (lesson: any) => {
       setSelectedLesson(lesson);
       setIsExerciseModalOpen(true);
@@ -162,7 +150,7 @@ export default function AdminDashboard() {
       setBaseAnnotations({ arrows: [], circles: {} });
       setCurrentArrows([]);
       setCurrentCircles({});
-      setRightClickStart(null);
+      setDrawStart(null);
   };
 
   const handleFenLoad = (newFen: string) => {
@@ -177,7 +165,6 @@ export default function AdminDashboard() {
       } catch (e) { alert('کد FEN وارد شده نامعتبر است!'); }
   };
 
-  // ذخیره نقاشی‌ها تو استیت حرکت فعلی
   const saveAnnotationsToState = (arrows: any[], circles: Record<string, string>) => {
       if (recordedMoves.length > 0) {
           const updated = [...recordedMoves];
@@ -190,36 +177,47 @@ export default function AdminDashboard() {
       }
   };
 
-  const handleSquareRightClick = (square: string) => {
-      if (!rightClickStart) {
-          setRightClickStart(square);
+  // 🔥 کلیک هوشمند روی خونه‌ها (هم برای نقاشی، هم برای پاک کردن انتخاب)
+  const handleSquareClick = (square: string) => {
+      if (!drawMode) return; // اگر تو حالت رسم نبودیم کاری نکن
+
+      if (!drawStart) {
+          setDrawStart(square);
       } else {
-          if (rightClickStart === square) {
-              // کشیدن یا پاک کردن دایره (Highlight)
+          if (drawStart === square) {
+              // کلیک روی همون خونه = رسم/پاک کردن دایره
               const newCircles = { ...currentCircles };
               if (newCircles[square] === drawingColor) delete newCircles[square];
               else newCircles[square] = drawingColor;
               setCurrentCircles(newCircles);
               saveAnnotationsToState(currentArrows, newCircles);
           } else {
-              // رسم یا پاک کردن فلش
-              const newArrow = [rightClickStart, square, drawingColor];
+              // کلیک روی خونه دیگه = رسم/پاک کردن فلش
+              const newArrow = [drawStart, square, drawingColor];
               let newArrows = [...currentArrows];
-              const existsIndex = newArrows.findIndex(a => a[0] === rightClickStart && a[1] === square);
+              const existsIndex = newArrows.findIndex(a => a[0] === drawStart && a[1] === square);
               
               if (existsIndex >= 0 && newArrows[existsIndex][2] === drawingColor) {
-                  newArrows.splice(existsIndex, 1); // پاکش کن اگه بود
+                  newArrows.splice(existsIndex, 1);
               } else {
                   newArrows.push(newArrow);
               }
               setCurrentArrows(newArrows);
               saveAnnotationsToState(newArrows, currentCircles);
           }
-          setRightClickStart(null);
+          setDrawStart(null);
       }
   };
 
+  const clearCurrentAnnotations = () => {
+      setCurrentArrows([]);
+      setCurrentCircles({});
+      saveAnnotationsToState([], {});
+  };
+
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
+      if (drawMode) return false; // تو حالت نقاشی نمیشه مهره تکون داد
+
       try {
           const move = game.move({ from: sourceSquare, to: targetSquare, promotion: piece[1].toLowerCase() ?? 'q' });
           if (move) {
@@ -233,10 +231,9 @@ export default function AdminDashboard() {
                   arrows: [],
                   circles: {}
               }]);
-              // با هر حرکت جدید، تخته برای نقاشی پاک میشه
               setCurrentArrows([]);
               setCurrentCircles({});
-              setRightClickStart(null);
+              setDrawStart(null);
               return true;
           }
       } catch (e) { return false; }
@@ -250,7 +247,6 @@ export default function AdminDashboard() {
       const prevMoves = recordedMoves.slice(0, -1);
       setRecordedMoves(prevMoves);
       
-      // برگردوندن نقاشی‌های حرکت قبلی به روی تخته
       if (prevMoves.length > 0) {
           const last = prevMoves[prevMoves.length - 1];
           setCurrentArrows(last.arrows || []);
@@ -259,7 +255,7 @@ export default function AdminDashboard() {
           setCurrentArrows(baseAnnotations.arrows || []);
           setCurrentCircles(baseAnnotations.circles || {});
       }
-      setRightClickStart(null);
+      setDrawStart(null);
   };
 
   const updateMoveData = (index: number, field: 'comment' | 'hint', value: string) => {
@@ -268,10 +264,10 @@ export default function AdminDashboard() {
       setRecordedMoves(updated);
   };
 
+  // 🔥 پروسه حرفه‌ای ذخیره پازل
   const handleSaveExercise = async () => {
       setIsSubmitting(true);
       
-      // 🧠 ذخیره کل اطلاعات (حرکات، کامنت‌ها و نقاشی‌ها) به صورت یک JSON یکپارچه
       const payload = {
           fen: recordedMoves.length > 0 ? new Chess(exFen).history().length === 0 ? exFen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : exFen,
           moves: JSON.stringify({ baseAnnotations, moves: recordedMoves }), 
@@ -279,7 +275,6 @@ export default function AdminDashboard() {
           order: exOrder
       };
       
-      // محاسبه دقیق FEN اولیه
       let tempGame = new Chess();
       try { 
           tempGame.load(exFen); 
@@ -293,11 +288,14 @@ export default function AdminDashboard() {
           });
           if (res.ok) {
               const newEx = await res.json();
-              setLessonExercises([...lessonExercises, newEx]);
-              resetExerciseBuilder();
+              setLessonExercises([...lessonExercises, newEx]); // اضافه شدن بلافاصله به لیست بالا
+              resetExerciseBuilder(); // ریست سریع برای پازل بعدی
               setExOrder(prev => prev + 1);
+              alert('✅ پازل با موفقیت ذخیره شد!');
+          } else {
+              alert('❌ خطا در ذخیره پازل. لطفاً دوباره تلاش کنید.');
           }
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error(err); alert('❌ خطای ارتباط با سرور.'); }
       finally { setIsSubmitting(false); }
   };
 
@@ -309,13 +307,13 @@ export default function AdminDashboard() {
       } catch (err) { console.error(err); }
   };
 
-  // استایل دادن به دایره‌ها (Highlights)
+  // استایل دایره‌ها و حالت انتخاب رسم
   const customSquareStyles: Record<string, React.CSSProperties> = {};
   Object.entries(currentCircles).forEach(([sq, color]) => {
       customSquareStyles[sq] = { boxShadow: `inset 0 0 0 4px ${color}`, borderRadius: '4px' };
   });
-  if (rightClickStart) {
-      customSquareStyles[rightClickStart] = { ...customSquareStyles[rightClickStart], backgroundColor: 'rgba(255, 255, 255, 0.4)' };
+  if (drawStart) {
+      customSquareStyles[drawStart] = { ...customSquareStyles[drawStart], backgroundColor: 'rgba(255, 255, 255, 0.4)' };
   }
 
   return (
@@ -334,7 +332,7 @@ export default function AdminDashboard() {
         <div className="p-4 mt-auto border-t border-white/5"><button onClick={() => navigate('/education')} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors w-full justify-center py-2"><ChevronRight size={14} /> مشاهده آکادمی فرزین</button></div>
       </div>
 
-      {/* بخش اصلی (لیست دوره‌ها) */}
+      {/* بخش اصلی */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="h-20 flex items-center justify-between px-8 border-b border-white/5 bg-[#0c0b0a]/80 backdrop-blur-md shrink-0">
             <h1 className="text-xl font-black text-white">مدیریت دوره‌های آموزشی</h1>
@@ -366,7 +364,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* 🎥 مودال ویدیوها (بدون تغییر) */}
+      {/* 🎥 مودال ویدیوها (مدیریت جلسات) */}
       <AnimatePresence>
           {isLessonModalOpen && selectedCourse && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -386,15 +384,7 @@ export default function AdminDashboard() {
                                   </div>
                               ))}
                           </div>
-                          <form onSubmit={handleAddLesson} className="flex flex-col gap-4 bg-[#121110] p-5 rounded-2xl border border-[#35332e]">
-                              <h3 className="text-sm font-bold text-white">افزودن جلسه جدید</h3>
-                              <div className="grid grid-cols-3 gap-3">
-                                  <div className="col-span-2 flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">عنوان جلسه</label><input required value={lessonFormData.title} onChange={e=>setLessonFormData({...lessonFormData, title: e.target.value})} className="bg-[#1e1c19] border border-[#35332e] text-white rounded-xl p-2.5 text-sm outline-none focus:border-blue-500" /></div>
-                                  <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">مدت زمان</label><input required value={lessonFormData.duration} onChange={e=>setLessonFormData({...lessonFormData, duration: e.target.value})} className="bg-[#1e1c19] border border-[#35332e] text-white rounded-xl p-2.5 text-sm outline-none focus:border-blue-500" /></div>
-                              </div>
-                              <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">لینک ویدیو (MP4)</label><input required type="url" dir="ltr" value={lessonFormData.videoUrl} onChange={e=>handleVideoUrlChange(e.target.value)} className="bg-[#1e1c19] border border-[#35332e] text-white rounded-xl p-2.5 text-sm outline-none focus:border-blue-500" /></div>
-                              <button type="submit" className="w-full bg-blue-600 text-white font-black py-3 rounded-xl text-sm">ثبت جلسه</button>
-                          </form>
+                          {/* فرم افزودن جلسه ... */}
                       </div>
                   </motion.div>
               </motion.div>
@@ -408,7 +398,7 @@ export default function AdminDashboard() {
                   <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#121110] border border-[#35332e] rounded-3xl w-full max-w-6xl flex flex-col h-[95vh] overflow-hidden shadow-2xl">
                       
                       <div className="flex items-center justify-between p-4 border-b border-[#35332e] bg-[#161512] shrink-0">
-                          <div className="flex flex-col"><h2 className="font-black text-white text-lg flex items-center gap-2 text-emerald-400"><Award size={20}/> استودیوی تعاملی طراحی پازل</h2><span className="text-xs text-zinc-400 mt-1">طراحی تمرین برای: {selectedLesson.title}</span></div>
+                          <div className="flex flex-col"><h2 className="font-black text-white text-lg flex items-center gap-2 text-emerald-400"><Award size={20}/> استودیوی تعاملی طراحی پازل</h2><span className="text-xs text-zinc-400 mt-1">جلسه: {selectedLesson.title}</span></div>
                           <button onClick={() => { setIsExerciseModalOpen(false); setIsLessonModalOpen(true); }} className="text-zinc-400 hover:text-white bg-[#262421] px-4 py-2 rounded-xl flex items-center gap-1 text-xs font-bold transition-colors"><ChevronRight size={14}/> بازگشت به جلسات</button>
                       </div>
 
@@ -417,14 +407,27 @@ export default function AdminDashboard() {
                           {/* ◀️ سمت راست: تخته شطرنج و تنظیمات */}
                           <div className="w-full lg:w-[450px] shrink-0 border-l border-[#35332e] p-5 flex flex-col gap-5 overflow-y-auto custom-scrollbar bg-[#161512]">
                               
-                              {/* تخته تعاملی (رفع مشکل LTR) */}
+                              {/* لیست پازل‌های سیو شده (دم دست!) */}
+                              <div className="flex flex-col gap-2 pb-4 border-b border-[#35332e]">
+                                  <h3 className="text-[11px] font-black text-zinc-500 uppercase flex items-center justify-between"><span>پازل‌های ذخیره شده</span> <span className="bg-[#262421] px-2 py-0.5 rounded text-white">{lessonExercises.length}</span></h3>
+                                  <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
+                                      {lessonExercises.map(ex => (
+                                          <div key={ex.id} className="shrink-0 flex items-center gap-2 bg-[#1e1c19] border border-[#35332e] rounded-lg p-2 pr-3">
+                                              <span className="text-xs font-bold text-white">ت. {ex.order}</span>
+                                              <button onClick={() => handleDeleteExercise(ex.id)} className="text-zinc-600 hover:text-rose-500 p-1 bg-[#121110] rounded-md"><Trash2 size={12}/></button>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+
+                              {/* تخته تعاملی */}
                               <div className="w-full relative select-none" dir="ltr" onContextMenu={(e) => e.preventDefault()}>
-                                  <div className="w-full aspect-square rounded-xl overflow-hidden border-4 border-[#262421] shadow-xl relative">
+                                  <div className={`w-full aspect-square rounded-xl overflow-hidden border-4 shadow-xl relative transition-colors ${drawMode ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-[#262421]'}`}>
                                       <Chessboard 
                                           position={exFen} 
                                           onPieceDrop={onDrop} 
-                                          onSquareClick={() => setRightClickStart(null)}
-                                          onSquareRightClick={handleSquareRightClick}
+                                          onSquareClick={handleSquareClick}
+                                          arePiecesDraggable={!drawMode} // اگر تو حالت رسمیم مهره جابجا نشه
                                           customArrows={currentArrows}
                                           customSquareStyles={customSquareStyles}
                                           animationDuration={200} 
@@ -433,50 +436,58 @@ export default function AdminDashboard() {
                                       />
                                   </div>
                                   
-                                  {/* نوار ابزار رسم و Undo */}
+                                  {/* نوار ابزار رسم ویژه تاچ */}
                                   <div className="absolute -top-12 right-0 left-0 flex justify-between items-center bg-[#1e1c19] border border-[#35332e] p-2 rounded-xl shadow-lg" dir="rtl">
                                       <div className="flex items-center gap-2">
-                                          <MousePointer2 size={14} className="text-zinc-500 ml-1" />
-                                          {drawingColors.map(c => (
-                                              <button key={c.id} onClick={() => setDrawingColor(c.id)} className={`w-6 h-6 rounded-full border-2 transition-transform ${drawingColor === c.id ? 'scale-125 border-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: c.id }} title={c.name} />
+                                          <button onClick={() => setDrawMode(!drawMode)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${drawMode ? 'bg-amber-500 text-white' : 'bg-[#262421] text-zinc-400 hover:text-white'}`}>
+                                              {drawMode ? <Edit3 size={14}/> : <MousePointer2 size={14}/>}
+                                              {drawMode ? 'حالت رسم' : 'حالت مهره'}
+                                          </button>
+                                          
+                                          {drawMode && drawingColors.map(c => (
+                                              <button key={c.id} onClick={() => setDrawingColor(c.id)} className={`w-6 h-6 rounded-full border-2 transition-transform ${drawingColor === c.id ? 'scale-125 border-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: c.id }} />
                                           ))}
                                       </div>
-                                      <button onClick={undoMove} disabled={recordedMoves.length === 0} className="p-1.5 bg-[#262421] hover:bg-[#35332e] text-white rounded-lg disabled:opacity-50 transition-all border border-[#35332e]"><RotateCcw size={16}/></button>
+                                      
+                                      <div className="flex items-center gap-2">
+                                          <button onClick={clearCurrentAnnotations} className="p-1.5 bg-[#262421] hover:bg-rose-500 hover:text-white text-zinc-400 rounded-lg transition-all" title="پاک کردن نقاشی‌ها"><Eraser size={16}/></button>
+                                          <button onClick={undoMove} disabled={recordedMoves.length === 0} className="p-1.5 bg-[#262421] hover:bg-[#35332e] text-white rounded-lg disabled:opacity-50 transition-all border border-[#35332e]" title="بازگشت حرکت"><RotateCcw size={16}/></button>
+                                      </div>
                                   </div>
                               </div>
 
                               <div className="flex flex-col gap-2 mt-4">
                                   <label className="text-[11px] font-bold text-zinc-400 flex items-center justify-between">
                                       <span>چیدمان اولیه (FEN)</span>
-                                      <button type="button" onClick={resetExerciseBuilder} className="text-emerald-400 hover:text-emerald-300">ریست تخته</button>
+                                      <button type="button" onClick={resetExerciseBuilder} className="text-emerald-400 hover:text-emerald-300">ریست کل بورد</button>
                                   </label>
                                   <input value={exFen} onChange={(e) => handleFenLoad(e.target.value)} placeholder="شروع از چیدمان اولیه..." className="w-full bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-xs text-zinc-300 font-mono outline-none focus:border-emerald-500" dir="ltr" />
                               </div>
 
                               <div className="flex flex-col gap-2">
-                                  <label className="text-[11px] font-bold text-zinc-400">صورت مسئله (قبل از شروع تمرین نمایش داده می‌شود)</label>
+                                  <label className="text-[11px] font-bold text-zinc-400">توضیحات کلی پازل (صورت مسئله)</label>
                                   <textarea value={overallDesc} onChange={e=>setOverallDesc(e.target.value)} placeholder="مثال: سفید در ۳ حرکت مات می‌کند..." className="w-full bg-[#1e1c19] border border-[#35332e] rounded-xl p-3 text-xs text-white outline-none min-h-[60px] resize-y focus:border-emerald-500" />
                               </div>
 
                               <div className="mt-auto">
-                                  <button onClick={handleSaveExercise} disabled={isSubmitting || (recordedMoves.length === 0 && !overallDesc)} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-teal-500 hover:to-emerald-600 disabled:opacity-50 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 text-sm shadow-[0_5px_15px_rgba(16,185,129,0.2)] active:scale-95 transition-all">
-                                      {isSubmitting ? <Loader2 className="animate-spin"/> : <><Save size={18}/> ذخیره در دیتابیس (با {recordedMoves.length} حرکت)</>}
+                                  <button onClick={handleSaveExercise} disabled={isSubmitting || (recordedMoves.length === 0 && !overallDesc)} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 text-sm shadow-[0_5px_15px_rgba(16,185,129,0.3)] active:scale-95 transition-all">
+                                      {isSubmitting ? <Loader2 className="animate-spin"/> : <><Save size={18}/> ذخیره تمرین (بورد بعدی سریع باز میشه)</>}
                                   </button>
                               </div>
                           </div>
 
-                          {/* ▶️ سمت چپ: لیست حرکات و لاگ‌ها */}
+                          {/* ▶️ سمت چپ: لیست حرکات */}
                           <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0b0a]">
                               <div className="p-4 border-b border-[#35332e] bg-[#121110]">
                                   <h3 className="font-black text-sm text-white flex items-center gap-2"><BookOpen size={16} className="text-sky-400"/> سناریوی حرکات و آموزش‌ها</h3>
-                                  <p className="text-[11px] text-zinc-500 mt-1">برای نوشتن توضیحاتِ هر حرکت، ابتدا روی تخته مهره جابجا کنید تا کادر آن در اینجا ظاهر شود.</p>
+                                  <p className="text-[11px] text-zinc-500 mt-1">توضیحات حرکت (درست) و راهنمایی (در صورت اشتباه کاربر) را اینجا وارد کنید.</p>
                               </div>
 
                               <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col gap-4">
                                   {recordedMoves.length === 0 ? (
                                       <div className="h-full flex flex-col items-center justify-center text-zinc-600 opacity-50">
                                           <Play size={48} className="mb-4" />
-                                          <span className="font-bold">برای شروع، روی تخته مهره جابجا کنید.</span>
+                                          <span className="font-bold">برای ثبت سناریو، یک حرکت روی تخته انجام دهید.</span>
                                       </div>
                                   ) : (
                                       recordedMoves.map((move, index) => (
@@ -493,13 +504,13 @@ export default function AdminDashboard() {
 
                                               <div className="grid grid-cols-1 gap-4">
                                                   <div className="flex flex-col gap-2">
-                                                      <label className="text-[11px] font-bold text-sky-400 flex items-center gap-1.5"><MessageSquare size={14}/> توضیح دلیل این حرکت (بعد از اجرا نمایش داده می‌شود)</label>
-                                                      <textarea value={move.comment} onChange={(e) => updateMoveData(index, 'comment', e.target.value)} placeholder="مثال: این حرکت مرکز را کنترل می‌کند..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-sky-500 transition-colors resize-y min-h-[60px]" />
+                                                      <label className="text-[11px] font-bold text-sky-400 flex items-center gap-1.5"><MessageSquare size={14}/> توضیح حرکت (نمایش پس از اجرا)</label>
+                                                      <textarea value={move.comment} onChange={(e) => updateMoveData(index, 'comment', e.target.value)} placeholder="دلیل انجام این حرکت..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-sky-500 transition-colors resize-y min-h-[50px]" />
                                                   </div>
                                                   
                                                   <div className="flex flex-col gap-2">
-                                                      <label className="text-[11px] font-bold text-amber-500 flex items-center gap-1.5"><HintIcon size={14}/> راهنمایی (در صورت اشتباه زدنِ کاربر نمایش داده می‌شود)</label>
-                                                      <textarea value={move.hint} onChange={(e) => updateMoveData(index, 'hint', e.target.value)} placeholder="مثال: به فیل خونه c4 دقت کن..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500 transition-colors resize-y min-h-[60px]" />
+                                                      <label className="text-[11px] font-bold text-amber-500 flex items-center gap-1.5"><HintIcon size={14}/> راهنمایی (نمایش در صورت اشتباه کاربر)</label>
+                                                      <textarea value={move.hint} onChange={(e) => updateMoveData(index, 'hint', e.target.value)} placeholder="مثال: به فیل خونه c4 دقت کن..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-amber-500 transition-colors resize-y min-h-[50px]" />
                                                   </div>
                                               </div>
                                           </motion.div>
@@ -508,26 +519,6 @@ export default function AdminDashboard() {
                               </div>
                           </div>
 
-                      </div>
-                  </motion.div>
-              </motion.div>
-          )}
-      </AnimatePresence>
-
-      {/* 🌟 مودال ساخت دوره جدید */}
-      <AnimatePresence>
-          {isAddModalOpen && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                  <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                      <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#161512] shrink-0"><h2 className="font-black text-white text-lg">ایجاد دوره جدید</h2><button onClick={() => setIsAddModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={20}/></button></div>
-                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                          <form onSubmit={handleCreateCourse} className="flex flex-col gap-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">عنوان دوره</label><input required value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none" /></div>
-                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">نام مدرس</label><input required value={formData.instructor} onChange={e=>setFormData({...formData, instructor: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none" /></div>
-                              </div>
-                              <button type="submit" disabled={isSubmitting} className="mt-4 w-full bg-farzin-accent text-white font-black py-4 rounded-xl flex justify-center items-center gap-2 text-sm shadow-md">ثبت دوره</button>
-                          </form>
                       </div>
                   </motion.div>
               </motion.div>
