@@ -109,5 +109,70 @@ router.delete('/lessons/:lessonId', async (req, res) => {
     res.status(500).json({ error: 'خطا در حذف جلسه' });
   }
 });
+// ==========================================
+// 🛒 API های نمایش و خرید دوره
+// ==========================================
 
+// 7️⃣ دریافت اطلاعات کامل یک دوره + بررسی اینکه آیا کاربر خریدتش یا نه
+router.get('/:id/player', async (req, res) => {
+  const userId = 1; // موقتاً فرض می‌کنیم یوزر شماره ۱ لاگین است
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: req.params.id },
+      include: { lessons: { orderBy: { order: 'asc' } } }
+    });
+
+    if (!course) return res.status(404).json({ error: 'دوره یافت نشد' });
+
+    // چک کردن اینکه آیا کاربر این دوره رو قبلاً خریده؟
+    const enrollment = await prisma.userCourse.findUnique({
+      where: { userId_courseId: { userId, courseId: course.id } }
+    });
+
+    res.json({
+      course,
+      isEnrolled: !!enrollment, // اگر true باشه یعنی کاربر دوره رو خریده
+      progress: enrollment ? enrollment.progress : 0
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطای سرور' });
+  }
+});
+
+// 8️⃣ خرید دوره با الماس
+router.post('/:id/purchase', async (req, res) => {
+  const userId = 1; // موقتاً هاردکد برای تست
+  try {
+    const course = await prisma.course.findUnique({ where: { id: req.params.id } });
+    
+    // ۱. ساخت یوزر تستی (فقط برای اینکه الان لاگین نداریم ارور نگیریم)
+    let user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { id: userId, username: 'testuser', email: 'test@test.com', password: '123', gems: 1000 } // ۱۰۰۰ الماس رایگان بهش میدیم!
+      });
+    }
+
+    if (user.gems < course.price) {
+      return res.status(400).json({ error: 'موجودی الماس شما کافی نیست!' });
+    }
+
+    // ۲. کسر الماس از یوزر و اضافه کردن دوره به لیستش (تراکنش یکپارچه)
+    const transaction = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { gems: user.gems - course.price }
+      }),
+      prisma.userCourse.create({
+        data: { userId, courseId: course.id, progress: 0 }
+      })
+    ]);
+
+    res.json({ message: 'خرید با موفقیت انجام شد', remainingGems: transaction[0].gems });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در پردازش خرید' });
+  }
+});
 module.exports = router;

@@ -69,11 +69,7 @@ export default function Education() {
   const inProgressCourse = courses.find(c => c.progress > 0 && c.progress < 100);
 
   const handleCourseClick = (course: any) => {
-    if (course.isPremium && !isUserPremium) {
-      setSelectedPreviewCourse(course);
-    } else {
-      navigate(`/course/${course.id}`);
-    }
+      navigate(`/course/${course.id}`); // 👈 این خط رو جایگزین قبلی‌ها کن (کد پاپ‌آپ رو کلا میتونیم بعدا پاک کنیم)
   };
 
   const handleUseQuota = () => {

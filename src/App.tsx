@@ -19,6 +19,7 @@ import LichessLiveGame from './pages/LichessLiveGame';
 import PuzzleBoard from "./pages/PuzzleBoard";
 import PuzzleRush from './pages/PuzzleRush';
 import AdminDashboard from './pages/AdminDashboard';
+import CoursePlayer from './pages/CoursePlayer';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -60,7 +61,7 @@ export default function App() {
           <Route path="/puzzle/rush" element={<PuzzleRush />} />
           <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          
+          <Route path="/course/:courseId" element={<CoursePlayer />} />
         </Routes>
         
         <PaywallModal />

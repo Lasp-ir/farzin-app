@@ -108,6 +108,28 @@ export default function AdminDashboard() {
       } catch (err) { console.error(err); }
   };
 
+  // 🪄 جادوی دریافت اتوماتیک مشخصات ویدیو
+  const handleVideoUrlChange = (url: string) => {
+      setLessonFormData(prev => ({ ...prev, videoUrl: url }));
+      
+      // فقط اگر لینک مستقیم ویدیو بود
+      if (url.endsWith('.mp4') || url.endsWith('.webm') || url.includes('mp4')) {
+          const video = document.createElement('video');
+          video.src = url;
+          video.onloadedmetadata = () => {
+              const mins = Math.floor(video.duration / 60);
+              const secs = Math.floor(video.duration % 60);
+              const formattedDuration = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+              
+              setLessonFormData(prev => ({
+                  ...prev, 
+                  duration: formattedDuration,
+                  title: prev.title || 'ویدیوی جدید' // اگر تایتل خالی بود پرش میکنه
+              }));
+          };
+      }
+  };
+
   return (
     <div className="min-h-screen bg-[#0c0b0a] text-zinc-200 flex" dir="rtl">
       
@@ -229,7 +251,7 @@ export default function AdminDashboard() {
                                   <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">مدت زمان</label><input required value={lessonFormData.duration} onChange={e=>setLessonFormData({...lessonFormData, duration: e.target.value})} placeholder="12:45" className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-sm text-white outline-none focus:border-blue-400" /></div>
                               </div>
 
-                              <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">لینک ویدیو (آپارات، یوتیوب یا سرور)</label><input required type="url" dir="ltr" value={lessonFormData.videoUrl} onChange={e=>setLessonFormData({...lessonFormData, videoUrl: e.target.value})} placeholder="https://..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-sm text-white outline-none focus:border-blue-400" /></div>
+                              <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">لینک ویدیو (آپارات، یوتیوب یا سرور)</label><input required type="url" dir="ltr" value={lessonFormData.videoUrl} onChange={e => handleVideoUrlChange(e.target.value)} placeholder="https://..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-2.5 text-sm text-white outline-none focus:border-blue-400" /></div>
 
                               <div className="flex items-center justify-between mt-2">
                                   <label className="flex items-center gap-2 text-xs font-bold text-zinc-300 cursor-pointer">
