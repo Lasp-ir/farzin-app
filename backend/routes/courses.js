@@ -260,4 +260,24 @@ router.put('/lessons/:lessonId', async (req, res) => {
     res.status(500).json({ error: 'خطا در ویرایش جلسه' });
   }
 });
+// ویرایش و آپدیت یک تمرین تعاملی
+router.put('/exercises/:exerciseId', async (req, res) => {
+  try {
+    const { fen, moves, description, order } = req.body;
+    
+    const updatedExercise = await prisma.lessonExercise.update({
+      where: { id: req.params.exerciseId },
+      data: {
+        fen,
+        moves,
+        description: description || '',
+        order: Number(order) || 1
+      }
+    });
+    res.json(updatedExercise);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در ویرایش تمرین' });
+  }
+});
 module.exports = router;
