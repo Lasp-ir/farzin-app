@@ -5,8 +5,7 @@ import { Chess } from 'chess.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ChevronRight, RefreshCw, ArrowRight, ShieldAlert, 
-    CheckCircle2, RotateCcw,
-    Check, X, Lightbulb, MessageSquare, Award, Play
+    CheckCircle2, RotateCcw, Check, X, Lightbulb, Award
 } from 'lucide-react';
 import { useChessTheme } from '../hooks/useChessTheme';
 
@@ -28,14 +27,12 @@ export default function LessonExercisePlayer() {
     const { courseId, lessonId } = useParams();
     const navigate = useNavigate();
     const { lightSquareStyle, darkSquareStyle, customPieces } = useChessTheme();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const [exercises, setExercises] = useState<any[]>([]);
     const [currentExIndex, setCurrentExIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
 
-    // ♟️ استیت‌های موتور بازی
     const [game, setGame] = useState(new Chess());
     const [parsedData, setParsedData] = useState<{baseAnnotations: any, moves: any[]}>({ baseAnnotations: {arrows:[], circles:{}}, moves: [] });
     const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
@@ -46,18 +43,15 @@ export default function LessonExercisePlayer() {
     const [optionSquares, setOptionSquares] = useState<Record<string, any>>({});
     const [lastMoveSquares, setLastMoveSquares] = useState<Record<string, any>>({});
     const [feedback, setFeedback] = useState<{square: string, type: 'correct'|'wrong'} | null>(null);
-    
     const [activeHintSquare, setActiveHintSquare] = useState<string | null>(null);
 
-    // 💬 تاریخچه پیام‌های آموزشی استاد
-    const [instructorMessages, setInstructorMessages] = useState<any[]>([]);
+    // 🔥 استیت جدید برای پیام فعال (فقط یک پیام در لحظه نمایش داده می‌شود)
+    const [activeMessage, setActiveMessage] = useState<{type: 'info'|'hint'|'success'|'error', title: string, text: string} | null>(null);
+
+    // عکس موقت استاد (بعداً از دیتابیس میاد)
+    const instructorAvatar = "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?q=80&w=150&auto=format&fit=crop";
 
     useEffect(() => { fetchExercises(); }, [lessonId]);
-
-    // اسکرول خودکار چت‌باکس آموزش به آخرین پیام
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [instructorMessages]);
 
     const fetchExercises = async () => {
         try {
@@ -71,30 +65,28 @@ export default function LessonExercisePlayer() {
         } catch (err) { setLoadError(true); } finally { setIsLoading(false); }
     };
 
-    // 🔥 لود کردن پازل از نقطه صفر (FEN مبدا)
     const loadExercise = (exercise: any, index: number) => {
         setIsLoading(true); setStatus('playing'); setCurrentMoveIndex(0); 
         setClickedSquare(null); setOptionSquares({}); setLastMoveSquares({}); 
         setFeedback(null); setActiveHintSquare(null);
-        setInstructorMessages([]);
 
         try {
             const parsed = JSON.parse(exercise.moves);
             setParsedData(parsed);
             setCurrentExIndex(index);
             
-            // ایجاد تخته دقیقاً از FEN اولیه که استاد سیو کرده بود
             const newGame = new Chess(exercise.fen);
             setGame(newGame);
 
-            // تعیین رنگ کاربر (همیشه رنگِ اولین حرکتِ ثبت شده است)
             if (parsed.moves.length > 0) {
                 setPlayerColor(parsed.moves[0].color === 'w' ? 'white' : 'black');
             }
 
-            // پیام اولیه استاد (صورت مسئله)
+            // نمایش صورت مسئله در چت‌باکس
             if (exercise.description) {
-                setInstructorMessages([{ id: 'start', type: 'info', text: exercise.description }]);
+                setActiveMessage({ type: 'info', title: 'صورت مسئله', text: exercise.description });
+            } else {
+                setActiveMessage({ type: 'info', title: 'شروع تمرین', text: 'بهترین حرکت را پیدا کنید.' });
             }
 
             setIsLoading(false);
@@ -126,7 +118,6 @@ export default function LessonExercisePlayer() {
         const fullMoveStr = (piece && piece.type === 'p' && (targetSquare[1] === '8' || targetSquare[1] === '1')) ? userMoveStr + promotion : userMoveStr;
 
         if (fullMoveStr === expectedMoveData.uci || userMoveStr === expectedMoveData.uci) {
-            // ✅ حرکت کاربر درست بود
             const newGame = new Chess(game.fen());
             const result = newGame.move({ from: sourceSquare, to: targetSquare, promotion });
             
@@ -139,14 +130,15 @@ export default function LessonExercisePlayer() {
             setFeedback({ square: targetSquare, type: 'correct' });
             setClickedSquare(null); setOptionSquares({}); setActiveHintSquare(null);
             
-            // پیام تحسین استاد
+            // نمایش پیام تشویقی یا کامنت استاد
             if (expectedMoveData.comment) {
-                setInstructorMessages(prev => [...prev, { id: Date.now(), type: 'comment', text: expectedMoveData.comment, move: expectedMoveData.san, color: expectedMoveData.color }]);
+                setActiveMessage({ type: 'success', title: 'حرکت عالی!', text: expectedMoveData.comment });
+            } else {
+                setActiveMessage({ type: 'success', title: 'آفرین!', text: 'حرکت درستی بود. ادامه بده...' });
             }
 
             const nextIndex = currentMoveIndex + 1;
             
-            // اگه حرکت بعدی وجود داره و رنگش فرق می‌کنه، یعنی نوبت کامپیوتره
             if (nextIndex < parsedData.moves.length) {
                 setCurrentMoveIndex(nextIndex);
                 if (parsedData.moves[nextIndex].color !== expectedMoveData.color) {
@@ -167,20 +159,19 @@ export default function LessonExercisePlayer() {
                         setFeedback(null);
                         
                         if (compMoveData.comment) {
-                            setInstructorMessages(prev => [...prev, { id: Date.now()+1, type: 'comment', text: compMoveData.comment, move: compMoveData.san, color: compMoveData.color }]);
+                            setActiveMessage({ type: 'info', title: 'حرکت حریف', text: compMoveData.comment });
                         }
 
                         if (nextIndex + 1 >= parsedData.moves.length) { finishPuzzle(); } 
                         else { setCurrentMoveIndex(nextIndex + 1); }
-                    }, 800); // تاخیر طبیعی برای حرکت کامپیوتر
+                    }, 800); 
                 }
             } else {
-                finishPuzzle(); // پازل تموم شد
+                finishPuzzle();
             }
             return true;
 
         } else {
-            // ❌ حرکت اشتباه بود
             try {
                 const testGame = new Chess(game.fen());
                 const isValid = testGame.move({ from: sourceSquare, to: targetSquare, promotion });
@@ -192,7 +183,9 @@ export default function LessonExercisePlayer() {
                     setOptionSquares({}); setClickedSquare(null);
                     
                     if (expectedMoveData.hint) {
-                        setInstructorMessages(prev => [...prev, { id: Date.now(), type: 'hint', text: expectedMoveData.hint }]);
+                        setActiveMessage({ type: 'error', title: 'دقت کن!', text: expectedMoveData.hint });
+                    } else {
+                        setActiveMessage({ type: 'error', title: 'اشتباه بود!', text: 'این بهترین حرکت نیست. دوباره تلاش کن.' });
                     }
                 }
             } catch (e) {}
@@ -204,6 +197,7 @@ export default function LessonExercisePlayer() {
         setTimeout(() => {
             setStatus('solved');
             playSound('gameOver');
+            setActiveMessage({ type: 'success', title: 'پایان تمرین', text: 'تبریک می‌گم! این سناریو رو با موفقیت حل کردی.' });
         }, 500);
     };
 
@@ -211,41 +205,39 @@ export default function LessonExercisePlayer() {
         setStatus('playing');
         setFeedback(null);
         setActiveHintSquare(null);
-        // برگرداندن یک حرکت به عقب برای تلاش مجدد
         game.undo();
         setGame(new Chess(game.fen()));
         setLastMoveSquares({});
+        
+        // بازگرداندن پیام به حالت صورت مسئله
+        const exercise = exercises[currentExIndex];
+        if (exercise.description) setActiveMessage({ type: 'info', title: 'تلاش مجدد', text: exercise.description });
+        else setActiveMessage(null);
     };
 
-    // 🔥 تابع جدید راهنمایی (Hint) هوشمند
     const handleHintClick = () => {
         if (status !== 'playing' || loadError || currentMoveIndex >= parsedData.moves.length) return;
         const expectedMoveData = parsedData.moves[currentMoveIndex];
         
-        // مارک کردن خونه‌ای که مهره درست توشه
         setActiveHintSquare(expectedMoveData.uci.substring(0, 2));
 
         if (expectedMoveData.hint) {
-            setInstructorMessages(prev => [...prev, { id: Date.now(), type: 'hint', text: expectedMoveData.hint }]);
+            setActiveMessage({ type: 'hint', title: 'راهنمایی', text: expectedMoveData.hint });
         } else {
-            setInstructorMessages(prev => [...prev, { id: Date.now(), type: 'hint', text: 'به مهره‌ای که با رنگ زرد روشن شده دقت کن!' }]);
+            setActiveMessage({ type: 'hint', title: 'راهنمایی', text: 'به مهره‌ای که با رنگ زرد روشن شده دقت کن!' });
         }
     };
 
-    const onDrop = (sourceSquare: string, targetSquare: string) => {
-        setFeedback(null); attemptMove(sourceSquare, targetSquare); return true; 
-    };
+    const onDrop = (sourceSquare: string, targetSquare: string) => { setFeedback(null); attemptMove(sourceSquare, targetSquare); return true; };
 
     const handleSquareClick = (square: string) => {
         setFeedback(null); 
         if (status !== 'playing' || loadError) return;
-
         if (clickedSquare) {
             if (clickedSquare === square) { setClickedSquare(null); setOptionSquares({}); return; }
             const moves = game.moves({ square: clickedSquare as any, verbose: true });
             if (moves.find(m => m.to === square)) { attemptMove(clickedSquare, square); return; }
         }
-
         const piece = game.get(square as any);
         if (piece && piece.color === game.turn()) { setClickedSquare(square); highlightLegalMoves(square); } 
         else { setClickedSquare(null); setOptionSquares({}); }
@@ -257,7 +249,6 @@ export default function LessonExercisePlayer() {
         return { x: isWhite ? col : 7 - col, y: isWhite ? 7 - row : row };
     };
 
-    // 🎨 اعمال حاشیه‌نویسی‌های استاد (فلش‌ها و دایره‌ها) روی تخته
     const currentAnnotationData = currentMoveIndex === 0 ? parsedData.baseAnnotations : (currentMoveIndex > 0 && currentMoveIndex <= parsedData.moves.length ? parsedData.moves[currentMoveIndex - 1] : null);
     
     let finalCustomSquares = { ...lastMoveSquares, ...optionSquares };
@@ -266,7 +257,6 @@ export default function LessonExercisePlayer() {
             finalCustomSquares[sq] = { ...(finalCustomSquares[sq] || {}), boxShadow: `inset 0 0 0 4px ${color}`, borderRadius: '4px' };
         });
     }
-    // هایلایت راهنمایی
     if (activeHintSquare) {
         finalCustomSquares[activeHintSquare] = { ...finalCustomSquares[activeHintSquare], backgroundColor: 'rgba(245, 158, 11, 0.6)' };
     }
@@ -281,11 +271,11 @@ export default function LessonExercisePlayer() {
                     <span className="text-emerald-400 font-black text-sm uppercase flex items-center gap-2"><Award size={16} /> تمرینات تعاملی دوره</span>
                     <span className="text-[11px] text-zinc-400 font-bold mt-1">پیشرفت: {currentExIndex + 1} از {exercises.length}</span>
                 </div>
-                <div className="w-10"></div> {/* Spacer for centering */}
+                <div className="w-10"></div>
             </div>
             
-            {/* 🌟 محتوای اصلی (تخته بالا، پیام‌ها پایین) */}
-            <div className="flex-1 w-full max-w-[550px] flex flex-col p-4 gap-4 overflow-y-auto custom-scrollbar">
+            {/* 🌟 محتوای اصلی (تخته در مرکز، چت در پایین) */}
+            <div className="flex-1 w-full max-w-md flex flex-col items-center pt-6 px-4 gap-6 overflow-y-auto custom-scrollbar pb-32">
                 
                 {/* بخش تخته */}
                 <div className="w-full relative z-0 shrink-0">
@@ -294,7 +284,7 @@ export default function LessonExercisePlayer() {
                     ) : loadError ? (
                         <div className="aspect-square w-full bg-[#1e1c19] flex flex-col items-center justify-center border-4 border-[#35332e] rounded-xl text-center p-6"><ShieldAlert size={48} className="text-zinc-600 mb-4 opacity-50" /><h3 className="text-white font-black text-lg mb-2">تمرینی یافت نشد!</h3></div>
                     ) : (
-                        <div dir="ltr" className={`rounded-lg relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
+                        <div dir="ltr" className={`rounded-xl relative flex shadow-2xl border-4 transition-colors duration-300 ${status === 'wrong' ? 'border-red-500/80 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : status === 'solved' ? 'border-emerald-500/80 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-[#35332e]'}`}>
                             <Chessboard 
                                 id="LessonExerciseBoard" 
                                 position={game.fen()} 
@@ -309,7 +299,7 @@ export default function LessonExercisePlayer() {
                                 animationDuration={250}
                             />
 
-                            {/* 💥 افکت‌های اشتباه/درست روی تخته */}
+                            {/* 💥 افکت‌های اشتباه/درست */}
                             {feedback && (
                                 <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-8 z-20">
                                     {Array.from({ length: 64 }).map((_, i) => {
@@ -333,76 +323,75 @@ export default function LessonExercisePlayer() {
                     )}
                 </div>
 
-                {/* 🌟 دکمه‌های کنترل (راهنمایی) زیر تخته */}
+                {/* 🌟 دکمه راهنمایی */}
                 {status === 'playing' && !loadError && (
-                    <div className="w-full flex gap-3 shrink-0">
-                        <button onClick={handleHintClick} className="flex-1 py-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 rounded-xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm">
-                            <Lightbulb size={18} /> راهنمایی از استاد
+                    <div className="w-full shrink-0">
+                        <button onClick={handleHintClick} className="w-full py-3 bg-[#161512] hover:bg-[#1e1c19] text-amber-500 border border-[#35332e] hover:border-amber-500/50 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm">
+                            <Lightbulb size={18} /> راهنمایی نیاز دارم
                         </button>
                     </div>
                 )}
 
-                {/* 🌟 چت‌باکس پیام‌های آموزشی استاد */}
-                {!loadError && (
-                    <div className="w-full bg-[#121110] border border-[#35332e] rounded-2xl flex flex-col shrink-0 min-h-[250px]">
-                        <div className="p-4 border-b border-[#35332e] bg-[#1a1916] rounded-t-2xl flex items-center gap-2">
-                            <MessageSquare size={16} className="text-sky-400"/>
-                            <h3 className="font-black text-sm text-white">آموزش و توضیحات</h3>
-                        </div>
-                        <div className="p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar max-h-[350px]">
-                            {instructorMessages.map(msg => (
-                                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} key={msg.id} className={`p-4 rounded-xl flex flex-col gap-2 shadow-sm ${msg.type === 'info' ? 'bg-[#1e1c19] border border-[#35332e]' : msg.type === 'hint' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
-                                    <div className="flex items-center gap-2">
-                                        {msg.type === 'info' ? <MessageSquare size={16} className="text-sky-400"/> : msg.type === 'hint' ? <Lightbulb size={16} className="text-amber-500"/> : <CheckCircle2 size={16} className="text-emerald-500"/>}
-                                        <span className={`text-[11px] font-black tracking-wider ${msg.type === 'info' ? 'text-zinc-300' : msg.type === 'hint' ? 'text-amber-500' : 'text-emerald-400'}`}>
-                                            {msg.type === 'info' ? 'صورت مسئله' : msg.type === 'hint' ? 'راهنمایی' : `بررسی حرکت: ${msg.move}`}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-white leading-loose">{msg.text}</p>
-                                </motion.div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    </div>
-                )}
+                {/* 💬 سیستم جدید چت حباب‌دار استاد */}
+                <AnimatePresence mode="wait">
+                    {activeMessage && !loadError && (
+                        <motion.div 
+                            key={activeMessage.text} // تغییر کلید باعث انیمیشن ورود مجدد می‌شود
+                            initial={{ opacity: 0, y: 20, scale: 0.95 }} 
+                            animate={{ opacity: 1, y: 0, scale: 1 }} 
+                            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className="w-full flex items-end gap-3 mt-2"
+                        >
+                            <img src={instructorAvatar} alt="استاد" className="w-12 h-12 rounded-full object-cover border-2 border-[#35332e] shadow-lg shrink-0" />
+                            
+                            <div className={`relative flex-1 p-4 rounded-2xl rounded-br-sm shadow-xl border ${
+                                activeMessage.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                                activeMessage.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30' : 
+                                activeMessage.type === 'hint' ? 'bg-amber-500/10 border-amber-500/30' : 
+                                'bg-[#1e1c19] border-[#35332e]'
+                            }`}>
+                                <h4 className={`text-xs font-black mb-1 tracking-wider ${
+                                    activeMessage.type === 'error' ? 'text-red-400' : 
+                                    activeMessage.type === 'success' ? 'text-emerald-400' : 
+                                    activeMessage.type === 'hint' ? 'text-amber-500' : 
+                                    'text-sky-400'
+                                }`}>{activeMessage.title}</h4>
+                                <p className="text-sm text-white leading-relaxed font-medium">{activeMessage.text}</p>
+                                
+                                {/* دم حباب چت */}
+                                <div className={`absolute -right-2 bottom-0 w-4 h-4 border-b border-r transform rotate-45 translate-x-1/2 -translate-y-1 ${
+                                    activeMessage.type === 'error' ? 'bg-[#2a1215] border-red-500/30' : 
+                                    activeMessage.type === 'success' ? 'bg-[#12221a] border-emerald-500/30' : 
+                                    activeMessage.type === 'hint' ? 'bg-[#2a2215] border-amber-500/30' : 
+                                    'bg-[#1e1c19] border-[#35332e]'
+                                }`}></div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
             </div>
 
-            {/* 🛑 مودال اشتباه (تلاش مجدد) */}
+            {/* 🛑 پنل‌های شناور پایان بازی (اشتباه / حل شده) */}
             <AnimatePresence>
                 {status === 'wrong' && !loadError && (
-                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className="fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border border-red-500/30 shadow-[0_20px_50px_rgba(239,68,68,0.15)] rounded-2xl p-5 z-50 flex flex-col gap-4">
-                        <div className="flex items-center gap-4 text-red-400">
-                            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 shrink-0 text-xl">💥</div>
-                            <div className="flex flex-col text-left">
-                                <span className="font-black text-lg text-white" dir="rtl">حرکت اشتباه!</span>
-                                <span className="text-xs opacity-80" dir="rtl">راهنمایی استاد را در پایین صفحه بخوانید.</span>
-                            </div>
-                        </div>
-                        <button onClick={handleRetry} className="w-full py-3.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[450px] md:bottom-6 bg-[#161512] border-t md:border border-[#35332e] md:rounded-2xl p-5 z-50 flex flex-col gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+                        <button onClick={handleRetry} className="w-full py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg">
                             <RotateCcw size={18} /> تلاش مجدد
                         </button>
                     </motion.div>
                 )}
 
-                {/* 🏆 مودال حل موفقیت‌آمیز */}
                 {status === 'solved' && !loadError && (
-                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} className="fixed bottom-10 left-4 right-4 md:left-auto md:right-auto md:w-[400px] bg-[#1e1c19] border border-emerald-500/30 shadow-[0_20px_50px_rgba(0,0,0,0.3)] rounded-2xl p-5 z-50 flex flex-col gap-4">
-                        <div className="flex items-center gap-4 text-emerald-400">
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center border shrink-0 text-2xl bg-emerald-500/10 border-emerald-500/20">🏆</div>
-                            <div className="flex flex-col text-left">
-                                <span className="font-black text-lg text-white" dir="rtl">آفرین! حل شد</span>
-                                <span className="text-xs opacity-80" dir="rtl">سناریوی آموزشی این تمرین با موفقیت به پایان رسید.</span>
-                            </div>
-                        </div>
-                        
+                    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[450px] md:bottom-6 bg-[#161512] border-t md:border border-[#35332e] md:rounded-2xl p-5 z-50 flex flex-col gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
                         {currentExIndex < exercises.length - 1 ? (
-                            <button onClick={() => loadExercise(exercises[currentExIndex + 1], currentExIndex + 1)} className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg mt-1">
-                                <ArrowRight size={18} /> تمرین بعدی
+                            <button onClick={() => loadExercise(exercises[currentExIndex + 1], currentExIndex + 1)} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg">
+                                <ArrowRight size={18} /> پازل بعدی
                             </button>
                         ) : (
-                            <button onClick={() => navigate(`/course/${courseId}/play`)} className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg mt-1">
-                                <CheckCircle2 size={18} /> پایان تمرینات و بازگشت به کلاس
+                            <button onClick={() => navigate(`/course/${courseId}/play`)} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg">
+                                <CheckCircle2 size={18} /> پایان و بازگشت به کلاس
                             </button>
                         )}
                     </motion.div>
