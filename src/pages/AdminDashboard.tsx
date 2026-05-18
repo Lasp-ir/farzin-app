@@ -5,7 +5,8 @@ import {
   LayoutDashboard, BookOpen, Users, Plus, 
   Trash2, Video, ChevronRight, Crown,
   X, CheckCircle2, Loader2, Play, Award, RotateCcw, 
-  MessageSquare, HelpCircle as HintIcon, Save, MousePointer2, Edit3, Eraser
+  MessageSquare, HelpCircle as HintIcon, Save, MousePointer2, 
+  Circle, ArrowUpRight, Eraser, Clock, ShieldCheck
 } from 'lucide-react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
@@ -29,6 +30,7 @@ export default function AdminDashboard() {
 
   // 🎥 استیت‌های مدیریت جلسات
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+  const [showAddLessonForm, setShowAddLessonForm] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [courseLessons, setCourseLessons] = useState<any[]>([]);
   const [isLessonLoading, setIsLessonLoading] = useState(false);
@@ -41,15 +43,16 @@ export default function AdminDashboard() {
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
   const [lessonExercises, setLessonExercises] = useState<any[]>([]);
   
-  // لاجیک شطرنج و ترسیمات (موبایل فرندلی)
+  // لاجیک شطرنج و ترسیمات (موبایل فرندلی پیشرفته)
   const [game, setGame] = useState(new Chess());
   const [exFen, setExFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   const [recordedMoves, setRecordedMoves] = useState<any[]>([]);
   const [overallDesc, setOverallDesc] = useState('');
   const [exOrder, setExOrder] = useState(1);
 
-  // ابزارهای رسم تعاملی با پشتیبانی از تاچ
-  const [drawMode, setDrawMode] = useState(false); // 🔥 کلید طلایی برای تاچ
+  // 🔥 ابزارهای رسم حرفه‌ای با انتخابگر ابزار
+  const [drawMode, setDrawMode] = useState(false); 
+  const [drawTool, setDrawTool] = useState<'circle' | 'arrow'>('circle'); // انتخاب ابزار دایره یا فلش
   const [drawStart, setDrawStart] = useState<string | null>(null);
   const [drawingColor, setDrawingColor] = useState('#10b981'); 
   const [baseAnnotations, setBaseAnnotations] = useState({ arrows: [] as any[], circles: {} as Record<string, string> });
@@ -99,6 +102,7 @@ export default function AdminDashboard() {
       setSelectedCourse(course);
       setIsLessonModalOpen(true);
       setIsLessonLoading(true);
+      setShowAddLessonForm(false);
       try {
           const res = await fetch(`http://localhost:5000/api/courses/${course.id}/lessons`);
           if (res.ok) {
@@ -108,6 +112,19 @@ export default function AdminDashboard() {
           }
       } catch (err) { console.error(err); } 
       finally { setIsLessonLoading(false); }
+  };
+
+  const handleVideoUrlChange = (url: string) => {
+      setLessonFormData(prev => ({ ...prev, videoUrl: url }));
+      if (url.endsWith('.mp4') || url.endsWith('.webm') || url.includes('mp4')) {
+          const video = document.createElement('video');
+          video.src = url;
+          video.onloadedmetadata = () => {
+              const mins = Math.floor(video.duration / 60);
+              const secs = Math.floor(video.duration % 60);
+              setLessonFormData(prev => ({ ...prev, duration: `${mins}:${secs < 10 ? '0' : ''}${secs}`, title: prev.title || 'ویدیوی جدید' }));
+          };
+      }
   };
 
   const handleAddLesson = async (e: React.FormEvent) => {
@@ -121,12 +138,24 @@ export default function AdminDashboard() {
               const newLesson = await res.json();
               setCourseLessons([...courseLessons, newLesson]);
               setLessonFormData({ title: '', videoUrl: '', duration: '', order: courseLessons.length + 2, isFreePreview: false });
+              setShowAddLessonForm(false);
               fetchCourses(); 
           }
       } catch (err) { console.error(err); } finally { setIsSubmitting(false); }
   };
 
-  // 🔥 --- توابع کارگاه تعاملی شطرنج (با پشتیبانی از تاچ) --- 🔥
+  const handleDeleteLesson = async (lessonId: string) => {
+      if(!window.confirm('حذف جلسه؟')) return;
+      try {
+          const res = await fetch(`http://localhost:5000/api/courses/lessons/${lessonId}`, { method: 'DELETE' });
+          if(res.ok) {
+              setCourseLessons(courseLessons.filter(l => l.id !== lessonId));
+              fetchCourses();
+          }
+      } catch (err) { console.error(err); }
+  };
+
+  // 🔥 --- توابع کارگاه تعاملی شطرنج (Tool Based) --- 🔥
   const openExerciseModal = async (lesson: any) => {
       setSelectedLesson(lesson);
       setIsExerciseModalOpen(true);
@@ -151,6 +180,7 @@ export default function AdminDashboard() {
       setCurrentArrows([]);
       setCurrentCircles({});
       setDrawStart(null);
+      setDrawMode(false);
   };
 
   const handleFenLoad = (newFen: string) => {
@@ -177,35 +207,37 @@ export default function AdminDashboard() {
       }
   };
 
-  // 🔥 کلیک هوشمند روی خونه‌ها (هم برای نقاشی، هم برای پاک کردن انتخاب)
+  // 🧠 لاجیک تک کلیک برای دایره / دو کلیک برای فلش
   const handleSquareClick = (square: string) => {
-      if (!drawMode) return; // اگر تو حالت رسم نبودیم کاری نکن
+      if (!drawMode) return; 
 
-      if (!drawStart) {
-          setDrawStart(square);
-      } else {
-          if (drawStart === square) {
-              // کلیک روی همون خونه = رسم/پاک کردن دایره
-              const newCircles = { ...currentCircles };
-              if (newCircles[square] === drawingColor) delete newCircles[square];
-              else newCircles[square] = drawingColor;
-              setCurrentCircles(newCircles);
-              saveAnnotationsToState(currentArrows, newCircles);
-          } else {
-              // کلیک روی خونه دیگه = رسم/پاک کردن فلش
-              const newArrow = [drawStart, square, drawingColor];
-              let newArrows = [...currentArrows];
-              const existsIndex = newArrows.findIndex(a => a[0] === drawStart && a[1] === square);
-              
-              if (existsIndex >= 0 && newArrows[existsIndex][2] === drawingColor) {
-                  newArrows.splice(existsIndex, 1);
-              } else {
-                  newArrows.push(newArrow);
-              }
-              setCurrentArrows(newArrows);
-              saveAnnotationsToState(newArrows, currentCircles);
-          }
+      if (drawTool === 'circle') {
+          const newCircles = { ...currentCircles };
+          if (newCircles[square] === drawingColor) delete newCircles[square];
+          else newCircles[square] = drawingColor;
+          setCurrentCircles(newCircles);
+          saveAnnotationsToState(currentArrows, newCircles);
           setDrawStart(null);
+      } 
+      else if (drawTool === 'arrow') {
+          if (!drawStart) {
+              setDrawStart(square);
+          } else {
+              if (drawStart !== square) {
+                  const newArrow = [drawStart, square, drawingColor];
+                  let newArrows = [...currentArrows];
+                  const existsIndex = newArrows.findIndex(a => a[0] === drawStart && a[1] === square);
+                  
+                  if (existsIndex >= 0 && newArrows[existsIndex][2] === drawingColor) {
+                      newArrows.splice(existsIndex, 1);
+                  } else {
+                      newArrows.push(newArrow);
+                  }
+                  setCurrentArrows(newArrows);
+                  saveAnnotationsToState(newArrows, currentCircles);
+              }
+              setDrawStart(null);
+          }
       }
   };
 
@@ -213,10 +245,11 @@ export default function AdminDashboard() {
       setCurrentArrows([]);
       setCurrentCircles({});
       saveAnnotationsToState([], {});
+      setDrawStart(null);
   };
 
   const onDrop = (sourceSquare: string, targetSquare: string, piece: string) => {
-      if (drawMode) return false; // تو حالت نقاشی نمیشه مهره تکون داد
+      if (drawMode) return false;
 
       try {
           const move = game.move({ from: sourceSquare, to: targetSquare, promotion: piece[1].toLowerCase() ?? 'q' });
@@ -264,10 +297,8 @@ export default function AdminDashboard() {
       setRecordedMoves(updated);
   };
 
-  // 🔥 پروسه حرفه‌ای ذخیره پازل
   const handleSaveExercise = async () => {
       setIsSubmitting(true);
-      
       const payload = {
           fen: recordedMoves.length > 0 ? new Chess(exFen).history().length === 0 ? exFen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : exFen,
           moves: JSON.stringify({ baseAnnotations, moves: recordedMoves }), 
@@ -288,13 +319,11 @@ export default function AdminDashboard() {
           });
           if (res.ok) {
               const newEx = await res.json();
-              setLessonExercises([...lessonExercises, newEx]); // اضافه شدن بلافاصله به لیست بالا
-              resetExerciseBuilder(); // ریست سریع برای پازل بعدی
+              setLessonExercises([...lessonExercises, newEx]); 
+              resetExerciseBuilder(); 
               setExOrder(prev => prev + 1);
               alert('✅ پازل با موفقیت ذخیره شد!');
-          } else {
-              alert('❌ خطا در ذخیره پازل. لطفاً دوباره تلاش کنید.');
-          }
+          } else { alert('❌ خطا در ذخیره پازل. لطفاً دوباره تلاش کنید.'); }
       } catch (err) { console.error(err); alert('❌ خطای ارتباط با سرور.'); }
       finally { setIsSubmitting(false); }
   };
@@ -307,12 +336,11 @@ export default function AdminDashboard() {
       } catch (err) { console.error(err); }
   };
 
-  // استایل دایره‌ها و حالت انتخاب رسم
   const customSquareStyles: Record<string, React.CSSProperties> = {};
   Object.entries(currentCircles).forEach(([sq, color]) => {
       customSquareStyles[sq] = { boxShadow: `inset 0 0 0 4px ${color}`, borderRadius: '4px' };
   });
-  if (drawStart) {
+  if (drawStart && drawTool === 'arrow') {
       customSquareStyles[drawStart] = { ...customSquareStyles[drawStart], backgroundColor: 'rgba(255, 255, 255, 0.4)' };
   }
 
@@ -329,10 +357,10 @@ export default function AdminDashboard() {
             <button onClick={() => setActiveMenu('dashboard')} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all ${activeMenu === 'dashboard' ? 'bg-farzin-accent text-white' : 'text-zinc-400 hover:bg-[#1a1916] hover:text-white'}`}><LayoutDashboard size={18} /> داشبورد</button>
             <button onClick={() => setActiveMenu('courses')} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all ${activeMenu === 'courses' ? 'bg-farzin-accent text-white' : 'text-zinc-400 hover:bg-[#1a1916] hover:text-white'}`}><BookOpen size={18} /> مدیریت دوره‌ها</button>
         </div>
-        <div className="p-4 mt-auto border-t border-white/5"><button onClick={() => navigate('/education')} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white transition-colors w-full justify-center py-2"><ChevronRight size={14} /> مشاهده آکادمی فرزین</button></div>
+        <div className="p-4 mt-auto border-t border-white/5"><button onClick={() => navigate('/education')} className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-white w-full justify-center py-2"><ChevronRight size={14} /> مشاهده آکادمی فرزین</button></div>
       </div>
 
-      {/* بخش اصلی */}
+      {/* بخش اصلی (لیست دوره‌ها) */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="h-20 flex items-center justify-between px-8 border-b border-white/5 bg-[#0c0b0a]/80 backdrop-blur-md shrink-0">
             <h1 className="text-xl font-black text-white">مدیریت دوره‌های آموزشی</h1>
@@ -364,27 +392,66 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* 🎥 مودال ویدیوها (مدیریت جلسات) */}
+      {/* 🎥 مودال ویدیوها (کامل و جامع با اطلاعات) */}
       <AnimatePresence>
           {isLessonModalOpen && selectedCourse && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                  <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                  <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+                      
                       <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#161512] shrink-0">
                           <div className="flex flex-col"><h2 className="font-black text-white text-lg flex items-center gap-2"><Video size={18} className="text-blue-400"/> جلسات دوره</h2><span className="text-xs text-zinc-400">{selectedCourse.title}</span></div>
                           <button onClick={() => setIsLessonModalOpen(false)} className="text-zinc-500 hover:text-white bg-[#262421] p-2 rounded-xl"><X size={20}/></button>
                       </div>
+
                       <div className="p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-6">
-                          <div className="flex flex-col gap-2">
-                              {courseLessons.map(lesson => (
-                                  <div key={lesson.id} className="flex items-center justify-between bg-[#161512] p-3 rounded-xl border border-[#35332e] group">
-                                      <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-[#262421] flex items-center justify-center text-xs font-black text-zinc-400">{lesson.order}</div><span className="text-sm font-bold text-white">{lesson.title}</span></div>
-                                      <div className="flex items-center gap-2">
-                                          <button onClick={() => { setIsLessonModalOpen(false); openExerciseModal(lesson); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg text-xs font-black transition-all"><Award size={14}/> طراحی تمرینات</button>
+                          
+                          {/* 🌟 دکمه افزودن جلسه (کشویی) */}
+                          <div className="flex flex-col gap-3">
+                              <button onClick={() => setShowAddLessonForm(!showAddLessonForm)} className="w-full bg-[#262421] hover:bg-[#35332e] border border-[#35332e] text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors">
+                                  {showAddLessonForm ? <X size={16}/> : <Plus size={16}/>} {showAddLessonForm ? 'بستن فرم' : 'افزودن ویدیوی جدید به این دوره'}
+                              </button>
+                              
+                              <AnimatePresence>
+                                  {showAddLessonForm && (
+                                      <motion.form initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} onSubmit={handleAddLesson} className="overflow-hidden">
+                                          <div className="flex flex-col gap-4 bg-[#121110] p-5 rounded-2xl border border-[#35332e] mb-4">
+                                              <div className="grid grid-cols-3 gap-3">
+                                                  <div className="col-span-2 flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">عنوان جلسه</label><input required value={lessonFormData.title} onChange={e=>setLessonFormData({...lessonFormData, title: e.target.value})} className="bg-[#1e1c19] border border-[#35332e] text-white rounded-xl p-2.5 text-sm outline-none focus:border-blue-500" /></div>
+                                                  <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">مدت زمان</label><input required value={lessonFormData.duration} onChange={e=>setLessonFormData({...lessonFormData, duration: e.target.value})} className="bg-[#1e1c19] border border-[#35332e] text-white rounded-xl p-2.5 text-sm outline-none focus:border-blue-500" /></div>
+                                              </div>
+                                              <div className="flex flex-col gap-1.5"><label className="text-[11px] font-bold text-zinc-400">لینک ویدیو (MP4)</label><input required type="url" dir="ltr" value={lessonFormData.videoUrl} onChange={e=>handleVideoUrlChange(e.target.value)} className="bg-[#1e1c19] border border-[#35332e] text-white rounded-xl p-2.5 text-sm outline-none focus:border-blue-500" /></div>
+                                              <div className="flex items-center gap-2 mt-1">
+                                                  <label className="flex items-center gap-2 text-xs font-bold text-zinc-300 cursor-pointer"><input type="checkbox" checked={lessonFormData.isFreePreview} onChange={e=>setLessonFormData({...lessonFormData, isFreePreview: e.target.checked})} className="w-4 h-4 accent-emerald-500" /> پیش‌نمایش رایگان</label>
+                                              </div>
+                                              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm transition-colors">ثبت و ذخیره جلسه</button>
+                                          </div>
+                                      </motion.form>
+                                  )}
+                              </AnimatePresence>
+                          </div>
+
+                          {/* 🌟 لیست کامل و زیبای جلسات با تمام اطلاعات */}
+                          <div className="flex flex-col gap-3">
+                              {courseLessons.length === 0 ? <div className="text-center text-zinc-500 py-10">هیچ جلسه‌ای ثبت نشده است.</div> : courseLessons.map(lesson => (
+                                  <div key={lesson.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#161512] p-4 rounded-xl border border-[#35332e] group gap-4">
+                                      <div className="flex items-center gap-4">
+                                          <div className="w-10 h-10 rounded-xl bg-[#262421] border border-[#35332e] flex items-center justify-center text-sm font-black text-white shadow-inner">{lesson.order}</div>
+                                          <div className="flex flex-col">
+                                              <span className="text-sm font-bold text-white mb-1">{lesson.title}</span>
+                                              <div className="flex items-center gap-3 text-[11px] font-bold text-zinc-500">
+                                                  <span className="flex items-center gap-1 bg-[#1e1c19] px-2 py-0.5 rounded border border-[#35332e]"><Clock size={12}/> {lesson.duration}</span>
+                                                  {lesson.isFreePreview && <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20"><ShieldCheck size={12}/> رایگان</span>}
+                                              </div>
+                                          </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center justify-end gap-2 shrink-0 border-t sm:border-t-0 border-[#35332e] pt-3 sm:pt-0">
+                                          <button onClick={() => { setIsLessonModalOpen(false); openExerciseModal(lesson); }} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg text-xs font-black transition-all border border-emerald-500/20 hover:border-transparent"><Award size={14}/> تمرینات</button>
+                                          <button onClick={() => handleDeleteLesson(lesson.id)} className="p-2 text-zinc-600 hover:text-rose-500 bg-[#1e1c19] hover:bg-rose-500/10 rounded-lg transition-colors border border-[#35332e]"><Trash2 size={16}/></button>
                                       </div>
                                   </div>
                               ))}
                           </div>
-                          {/* فرم افزودن جلسه ... */}
                       </div>
                   </motion.div>
               </motion.div>
@@ -398,7 +465,7 @@ export default function AdminDashboard() {
                   <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#121110] border border-[#35332e] rounded-3xl w-full max-w-6xl flex flex-col h-[95vh] overflow-hidden shadow-2xl">
                       
                       <div className="flex items-center justify-between p-4 border-b border-[#35332e] bg-[#161512] shrink-0">
-                          <div className="flex flex-col"><h2 className="font-black text-white text-lg flex items-center gap-2 text-emerald-400"><Award size={20}/> استودیوی تعاملی طراحی پازل</h2><span className="text-xs text-zinc-400 mt-1">جلسه: {selectedLesson.title}</span></div>
+                          <div className="flex flex-col"><h2 className="font-black text-white text-lg flex items-center gap-2 text-emerald-400"><Award size={20}/> استودیوی تعاملی طراحی پازل</h2><span className="text-xs text-zinc-400 mt-1">طراحی تمرین برای: {selectedLesson.title}</span></div>
                           <button onClick={() => { setIsExerciseModalOpen(false); setIsLessonModalOpen(true); }} className="text-zinc-400 hover:text-white bg-[#262421] px-4 py-2 rounded-xl flex items-center gap-1 text-xs font-bold transition-colors"><ChevronRight size={14}/> بازگشت به جلسات</button>
                       </div>
 
@@ -407,7 +474,7 @@ export default function AdminDashboard() {
                           {/* ◀️ سمت راست: تخته شطرنج و تنظیمات */}
                           <div className="w-full lg:w-[450px] shrink-0 border-l border-[#35332e] p-5 flex flex-col gap-5 overflow-y-auto custom-scrollbar bg-[#161512]">
                               
-                              {/* لیست پازل‌های سیو شده (دم دست!) */}
+                              {/* لیست پازل‌های سیو شده */}
                               <div className="flex flex-col gap-2 pb-4 border-b border-[#35332e]">
                                   <h3 className="text-[11px] font-black text-zinc-500 uppercase flex items-center justify-between"><span>پازل‌های ذخیره شده</span> <span className="bg-[#262421] px-2 py-0.5 rounded text-white">{lessonExercises.length}</span></h3>
                                   <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
@@ -420,14 +487,14 @@ export default function AdminDashboard() {
                                   </div>
                               </div>
 
-                              {/* تخته تعاملی */}
+                              {/* تخته تعاملی (رفع مشکل LTR) */}
                               <div className="w-full relative select-none" dir="ltr" onContextMenu={(e) => e.preventDefault()}>
                                   <div className={`w-full aspect-square rounded-xl overflow-hidden border-4 shadow-xl relative transition-colors ${drawMode ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-[#262421]'}`}>
                                       <Chessboard 
                                           position={exFen} 
                                           onPieceDrop={onDrop} 
                                           onSquareClick={handleSquareClick}
-                                          arePiecesDraggable={!drawMode} // اگر تو حالت رسمیم مهره جابجا نشه
+                                          arePiecesDraggable={!drawMode} 
                                           customArrows={currentArrows}
                                           customSquareStyles={customSquareStyles}
                                           animationDuration={200} 
@@ -436,22 +503,29 @@ export default function AdminDashboard() {
                                       />
                                   </div>
                                   
-                                  {/* نوار ابزار رسم ویژه تاچ */}
+                                  {/* نوار ابزار رسم با انتخابگر ابزار */}
                                   <div className="absolute -top-12 right-0 left-0 flex justify-between items-center bg-[#1e1c19] border border-[#35332e] p-2 rounded-xl shadow-lg" dir="rtl">
-                                      <div className="flex items-center gap-2">
-                                          <button onClick={() => setDrawMode(!drawMode)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${drawMode ? 'bg-amber-500 text-white' : 'bg-[#262421] text-zinc-400 hover:text-white'}`}>
-                                              {drawMode ? <Edit3 size={14}/> : <MousePointer2 size={14}/>}
-                                              {drawMode ? 'حالت رسم' : 'حالت مهره'}
+                                      <div className="flex items-center gap-1.5">
+                                          <button onClick={() => setDrawMode(!drawMode)} className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${drawMode ? 'bg-amber-500 text-white' : 'bg-[#262421] text-zinc-400 hover:text-white'}`} title="حالت نقاشی">
+                                              {drawMode ? <MousePointer2 size={14}/> : <MousePointer2 size={14}/>}
                                           </button>
                                           
-                                          {drawMode && drawingColors.map(c => (
-                                              <button key={c.id} onClick={() => setDrawingColor(c.id)} className={`w-6 h-6 rounded-full border-2 transition-transform ${drawingColor === c.id ? 'scale-125 border-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: c.id }} />
-                                          ))}
+                                          {drawMode && (
+                                              <>
+                                                <div className="w-px h-5 bg-[#35332e] mx-1"></div>
+                                                <button onClick={() => setDrawTool('circle')} className={`p-1.5 rounded-md transition-colors ${drawTool === 'circle' ? 'bg-white/20 text-white' : 'text-zinc-500 hover:text-white'}`} title="رسم دایره (تک کلیک)"><Circle size={16} /></button>
+                                                <button onClick={() => setDrawTool('arrow')} className={`p-1.5 rounded-md transition-colors ${drawTool === 'arrow' ? 'bg-white/20 text-white' : 'text-zinc-500 hover:text-white'}`} title="رسم فلش (دو کلیک: مبدا و مقصد)"><ArrowUpRight size={16} /></button>
+                                                <div className="w-px h-5 bg-[#35332e] mx-1"></div>
+                                                {drawingColors.map(c => (
+                                                    <button key={c.id} onClick={() => setDrawingColor(c.id)} className={`w-5 h-5 rounded-full border-2 transition-transform ${drawingColor === c.id ? 'scale-125 border-white' : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: c.id }} />
+                                                ))}
+                                              </>
+                                          )}
                                       </div>
                                       
                                       <div className="flex items-center gap-2">
-                                          <button onClick={clearCurrentAnnotations} className="p-1.5 bg-[#262421] hover:bg-rose-500 hover:text-white text-zinc-400 rounded-lg transition-all" title="پاک کردن نقاشی‌ها"><Eraser size={16}/></button>
-                                          <button onClick={undoMove} disabled={recordedMoves.length === 0} className="p-1.5 bg-[#262421] hover:bg-[#35332e] text-white rounded-lg disabled:opacity-50 transition-all border border-[#35332e]" title="بازگشت حرکت"><RotateCcw size={16}/></button>
+                                          <button onClick={clearCurrentAnnotations} className="p-1.5 bg-[#262421] hover:bg-rose-500 hover:text-white text-zinc-400 rounded-lg transition-all border border-[#35332e]"><Eraser size={16}/></button>
+                                          <button onClick={undoMove} disabled={recordedMoves.length === 0} className="p-1.5 bg-[#262421] hover:bg-[#35332e] text-white rounded-lg disabled:opacity-50 transition-all border border-[#35332e]"><RotateCcw size={16}/></button>
                                       </div>
                                   </div>
                               </div>
@@ -519,6 +593,26 @@ export default function AdminDashboard() {
                               </div>
                           </div>
 
+                      </div>
+                  </motion.div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* 🌟 مودال ساخت دوره جدید (خلاصه) */}
+      <AnimatePresence>
+          {isAddModalOpen && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                  <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                      <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#161512] shrink-0"><h2 className="font-black text-white text-lg">ایجاد دوره جدید</h2><button onClick={() => setIsAddModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={20}/></button></div>
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                          <form onSubmit={handleCreateCourse} className="flex flex-col gap-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">عنوان دوره</label><input required value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none" /></div>
+                                  <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">نام مدرس</label><input required value={formData.instructor} onChange={e=>setFormData({...formData, instructor: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none" /></div>
+                              </div>
+                              <button type="submit" disabled={isSubmitting} className="mt-4 w-full bg-farzin-accent text-white font-black py-4 rounded-xl flex justify-center items-center gap-2 text-sm shadow-md">ثبت دوره</button>
+                          </form>
                       </div>
                   </motion.div>
               </motion.div>
