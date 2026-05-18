@@ -313,4 +313,18 @@ router.post('/instructors/create', async (req, res) => {
     res.status(500).json({ error: 'خطا در ساخت پروفایل استاد' });
   }
 });
+// ویرایش پروفایل استاد
+router.put('/instructors/:id', async (req, res) => {
+  try {
+    const { name, title, bio, avatar } = req.body;
+    const updatedInstructor = await prisma.instructor.update({
+      where: { id: req.params.id },
+      data: { name, title, bio, avatar }
+    });
+    res.json(updatedInstructor);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطا در ویرایش پروفایل استاد' });
+  }
+});
 module.exports = router;
