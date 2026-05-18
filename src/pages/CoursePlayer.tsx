@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ChevronRight, Play, Lock, CheckCircle2, 
-  ListVideo, Crown, Loader2, AlertTriangle, Gem
+  ListVideo, Crown, Loader2, AlertTriangle, Gem, Target // 👈 آیکون Target به اینجا اضافه شد
 } from 'lucide-react';
 
 export default function CoursePlayer() {
@@ -17,7 +17,6 @@ export default function CoursePlayer() {
   const [isBuying, setIsSubmitting] = useState(false);
   const [activeLesson, setActiveLesson] = useState<any>(null);
 
-  // 🌟 استخراج پارامترهای URL (برای اینکه بدونیم کدوم جلسه و چه ثانیه‌ای رو پلی کنیم)
   const queryParams = new URLSearchParams(location.search);
   const urlLessonId = queryParams.get('lesson');
 
@@ -33,11 +32,9 @@ export default function CoursePlayer() {
         if (result.course.lessons.length > 0) {
             let targetLesson = result.course.lessons[0];
             
-            // اگر از تو سرفصل‌ها مستقیماً روی یه جلسه کلیک کرده بود
             if (urlLessonId) {
                 targetLesson = result.course.lessons.find((l: any) => l.id === urlLessonId) || targetLesson;
             } else {
-                // اگر دکمه "ادامه آموزش" رو زده بود، بگرد ببین قبلاً کجا بوده
                 const savedProgress = JSON.parse(localStorage.getItem(`farzin_progress_${courseId}`) || 'null');
                 if (savedProgress && savedProgress.lessonId) {
                     targetLesson = result.course.lessons.find((l: any) => l.id === savedProgress.lessonId) || targetLesson;
@@ -60,7 +57,6 @@ export default function CoursePlayer() {
     finally { setIsSubmitting(false); }
   };
 
-  // 🔥 پرش به تایم ذخیره شده به محض لود شدن ویدیو
   const handleVideoLoaded = () => {
       if (videoRef.current && activeLesson) {
           const savedProgress = JSON.parse(localStorage.getItem(`farzin_progress_${courseId}`) || 'null');
@@ -70,7 +66,6 @@ export default function CoursePlayer() {
       }
   };
 
-  // 🔥 ذخیره ثانیه به ثانیه ویدیو در حافظه
   const handleTimeUpdate = () => {
       if (videoRef.current && activeLesson) {
           localStorage.setItem(`farzin_progress_${courseId}`, JSON.stringify({
@@ -78,7 +73,6 @@ export default function CoursePlayer() {
               time: videoRef.current.currentTime,
               lastWatched: Date.now()
           }));
-          // ثبت این دوره به عنوان آخرین دوره تماشا شده (برای کارت بالای صفحه آکادمی)
           localStorage.setItem('farzin_last_course', courseId || '');
       }
   };
@@ -129,7 +123,6 @@ export default function CoursePlayer() {
             )}
         </div>
         
-        {/* اطلاعات ویدیوی در حال پخش */}
         {activeLesson && (
             <div className="p-4 md:p-6 bg-[#121110] shrink-0 border-t border-[#35332e] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col">

@@ -45,7 +45,10 @@ export default function AdminDashboard() {
   const [lessonExercises, setLessonExercises] = useState<any[]>([]);
   
   const [game, setGame] = useState(new Chess());
+  // 🔥 استیت کلیدی برای حل مشکل: نگهداری نقطه صفر (مبدا) پازل
+  const [startFen, setStartFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   const [exFen, setExFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+  
   const [recordedMoves, setRecordedMoves] = useState<any[]>([]);
   const [overallDesc, setOverallDesc] = useState('');
   const [exOrder, setExOrder] = useState(1);
@@ -54,7 +57,7 @@ export default function AdminDashboard() {
   const boardRef = useRef<HTMLDivElement>(null);
   const [drawMode, setDrawMode] = useState(false); 
   const [drawTool, setDrawTool] = useState<'circle' | 'arrow'>('circle'); 
-  const [dragStartSq, setDragStartSq] = useState<string | null>(null); // 🔥 این استیت برگردونده شد
+  const [dragStartSq, setDragStartSq] = useState<string | null>(null); 
   const [activeDragArrow, setActiveDragArrow] = useState<any[] | null>(null);
   const [drawingColor, setDrawingColor] = useState('#10b981'); 
   const [baseAnnotations, setBaseAnnotations] = useState({ arrows: [] as any[], circles: {} as Record<string, string> });
@@ -147,14 +150,29 @@ export default function AdminDashboard() {
   };
 
   const resetExerciseBuilder = () => {
-      const newGame = new Chess(); setGame(newGame); setExFen(newGame.fen()); setRecordedMoves([]); setOverallDesc('');
-      setBaseAnnotations({ arrows: [], circles: {} }); setCurrentArrows([]); setCurrentCircles({}); setDrawMode(false); setDragStartSq(null);
+      const newGame = new Chess(); 
+      setGame(newGame); 
+      setStartFen(newGame.fen()); // 🔥 قفل کردن نقطه صفر
+      setExFen(newGame.fen()); 
+      setRecordedMoves([]); 
+      setOverallDesc('');
+      setBaseAnnotations({ arrows: [], circles: {} }); 
+      setCurrentArrows([]); 
+      setCurrentCircles({}); 
+      setDrawMode(false); 
+      setDragStartSq(null);
   };
 
   const handleFenLoad = (newFen: string) => {
       try {
-          const newGame = new Chess(newFen); setGame(newGame); setExFen(newFen); setRecordedMoves([]); 
-          setBaseAnnotations({ arrows: [], circles: {} }); setCurrentArrows([]); setCurrentCircles({});
+          const newGame = new Chess(newFen); 
+          setGame(newGame); 
+          setStartFen(newFen); // 🔥 قفل کردن نقطه صفر بر اساس FEN دستی
+          setExFen(newFen); 
+          setRecordedMoves([]); 
+          setBaseAnnotations({ arrows: [], circles: {} }); 
+          setCurrentArrows([]); 
+          setCurrentCircles({});
       } catch (e) { alert('کد FEN وارد شده نامعتبر است!'); }
   };
 
@@ -222,7 +240,6 @@ export default function AdminDashboard() {
       } else { setCurrentArrows(baseAnnotations.arrows || []); setCurrentCircles(baseAnnotations.circles || {}); }
   };
 
-  // 🔥 این تابع برگردونده شد! برای آپدیت توضیحات هر حرکت
   const updateMoveData = (index: number, field: 'comment' | 'hint', value: string) => {
       const updated = [...recordedMoves];
       updated[index][field] = value;
@@ -232,11 +249,11 @@ export default function AdminDashboard() {
   const handleSaveExercise = async () => {
       setIsSubmitting(true);
       const payload = {
-          fen: recordedMoves.length > 0 ? new Chess(exFen).history().length === 0 ? exFen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : exFen,
-          moves: JSON.stringify({ baseAnnotations, moves: recordedMoves }), description: overallDesc, order: exOrder
+          fen: startFen, // 🔥 اینجا فقط FEN شروع رو می‌فرستیم! مشکل پریدن به استیج آخر اینجا حل شد.
+          moves: JSON.stringify({ baseAnnotations, moves: recordedMoves }), 
+          description: overallDesc, 
+          order: exOrder
       };
-      let tempGame = new Chess();
-      try { tempGame.load(exFen); recordedMoves.forEach(() => tempGame.undo()); payload.fen = tempGame.fen(); } catch(e) { payload.fen = exFen; } 
 
       try {
           const res = await fetch(`http://localhost:5000/api/courses/lessons/${selectedLesson.id}/exercises`, {
@@ -461,22 +478,6 @@ export default function AdminDashboard() {
           )}
       </AnimatePresence>
       
-      {/* مودال دوره‌ها ... */}
-      <AnimatePresence>
-          {isAddModalOpen && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                  <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-[#1e1c19] border border-[#35332e] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                      <div className="flex items-center justify-between p-5 border-b border-[#35332e] bg-[#161512] shrink-0"><h2 className="font-black text-white text-lg">ایجاد دوره جدید</h2><button onClick={() => setIsAddModalOpen(false)} className="text-zinc-500 hover:text-white"><X size={20}/></button></div>
-                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                          <form onSubmit={handleCreateCourse} className="flex flex-col gap-4">
-                              <div className="grid grid-cols-2 gap-4"><div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">عنوان دوره</label><input required value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none" /></div><div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">نام مدرس</label><input required value={formData.instructor} onChange={e=>setFormData({...formData, instructor: e.target.value})} className="bg-[#121110] border border-[#35332e] rounded-xl p-3 text-sm text-white outline-none" /></div></div>
-                              <button type="submit" disabled={isSubmitting} className="mt-4 w-full bg-farzin-accent text-white font-black py-4 rounded-xl flex justify-center items-center gap-2 text-sm shadow-md">ثبت دوره</button>
-                          </form>
-                      </div>
-                  </motion.div>
-              </motion.div>
-          )}
-      </AnimatePresence>
     </div>
   );
 }
