@@ -54,16 +54,13 @@ model Puzzle {
 // 🎓 سیستم اساتید (جدید)
 // ==========================================
 model Instructor {
-  id          String   @id @default(uuid())
-  name        String
-  title       String   @default("مدرس") // مثلا: استاد بزرگ، استاد بین‌المللی
-  bio         String   @default("")     // بیوگرافی کامل
-  avatar      String   @default("")     // عکس پروفایل استاد
+  id        String   @id @default(uuid())
+  name      String   @unique    // 👈 کلمه @unique باید حتماً اینجا اضافه شود
+  title     String
+  bio       String
+  avatar    String
   
-  courses     Course[] // دوره‌هایی که این استاد تدریس کرده
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  courses   Course[]            // 👈 (احتمالاً این خط رو هم پریزما ازت بخواد برای ارتباط دوطرفه)
 }
 
 // ==========================================
@@ -72,26 +69,23 @@ model Instructor {
 model Course {
   id             String       @id @default(uuid())
   title          String
-  
-  // مدرس (هم متنی برای سازگاری با قبل، هم ارتباط با جدول جدید)
-  instructor     String       
-  instructorId   String?      
-  instructorProfile Instructor? @relation(fields: [instructorId], references: [id], onDelete: SetNull)
-
   category       String
   level          String
   duration       String
   image          String
-  description    String       @default("")
-  requirements   String       @default("")
+  description    String
+  requirements   String
   isPremium      Boolean      @default(true)
   price          Int          @default(0)
+  discount       Int          @default(0)    // 👈 این خط حتماً باید اینجا باشه
+
+  instructor     String
+  instructorProfile Instructor? @relation(fields: [instructor], references: [name])
   
   lessons        Lesson[]
-  enrollments    UserCourse[]
-  
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  enrollments    UserCourse[]
 }
 
 // 🎥 جدول جلسات هر دوره

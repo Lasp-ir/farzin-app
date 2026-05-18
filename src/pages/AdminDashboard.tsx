@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// 👇 این بخش رو جایگزین کن:
 import { 
   LayoutDashboard, BookOpen, Plus, Users, Trash2, Video, ChevronRight, Crown,
   X, Loader2, Award, RotateCcw, MessageSquare, HelpCircle as HintIcon, Save, MousePointer2, 
-  Circle, ArrowUpRight, Eraser, Clock, ShieldCheck, Edit3, Lightbulb, Settings2, Check, UserCircle, Image as ImageIcon, Tag, Percent
+  Circle, ArrowUpRight, Eraser, Clock, ShieldCheck, Edit3, Lightbulb, Settings2, Check, CheckCircle2, UserCircle, Image as ImageIcon, Tag, Percent
 } from 'lucide-react';
+
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 
