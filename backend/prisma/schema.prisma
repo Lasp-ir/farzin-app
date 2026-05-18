@@ -7,7 +7,9 @@ datasource db {
   url      = "file:./dev.db" 
 }
 
-// 🛡️ جدول یکپارچه کاربران
+// ==========================================
+// 🛡️ سیستم کاربران و احراز هویت
+// ==========================================
 model User {
   id               Int      @id @default(autoincrement())
   username         String   @unique
@@ -36,7 +38,7 @@ model User {
   updatedAt        DateTime @updatedAt
 }
 
-// 🧩 جدول پازل‌ها
+// 🧩 جدول پازل‌های عمومی (ربات و تمرینات روزانه)
 model Puzzle {
   puzzleId         String   @id @unique
   fen              String
@@ -48,25 +50,48 @@ model Puzzle {
   @@index([themes])
 }
 
-// 📚 جدول دوره‌های آموزشی
+// ==========================================
+// 🎓 سیستم اساتید (جدید)
+// ==========================================
+model Instructor {
+  id          String   @id @default(uuid())
+  name        String
+  title       String   @default("مدرس") // مثلا: استاد بزرگ، استاد بین‌المللی
+  bio         String   @default("")     // بیوگرافی کامل
+  avatar      String   @default("")     // عکس پروفایل استاد
+  
+  courses     Course[] // دوره‌هایی که این استاد تدریس کرده
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// 📚 سیستم آموزشی و ویدیوها
+// ==========================================
 model Course {
-  id           String       @id @default(uuid())
-  title        String
-  instructor   String
-  category     String
-  level        String
-  duration     String
-  image        String
-  description  String       @default("") // 🔥 توضیحات کامل دوره
-  requirements String       @default("") // 🔥 پیش‌نیازهای دوره
-  isPremium    Boolean      @default(true)
-  price        Int          @default(0)
+  id             String       @id @default(uuid())
+  title          String
   
-  lessons      Lesson[]
-  enrollments  UserCourse[]
+  // مدرس (هم متنی برای سازگاری با قبل، هم ارتباط با جدول جدید)
+  instructor     String       
+  instructorId   String?      
+  instructorProfile Instructor? @relation(fields: [instructorId], references: [id], onDelete: SetNull)
+
+  category       String
+  level          String
+  duration       String
+  image          String
+  description    String       @default("")
+  requirements   String       @default("")
+  isPremium      Boolean      @default(true)
+  price          Int          @default(0)
   
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  lessons        Lesson[]
+  enrollments    UserCourse[]
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 // 🎥 جدول جلسات هر دوره
@@ -81,24 +106,42 @@ model Lesson {
   courseId      String
   course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
+  exercises     LessonExercise[] // 🔥 ارتباط جلسه با تمرینات تعاملی
+  
   createdAt     DateTime @default(now())
+}
+
+// ==========================================
+// ♟️ ماشین حل تمرینات تعاملی (جدید)
+// ==========================================
+model LessonExercise {
+  id          String   @id @default(uuid())
+  fen         String   // پوزیشن اولیه چیده شده روی تخته
+  moves       String   // جواب پازل (مثلا e2e4 e7e5)
+  description String   @default("") // متنی که استاد برای توضیح این حرکت نوشته
+  hints       String   @default("[]") // راهنمایی‌ها به صورت آرایه‌ای از متون (JSON String)
+  order       Int      @default(1) // ترتیب نمایش تمرین‌ها در یک جلسه
+  
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
 }
 
 // 🎯 جدول پیشرفت کاربر در دوره‌ها
 model UserCourse {
-  id           String   @id @default(uuid())
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId     String
-  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
   
-  // 🔥 فیلدهای جدید برای هوشمندسازی پخش
-  lastLessonId String?  // آیدی آخرین جلسه‌ای که کاربر دیده
-  lastTime     Float    @default(0) // ثانیه‌ای که کاربر از فیلم خارج شده
+  userId    Int      
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  progress     Int      @default(0) 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt // برای تشخیص آخرین دوره دیده شده
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  progress  Int      @default(0) // درصد پیشرفت (۰ تا ۱۰۰)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, courseId])
 }
