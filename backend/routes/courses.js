@@ -327,4 +327,37 @@ router.put('/instructors/:id', async (req, res) => {
     res.status(500).json({ error: 'خطا در ویرایش پروفایل استاد' });
   }
 });
+// 🔥 1. ویرایش اطلاعات یک دوره (برای ادمین)
+router.put('/:id', async (req, res) => {
+  try {
+    const data = req.body;
+    // تبدیل مقادیر عددی برای جلوگیری از خطا
+    if(data.price) data.price = Number(data.price);
+    if(data.discount !== undefined) data.discount = Number(data.discount);
+    
+    const updatedCourse = await prisma.course.update({
+      where: { id: req.params.id },
+      data: {
+        title: data.title, category: data.category, level: data.level, 
+        duration: data.duration, image: data.image, description: data.description, 
+        requirements: data.requirements, isPremium: data.isPremium, 
+        price: data.price, discount: data.discount
+      }
+    });
+    res.json(updatedCourse);
+  } catch (error) { console.error(error); res.status(500).json({ error: 'خطا در ویرایش دوره' }); }
+});
+
+// 🔥 2. دریافت پروفایل عمومی استاد همراه با دوره‌هایش (برای کاربر)
+router.get('/instructor-profile/:name', async (req, res) => {
+  try {
+    const instructorName = req.params.name;
+    // پیدا کردن اطلاعات استاد
+    const instructor = await prisma.instructor.findFirst({ where: { name: instructorName } });
+    // پیدا کردن دوره‌های این استاد
+    const courses = await prisma.course.findMany({ where: { instructor: instructorName } });
+    
+    res.json({ instructor, courses });
+  } catch (error) { console.error(error); res.status(500).json({ error: 'خطا در دریافت پروفایل استاد' }); }
+});
 module.exports = router;
