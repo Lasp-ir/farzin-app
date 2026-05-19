@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const puzzleRoutes = require('./routes/puzzleRoutes');
-const courseRoutes = require('./routes/courses');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -16,7 +15,6 @@ app.use(express.json());
 // =======================================================
 // 🌐 حالا روت‌ها رو تعریف می‌کنیم
 // =======================================================
-app.use('/api/courses', courseRoutes);
 app.use('/api/puzzles', puzzleRoutes);
 
 app.get('/api/health', async (req, res) => {
