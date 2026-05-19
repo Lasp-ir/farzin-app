@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronRight, Flame, Target, Zap, Swords, BrainCircuit, 
-  Calendar, ArrowRight, Star, Crosshair, Shield, Activity, 
+import {
+  ChevronRight, Flame, Target, Zap, Swords, BrainCircuit,
+  Calendar, ArrowRight, Star, Crosshair, Shield, Activity,
   Crown, Play, Lock, Sparkles, X, Info, TrendingUp, Search,
   GitBranch, ShieldAlert, Skull, MousePointerClick, Anchor,
-  Eye, Zap as Flash, History, Compass, Map
+  Eye, Zap as Flash, History, Compass, Map, Brain, Dumbbell
 } from 'lucide-react';
 
 const ALL_THEMES = [
@@ -184,37 +184,61 @@ export default function Puzzles() {
               </div>
           </motion.div>
 
-          {/* --- Grid Modes (Rush & Mistakes) --- */}
-          <motion.div variants={item} className="grid grid-cols-2 gap-4">
-              
-              <div 
-                onClick={() => handleModeClick({ id: 'mistakes', type: 'mistakes', title: 'مرور اشتباهات', icon: <BrainCircuit size={24} className="text-farzin-accent" />, color: 'text-farzin-accent', max: 3 })}
-                className="col-span-1 relative bg-[#1e1c19] rounded-[24px] border border-[#35332e] hover:border-farzin-accent/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col justify-between overflow-hidden min-h-[140px]"
+          {/* --- Rush Card (full width) --- */}
+          <motion.div variants={item}>
+              <div
+                onClick={() => handleModeClick({ id: 'rush', type: 'rush', title: 'رگبار پازل', icon: <Zap size={24} className="text-yellow-500" fill="currentColor" />, color: 'text-yellow-500', max: 1 })}
+                className="relative bg-gradient-to-br from-[#1e1c19] to-[#2a2415] rounded-[24px] border border-yellow-500/20 hover:border-yellow-500/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 overflow-hidden"
               >
-                  {!isUserPremium && <QuotaBadge current={quotas.mistakes} max={3} />}
+                  {!isUserPremium && <QuotaBadge current={quotas.rush} max={1} />}
+                  <div className="absolute -bottom-5 -left-5 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-500">
+                      <Zap size={100} className="text-yellow-500" fill="currentColor" />
+                  </div>
+                  <div className="flex items-center gap-4 z-10 relative">
+                      <div className="w-12 h-12 rounded-[16px] bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 group-hover:scale-110 group-hover:rotate-3 transition-transform shrink-0">
+                          <Zap size={24} className="text-yellow-500" fill="currentColor" />
+                      </div>
+                      <div className="flex flex-col flex-1">
+                          <h3 className="font-black text-white text-sm">رگبار پازل</h3>
+                          <span className="text-[10px] text-zinc-500 font-bold mt-0.5">حل سرعتی رقابتی یا تمرینی</span>
+                      </div>
+                      <div className="flex gap-1.5 z-10">
+                          <span className="bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-black px-2 py-1 rounded-lg">رقابتی</span>
+                          <span className="bg-farzin-accent/15 border border-farzin-accent/30 text-farzin-accent text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1"><Dumbbell size={9}/> تمرینی</span>
+                      </div>
+                  </div>
+              </div>
+          </motion.div>
+
+          {/* --- Mistakes & Personal Puzzles Grid --- */}
+          <motion.div variants={item} className="grid grid-cols-2 gap-4">
+
+              <div
+                onClick={() => navigate('/puzzle/mistake-analysis')}
+                className="col-span-1 relative bg-[#1e1c19] rounded-[24px] border border-[#35332e] hover:border-farzin-accent/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col justify-between overflow-hidden min-h-[150px]"
+              >
                   <div className="w-12 h-12 rounded-[16px] bg-farzin-accent/10 flex items-center justify-center border border-farzin-accent/20 group-hover:scale-110 group-hover:-rotate-3 transition-transform">
                       <BrainCircuit size={24} className="text-farzin-accent" />
                   </div>
                   <div className="flex flex-col mt-4">
                       <h3 className="font-black text-white text-sm">مرور اشتباهات</h3>
-                      <span className="text-[10px] text-zinc-400 font-bold mt-0.5">{puzzleStats.personalMistakes} پازل حل نشده</span>
+                      <span className="text-[10px] text-zinc-400 font-bold mt-0.5">از بازی‌های واقعی خودت</span>
                   </div>
               </div>
 
-              <div 
-                onClick={() => handleModeClick({ id: 'rush', type: 'rush', title: 'رگبار پازل', icon: <Zap size={24} className="text-yellow-500" fill="currentColor" />, color: 'text-yellow-500', max: 1 })}
-                className="col-span-1 relative bg-gradient-to-br from-[#1e1c19] to-[#2a2415] rounded-[24px] border border-yellow-500/20 hover:border-yellow-500/40 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col justify-between overflow-hidden min-h-[140px]"
+              <div
+                onClick={() => navigate('/puzzle/personal')}
+                className="col-span-1 relative bg-gradient-to-br from-[#1e1c19] to-[#1a1528] rounded-[24px] border border-purple-500/25 hover:border-purple-500/50 shadow-lg p-5 cursor-pointer transition-all group active:scale-95 flex flex-col justify-between overflow-hidden min-h-[150px]"
               >
-                  {!isUserPremium && <QuotaBadge current={quotas.rush} max={1} />}
-                  <div className="absolute -bottom-4 -left-4 opacity-10 rotate-12 group-hover:scale-125 transition-transform duration-500">
-                      <Zap size={90} className="text-yellow-500" fill="currentColor" />
+                  <div className="absolute -bottom-4 -left-4 opacity-8 rotate-12 group-hover:scale-110 transition-transform duration-500">
+                      <Brain size={80} className="text-purple-500" />
                   </div>
-                  <div className="w-12 h-12 rounded-[16px] bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 group-hover:scale-110 group-hover:rotate-3 transition-transform z-10">
-                      <Zap size={24} className="text-yellow-500" fill="currentColor" />
+                  <div className="w-12 h-12 rounded-[16px] bg-purple-500/15 flex items-center justify-center border border-purple-500/25 group-hover:scale-110 group-hover:rotate-3 transition-transform z-10">
+                      <Sparkles size={22} className="text-purple-400" />
                   </div>
                   <div className="flex flex-col mt-4 z-10">
-                      <h3 className="font-black text-white text-sm">رگبار پازل</h3>
-                      <span className="text-[10px] text-yellow-500/80 font-bold mt-0.5">حل سرعتی ۳ دقیقه‌ای</span>
+                      <h3 className="font-black text-white text-sm">پازل‌های شخصی</h3>
+                      <span className="text-[10px] text-purple-400/80 font-bold mt-0.5">ساخته شده با Maia AI</span>
                   </div>
               </div>
           </motion.div>

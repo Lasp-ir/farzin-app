@@ -63,12 +63,41 @@ const ActionCard = ({ title, desc, icon: Icon, color, onClick, badge }: ActionCa
   </motion.div>
 );
 
+interface FarzinNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  actionUrl?: string;
+  createdAt: string;
+}
+
 export default function Home() {
   const { t } = useTranslation();
-  const { logout, userTier = 'DIAMOND' } = useAuthStore(); 
+  const { logout, userTier = 'DIAMOND' } = useAuthStore();
   const navigate = useNavigate();
 
   const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<FarzinNotification[]>(() => {
+    try { return JSON.parse(localStorage.getItem('farzin_notifications') || '[]'); } catch { return []; }
+  });
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const markAllRead = () => {
+    const updated = notifications.map(n => ({ ...n, isRead: true }));
+    setNotifications(updated);
+    localStorage.setItem('farzin_notifications', JSON.stringify(updated));
+  };
+
+  const handleNotifClick = (notif: FarzinNotification) => {
+    const updated = notifications.map(n => n.id === notif.id ? { ...n, isRead: true } : n);
+    setNotifications(updated);
+    localStorage.setItem('farzin_notifications', JSON.stringify(updated));
+    if (notif.actionUrl) { navigate(notif.actionUrl); setIsNotifOpen(false); }
+  };
   const [cloneStatus, setCloneStatus] = useState<'idle' | 'processing' | 'success'>('idle');
   
   const [lichessId, setLichessId] = useState('');
@@ -152,7 +181,10 @@ export default function Home() {
             </div>
           </div>
           <div className="flex gap-2.5">
-            <button className="p-3 bg-[#161512]/80 backdrop-blur-md border border-white/5 rounded-2xl hover:bg-white/10 hover:text-white transition-all text-zinc-400 shadow-lg active:scale-95"><Bell size={20} /></button>
+            <button onClick={() => { setIsNotifOpen(v => !v); if (!isNotifOpen) markAllRead(); }} className="p-3 bg-[#161512]/80 backdrop-blur-md border border-white/5 rounded-2xl hover:bg-white/10 hover:text-white transition-all text-zinc-400 shadow-lg active:scale-95 relative">
+              <Bell size={20} />
+              {unreadCount > 0 && <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-farzin-accent text-white text-[10px] font-black flex items-center justify-center shadow-[0_0_8px_rgba(119,149,86,0.7)]">{unreadCount}</span>}
+            </button>
             <button onClick={() => navigate('/settings')} className="p-3 bg-[#161512]/80 backdrop-blur-md border border-white/5 rounded-2xl hover:bg-white/10 hover:text-white transition-all text-zinc-400 shadow-lg active:scale-95"><Settings size={20} /></button>
           </div>
         </motion.div>
@@ -217,6 +249,55 @@ export default function Home() {
             </button>
         </div>
       </div>
+
+      {/* 🔔 پانل اعلان‌ها */}
+      <AnimatePresence>
+        {isNotifOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90]"
+            onClick={() => setIsNotifOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.97 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              onClick={e => e.stopPropagation()}
+              className="absolute top-[5.5rem] left-4 right-4 max-w-sm mx-auto bg-[#161512] border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden"
+              dir="rtl"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                <span className="font-black text-sm text-white">اعلان‌ها</span>
+                {notifications.length > 0 && (
+                  <button onClick={markAllRead} className="text-[11px] text-farzin-accent font-bold hover:underline">خواندن همه</button>
+                )}
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-500">
+                    <Bell size={28} />
+                    <span className="text-sm font-bold">اعلانی وجود ندارد</span>
+                  </div>
+                ) : (
+                  notifications.map(notif => (
+                    <div
+                      key={notif.id}
+                      onClick={() => handleNotifClick(notif)}
+                      className={`flex items-start gap-3 px-5 py-4 border-b border-white/5 cursor-pointer transition-colors hover:bg-white/5 ${!notif.isRead ? 'bg-farzin-accent/5' : ''}`}
+                    >
+                      <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${!notif.isRead ? 'bg-farzin-accent shadow-[0_0_8px_rgba(119,149,86,0.6)]' : 'bg-zinc-700'}`} />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-black text-white">{notif.title}</span>
+                        <span className="text-xs text-zinc-400 leading-relaxed">{notif.body}</span>
+                        <span className="text-[10px] text-zinc-600 mt-1">{new Date(notif.createdAt).toLocaleDateString('fa-IR')}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 🌟 پاپ‌آپ شبیه‌سازی (بدون تغییر لاجیک، با ارتقای ظاهری برای هماهنگی با قالب جدید) */}
       <AnimatePresence>

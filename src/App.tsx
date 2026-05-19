@@ -18,6 +18,9 @@ import LichessLobby from './pages/LichessLobby';
 import LichessLiveGame from './pages/LichessLiveGame';
 import PuzzleBoard from "./pages/PuzzleBoard";
 import PuzzleRush from './pages/PuzzleRush';
+import PuzzleRushReview from './pages/PuzzleRushReview';
+import MistakeAnalysis from './pages/MistakeAnalysis';
+import PersonalPuzzles from './pages/PersonalPuzzles';
 import AdminDashboard from './pages/AdminDashboard';
 import CoursePlayer from './pages/CoursePlayer';
 import CourseDetail from './pages/CourseDetail';
@@ -60,9 +63,10 @@ export default function App() {
           <Route path="/report" element={<GameReport />} />
           <Route path="/play/online/lobby" element={<LichessLobby />} />
           <Route path="/play/online/game/:gameId" element={<LichessLiveGame />} />
-          <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
-          <Route path="/puzzles" element={<Puzzles />} />
           <Route path="/puzzle/rush" element={<PuzzleRush />} />
+          <Route path="/puzzle/rush/review" element={<PuzzleRushReview />} />
+          <Route path="/puzzle/mistake-analysis" element={<MistakeAnalysis />} />
+          <Route path="/puzzle/personal" element={<PersonalPuzzles />} />
           <Route path="/puzzle/:mode" element={<PuzzleBoard />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/course/:courseId/play" element={<CoursePlayer />} />

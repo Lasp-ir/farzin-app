@@ -27,3 +27,6 @@ dist-ssr
 venv/
 __pycache__/
 *.pyc
+
+# Maia Individual AI (local only — not published to GitHub)
+maia-individual-main/
