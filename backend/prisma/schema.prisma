@@ -50,77 +50,7 @@ model Puzzle {
   @@index([themes])
 }
 
-// ==========================================
-// 🎓 سیستم اساتید (جدید)
-// ==========================================
-model Instructor {
-  id        String   @id @default(uuid())
-  name      String   @unique    // 👈 کلمه @unique باید حتماً اینجا اضافه شود
-  title     String
-  bio       String
-  avatar    String
-  
-  courses   Course[]            // 👈 (احتمالاً این خط رو هم پریزما ازت بخواد برای ارتباط دوطرفه)
-}
 
-// ==========================================
-// 📚 سیستم آموزشی و ویدیوها
-// ==========================================
-model Course {
-  id             String       @id @default(uuid())
-  title          String
-  category       String
-  level          String
-  duration       String
-  image          String
-  description    String
-  requirements   String
-  isPremium      Boolean      @default(true)
-  price          Int          @default(0)
-  discount       Int          @default(0)    // 👈 این خط حتماً باید اینجا باشه
-
-  instructor     String
-  instructorProfile Instructor? @relation(fields: [instructor], references: [name])
-  
-  lessons        Lesson[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  enrollments    UserCourse[]
-}
-
-// 🎥 جدول جلسات هر دوره
-model Lesson {
-  id            String   @id @default(uuid())
-  title         String
-  videoUrl      String
-  duration      String
-  order         Int
-  isFreePreview Boolean  @default(false)
-  
-  courseId      String
-  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  exercises     LessonExercise[] // 🔥 ارتباط جلسه با تمرینات تعاملی
-  
-  createdAt     DateTime @default(now())
-}
-
-// ==========================================
-// ♟️ ماشین حل تمرینات تعاملی (جدید)
-// ==========================================
-model LessonExercise {
-  id          String   @id @default(uuid())
-  fen         String   // پوزیشن اولیه چیده شده روی تخته
-  moves       String   // جواب پازل (مثلا e2e4 e7e5)
-  description String   @default("") // متنی که استاد برای توضیح این حرکت نوشته
-  hints       String   @default("[]") // راهنمایی‌ها به صورت آرایه‌ای از متون (JSON String)
-  order       Int      @default(1) // ترتیب نمایش تمرین‌ها در یک جلسه
-  
-  lessonId    String
-  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-}
 
 // 🎯 جدول پیشرفت کاربر در دوره‌ها
 model UserCourse {

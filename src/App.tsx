@@ -10,7 +10,6 @@ import BotSelection from './pages/BotSelection';
 import Settings from './pages/Settings';
 import Archive from './pages/Archive';
 import Puzzles from './pages/Puzzles';
-import Education from './pages/Education';
 import AnalysisSetup from './pages/AnalysisSetup';
 import AnalysisBoard from './pages/AnalysisBoard';
 import GameReport from './pages/GameReport';
@@ -21,9 +20,7 @@ import PuzzleRush from './pages/PuzzleRush';
 import AdminDashboard from './pages/AdminDashboard';
 import CoursePlayer from './pages/CoursePlayer';
 import CourseDetail from './pages/CourseDetail';
-import LessonExercisePlayer from './pages/LessonExercisePlayer';
 import AdminGateway from './pages/AdminGateway';
-import InstructorProfile from './pages/InstructorProfile';
 
 import PaywallModal from './components/PaywallModal';
 
@@ -54,7 +51,6 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/archive" element={<Archive />} />
           <Route path="/puzzles" element={<Puzzles />} />
-          <Route path="/education" element={<Education />} />
           <Route path="/analysis" element={<AnalysisSetup />} />
           <Route path="/analysis/board" element={<AnalysisBoard />} />
           <Route path="/report" element={<GameReport />} />
@@ -67,9 +63,7 @@ export default function App() {
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/course/:courseId/play" element={<CoursePlayer />} />
           <Route path="/course/:courseId" element={<CourseDetail />} />
-          <Route path="/course/:courseId/lesson/:lessonId/exercises" element={<LessonExercisePlayer />} />
           <Route path="/admin" element={<AdminGateway />} />
-          <Route path="/instructor/:name" element={<InstructorProfile />} />
 
 
         </Routes>
