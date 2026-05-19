@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    ChevronRight, RefreshCw, ArrowRight, ShieldAlert, 
+import {
+    ChevronRight, RefreshCw, ArrowRight, ShieldAlert,
     CheckCircle2, Target, RotateCcw, Zap,
-    SkipBack, SkipForward, Rewind, FastForward, Check, X, Lightbulb, TrendingUp, TrendingDown, Eye, Tag
+    SkipBack, SkipForward, Rewind, FastForward, Check, X, Lightbulb, TrendingUp, TrendingDown, Eye, Tag, History, Calendar
 } from 'lucide-react';
 import { puzzleService } from '../api/puzzleService';
 // 🔥 ایمپورت هوک تم
@@ -76,6 +76,12 @@ export default function PuzzleBoard() {
     const [history, setHistory] = useState<{fen: string, lastMove: any}[]>([]);
     const [historyIndex, setHistoryIndex] = useState(0);
 
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [puzzleHistory, setPuzzleHistory] = useState<any[]>(() => {
+        try { return JSON.parse(localStorage.getItem('farzin_puzzle_history') || '[]'); } catch { return []; }
+    });
+    const historySavedRef = React.useRef(false);
+
     const rawThemes = puzzleData?.themes || '';
     const themeList = rawThemes.includes(',') ? rawThemes.split(',') : rawThemes.split(' ');
     const translatedThemes = themeList.filter(Boolean).map((t: string) => THEME_DICTIONARY[t.trim()] || t.trim()).slice(0, 4);
@@ -99,13 +105,15 @@ export default function PuzzleBoard() {
         setUsedHint(false);
         setSolutionViewed(false);
         setHintSquare(null);
-        setScoreChange(null); 
-        
+        setScoreChange(null);
+        historySavedRef.current = false;
+
         try {
             let data;
             if (mode === 'daily') data = await puzzleService.getDailyPuzzle();
             else if (mode === 'rated') data = await puzzleService.getRatedPuzzle(1200);
             else if (mode?.startsWith('theme_')) data = await puzzleService.getThemePuzzle(mode.split('_')[1]);
+            else if (mode === 'mistakes') data = puzzleService.getMistakePuzzle();
             else data = await puzzleService.getDailyPuzzle();
 
             setPuzzleData(data);
@@ -210,6 +218,11 @@ export default function PuzzleBoard() {
                 setTimeout(() => {
                     setStatus('solved');
                     playSound('gameOver');
+                    if (!historySavedRef.current) {
+                        historySavedRef.current = true;
+                        puzzleService.savePuzzleHistory(puzzleData, 'solved', mode || 'daily');
+                        setPuzzleHistory(JSON.parse(localStorage.getItem('farzin_puzzle_history') || '[]'));
+                    }
                 }, 600);
             } else {
                 setTimeout(() => {
@@ -250,6 +263,11 @@ export default function PuzzleBoard() {
 
                     setStatus('wrong');
                     playSound('error');
+                    if (!historySavedRef.current) {
+                        historySavedRef.current = true;
+                        puzzleService.savePuzzleHistory(puzzleData, 'wrong', mode || 'daily');
+                        setPuzzleHistory(JSON.parse(localStorage.getItem('farzin_puzzle_history') || '[]'));
+                    }
                     setGame(testGame);
                     setLastMoveSquares({
                         [sourceSquare]: { backgroundColor: 'rgba(239, 68, 68, 0.5)' },
@@ -336,6 +354,11 @@ export default function PuzzleBoard() {
         if (isShowingSolution || loadError) return;
         setIsShowingSolution(true);
         setSolutionViewed(true);
+        if (!historySavedRef.current) {
+            historySavedRef.current = true;
+            puzzleService.savePuzzleHistory(puzzleData, 'viewed', mode || 'daily');
+            setPuzzleHistory(JSON.parse(localStorage.getItem('farzin_puzzle_history') || '[]'));
+        }
         setFeedback(null);
         setHintSquare(null);
         setOptionSquares({});
@@ -431,15 +454,21 @@ export default function PuzzleBoard() {
                 <div className="flex flex-col items-center">
                     <span className="text-white font-black text-lg uppercase tracking-wider flex items-center gap-2">
                         <Target size={18} className="text-farzin-accent" />
-                        {mode === 'daily' ? 'پازل روزانه' : mode === 'rated' ? 'تمرین امتیازی' : 'پازل موضوعی'}
+                        {mode === 'daily' ? 'پازل روزانه' : mode === 'rated' ? 'تمرین امتیازی' : mode === 'mistakes' ? 'مرور اشتباهات' : 'پازل موضوعی'}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-bold tracking-widest mt-0.5">
                         RATING: <span className="text-amber-400">{puzzleData?.rating || '---'}</span>
                     </span>
                 </div>
-                <button onClick={loadNewPuzzle} disabled={isShowingSolution} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-farzin-accent disabled:opacity-50 transition-colors" title="بارگذاری مجدد">
-                    <RefreshCw size={20} className={isShowingSolution ? "animate-spin" : ""} />
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={() => setIsHistoryOpen(true)} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-amber-400 transition-colors relative" title="تاریخچه پازل‌ها">
+                        <History size={20} />
+                        {puzzleHistory.length > 0 && <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-black flex items-center justify-center">{Math.min(puzzleHistory.length, 99)}</span>}
+                    </button>
+                    <button onClick={loadNewPuzzle} disabled={isShowingSolution} className="p-2 bg-[#262421] rounded-xl text-zinc-400 hover:text-farzin-accent disabled:opacity-50 transition-colors" title="بارگذاری مجدد">
+                        <RefreshCw size={20} className={isShowingSolution ? "animate-spin" : ""} />
+                    </button>
+                </div>
             </div>
 
             <div className="w-full max-w-md mt-6 px-4 relative z-0">
@@ -624,6 +653,60 @@ export default function PuzzleBoard() {
                         <button onClick={loadNewPuzzle} className={`w-full py-3.5 text-[#161512] rounded-xl font-black flex items-center justify-center gap-2 transition-colors shadow-lg mt-1 ${solutionViewed ? 'bg-zinc-300 hover:bg-white' : usedHint ? 'bg-blue-500 hover:bg-blue-400' : 'bg-emerald-500 hover:bg-emerald-400'}`}>
                             <ArrowRight size={18} /> پازل بعدی
                         </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* 📚 پانل تاریخچه پازل‌ها */}
+            <AnimatePresence>
+                {isHistoryOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end justify-center"
+                        onClick={() => setIsHistoryOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full max-w-lg bg-[#1e1c19] border-t border-[#35332e] rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col"
+                            dir="rtl"
+                        >
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-[#35332e] shrink-0">
+                                <span className="font-black text-white flex items-center gap-2"><History size={18} className="text-amber-400" /> تاریخچه پازل‌ها</span>
+                                <button onClick={() => setIsHistoryOpen(false)} className="text-zinc-500 hover:text-white p-1"><X size={20} /></button>
+                            </div>
+                            <div className="overflow-y-auto flex-1 p-4 flex flex-col gap-2">
+                                {puzzleHistory.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-500">
+                                        <History size={32} />
+                                        <span className="text-sm font-bold">هنوز هیچ پازلی حل نشده</span>
+                                    </div>
+                                ) : puzzleHistory.map((entry: any, idx: number) => (
+                                    <div key={entry.puzzleId || idx} className="flex items-center gap-3 bg-[#262421] border border-[#35332e] rounded-xl p-3">
+                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-lg ${entry.result === 'solved' ? 'bg-emerald-500/15 border border-emerald-500/30' : entry.result === 'viewed' ? 'bg-zinc-500/15 border border-zinc-500/30' : 'bg-red-500/15 border border-red-500/30'}`}>
+                                            {entry.result === 'solved' ? '🏆' : entry.result === 'viewed' ? '👁️' : '💥'}
+                                        </div>
+                                        <div className="flex flex-col flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-black text-amber-400">#{entry.rating || '—'}</span>
+                                                {entry.themes && (
+                                                    <span className="text-[10px] text-zinc-500 bg-[#35332e] px-1.5 py-0.5 rounded truncate max-w-[120px]">{entry.themes.split(' ')[0]}</span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-1 truncate">
+                                                <Calendar size={10} />
+                                                {new Date(entry.date).toLocaleDateString('fa-IR')}
+                                                {entry.source && <span className="truncate">· {entry.source}</span>}
+                                            </span>
+                                        </div>
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${entry.result === 'solved' ? 'bg-emerald-500/20 text-emerald-400' : entry.result === 'viewed' ? 'bg-zinc-500/20 text-zinc-400' : 'bg-red-500/20 text-red-400'}`}>
+                                            {entry.result === 'solved' ? 'حل شد' : entry.result === 'viewed' ? 'مشاهده' : 'اشتباه'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
