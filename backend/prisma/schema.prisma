@@ -52,6 +52,38 @@ model Puzzle {
 
 
 
+// ==========================================
+// 🧩 پازل‌های شخصی (Maia Individual)
+// ==========================================
+model PersonalPuzzleRequest {
+  id          String   @id @default(uuid())
+  userId      Int?
+  lichessIds  String   @default("[]")
+  chesscomIds String   @default("[]")
+  gameCount   Int      @default(5)
+  status      String   @default("pending") // pending | processing | done | error
+  contactInfo String   @default("")
+  puzzles     String   @default("[]")
+  adminNote   String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// 🔔 سیستم اعلان‌ها
+// ==========================================
+model Notification {
+  id         String   @id @default(uuid())
+  userId     Int?
+  type       String
+  title      String
+  body       String
+  isRead     Boolean  @default(false)
+  actionUrl  String   @default("")
+  data       String   @default("{}")
+  createdAt  DateTime @default(now())
+}
+
 // 🎯 جدول پیشرفت کاربر در دوره‌ها
 model UserCourse {
   id        String   @id @default(uuid())
