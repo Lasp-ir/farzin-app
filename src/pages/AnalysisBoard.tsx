@@ -236,9 +236,6 @@ export default function AnalysisBoard() {
     else if (isDraw) absScoreC = 0;
     else absScoreC = getAbsScore(currentLines[0], currentTurnIsBlack ? 'b' : 'w');
 
-    let cpLoss = playerWhoMovedIsBlack ? (absScoreC - absScoreB) : (absScoreB - absScoreC);
-    cpLoss = Math.max(0, cpLoss);
-
     const getPlayerEP = (absSc: number) => epFormula(playerWhoMovedIsBlack ? -absSc : absSc);
     const epB = getPlayerEP(absScoreB); 
     const epC = getPlayerEP(absScoreC); 
@@ -252,55 +249,70 @@ export default function AnalysisBoard() {
     }
     const userUciMove = `${node.move.from}${node.move.to}${node.move.promotion || ''}`;
 
-    const fenBeforeCount = parentFen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
-    const isEndgame = fenBeforeCount <= 16; 
-    const inaccuracyLimit = isEndgame ? 1.0 : 1.5;
-    const mistakeLimit = isEndgame ? 2.0 : 2.5;
-
     const fenIsBook = isBookPosition(node.fen);
 
-    if (fenIsBook) { classificationKey = 'book'; }
-    else if (isMate || userUciMove === bestUciMove || cpLoss <= 0.05) classificationKey = 'best';
-    else if (epB < 0.10) classificationKey = cpLoss <= 0.50 ? 'excellent' : 'good';
-    else {
-        if (cpLoss <= 0.20) classificationKey = 'excellent'; 
-        else if (cpLoss <= 0.50) classificationKey = 'good';      
-        else if (cpLoss <= inaccuracyLimit) classificationKey = 'inaccuracy';
-        else if (cpLoss <= mistakeLimit) classificationKey = 'mistake';
-        else classificationKey = 'blunder'; 
+    // EP loss: the key metric per chess.com's Expected Points Model (0.0–1.0 scale)
+    const epLoss = Math.max(0, epB - epC);
+
+    if (fenIsBook) {
+        classificationKey = 'book';
+    } else if (isMate || userUciMove === bestUciMove || epLoss === 0) {
+        classificationKey = 'best';
+    } else if (epLoss <= 0.02) {
+        classificationKey = 'excellent';
+    } else if (epLoss <= 0.05) {
+        classificationKey = 'good';
+    } else if (epLoss <= 0.10) {
+        classificationKey = 'inaccuracy';
+    } else if (epLoss <= 0.20) {
+        classificationKey = 'mistake';
+    } else {
+        classificationKey = 'blunder';
     }
 
-    if (['inaccuracy', 'mistake', 'blunder'].includes(classificationKey) && grandParentId && grandparentFen) {
+    // Miss: opponent blundered to give us a winning position but we failed to capitalize
+    if (['mistake', 'blunder'].includes(classificationKey) && grandParentId && grandparentFen) {
         const grandparentLines = engineCache.current[grandParentId];
         if (grandparentLines && grandparentLines[0]) {
             const grandparentTurn = new Chess(grandparentFen).turn() as 'w' | 'b';
-            const epA = getPlayerEP(getAbsScore(grandparentLines[0], grandparentTurn)); 
-            if (epA <= 0.60 && (epB - epA >= 0.15) && epC <= epA + 0.10 && epC >= epA - 0.20) classificationKey = 'miss';
+            const epA = getPlayerEP(getAbsScore(grandparentLines[0], grandparentTurn));
+            // epA = our EP 2 moves ago (before opponent's blunder)
+            // epB = our EP after opponent's blunder (should be high = we were winning)
+            // epC = our EP after our move (low = we missed the win)
+            if (epB >= 0.60 && epA <= 0.55 && epC <= 0.55) classificationKey = 'miss';
         }
     }
 
+    // Great/Brilliant: only when our move is significantly better than all alternatives
     if (['best', 'excellent'].includes(classificationKey) && parentLines && parentLines.length > 1) {
         const epSecondBest = getPlayerEP(getAbsScore(parentLines[1], playerWhoMovedIsBlack ? 'b' : 'w'));
-        if (epB < 0.95 && epSecondBest < 0.90 && ((epB - epSecondBest >= 0.20) || (epB >= 0.45 && epSecondBest <= 0.25) || (epB >= 0.75 && epSecondBest <= 0.55))) {
+        const isOnlyGoodMove = epB - epSecondBest >= 0.20;
+        const isDramaticTurnaround = (epB >= 0.45 && epSecondBest <= 0.25) || (epB >= 0.75 && epSecondBest <= 0.55);
+
+        if (epB < 0.95 && epSecondBest < 0.90 && (isOnlyGoodMove || isDramaticTurnaround)) {
             classificationKey = 'great';
-            let isSacrifice = false;
-            try {
-                const tempG = new Chess(node.fen);
-                const oppMoves = tempG.moves({ verbose: true });
-                for (const oppMove of oppMoves) {
-                    if (oppMove.captured && ['n', 'b', 'r', 'q'].includes(oppMove.captured.toLowerCase())) {
-                        const capturedVal = getPieceValue(oppMove.captured); 
-                        tempG.move(oppMove.san);
-                        let maxRecaptureVal = 0;
-                        for (const ourMove of tempG.moves({ verbose: true })) {
-                            if (ourMove.to === oppMove.to && ourMove.captured) maxRecaptureVal = Math.max(maxRecaptureVal, getPieceValue(ourMove.captured));
+
+            // Brilliant: great move where the moved piece is left en prise (genuine sacrifice)
+            if (epC >= 0.45 && epB < 0.90) {
+                let isSacrifice = false;
+                try {
+                    const tempG = new Chess(node.fen);
+                    const movedPieceTo = node.move.to;
+                    for (const oppMove of tempG.moves({ verbose: true })) {
+                        if (oppMove.to === movedPieceTo && oppMove.captured && ['n', 'b', 'r', 'q'].includes(oppMove.captured.toLowerCase())) {
+                            const capturedVal = getPieceValue(oppMove.captured);
+                            tempG.move(oppMove.san);
+                            let maxRecaptureVal = 0;
+                            for (const ourMove of tempG.moves({ verbose: true })) {
+                                if (ourMove.to === movedPieceTo && ourMove.captured) maxRecaptureVal = Math.max(maxRecaptureVal, getPieceValue(ourMove.captured));
+                            }
+                            tempG.undo();
+                            if (capturedVal - maxRecaptureVal >= 2) { isSacrifice = true; break; }
                         }
-                        tempG.undo();
-                        if (capturedVal - maxRecaptureVal >= 2) { isSacrifice = true; break; }
                     }
-                }
-            } catch(e) {}
-            if (isSacrifice && epB < 0.85) classificationKey = 'brilliant';
+                } catch(e) {}
+                if (isSacrifice) classificationKey = 'brilliant';
+            }
         }
     }
 
