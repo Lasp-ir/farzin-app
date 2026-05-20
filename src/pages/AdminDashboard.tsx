@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, BookOpen, Plus, Users, Trash2, Video, ChevronRight, Crown,
   X, Loader2, Award, RotateCcw, MessageSquare, HelpCircle as HintIcon, Save, MousePointer2,
-  Circle, ArrowUpRight, Eraser, Clock, ShieldCheck, Edit3, Lightbulb, Settings2, Check, CheckCircle2, UserCircle, Image as ImageIcon, Tag, Percent,
+  Circle, ArrowUpRight, Eraser, Clock, ShieldCheck, Edit3, Lightbulb, Settings2,Settings,LogOut, Check, CheckCircle2, UserCircle, Image as ImageIcon, Tag, Percent,
   Brain, Bot, Play, RefreshCw, Cpu, FileText, Upload, Zap, AlertTriangle, Eye
 } from 'lucide-react';
 
@@ -16,7 +16,13 @@ import { Chess } from 'chess.js';
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('dashboard');
-
+  const [auth, setAuth] = useState<any>(() => JSON.parse(localStorage.getItem('farzin_auth') || '{}'));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [profileData, setProfileData] = useState({ name: '', title: '', bio: '', avatar: '' });
 
   // ─── پازل‌های شخصی ───────────────────────────────────────────────────────────
@@ -78,8 +84,6 @@ export default function AdminDashboard() {
       if (auth.role !== 'admin') navigate('/admin');
   }, []);
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     if (activeMenu === 'personal-puzzles') fetchPersonalRequests();
     if (activeMenu === 'maia-bots') fetchMaiaModels();
@@ -421,7 +425,6 @@ export default function AdminDashboard() {
 
   const displayArrows = activeDragArrow ? [...currentArrows, activeDragArrow] : currentArrows;
 
->>>>>>> claude/objective-bartik-d1c350
   const logout = () => { localStorage.removeItem('farzin_auth'); navigate('/admin'); };
 
   return (
@@ -434,19 +437,12 @@ export default function AdminDashboard() {
             <div className="flex flex-col"><span className="font-black text-white text-sm truncate">اتاق فرمان فرزین</span><span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Admin Panel</span></div>
         </div>
         <div className="flex flex-col p-4 gap-2 flex-1">
-<<<<<<< HEAD
-            <MenuButton icon={<LayoutDashboard size={18}/>} title="داشبورد اصلی" id="dashboard" active={activeMenu} setActive={setActiveMenu} />
-            <MenuButton icon={<Bot size={18}/>} title="مدیریت ربات‌ها" id="bots" active={activeMenu} setActive={setActiveMenu} />
-            <MenuButton icon={<Calendar size={18}/>} title="رویدادها و ایونت‌ها" id="events" active={activeMenu} setActive={setActiveMenu} />
-            <MenuButton icon={<Bell size={18}/>} title="نوتیفیکیشن‌ها" id="notifications" active={activeMenu} setActive={setActiveMenu} />
-=======
             <button onClick={() => setActiveMenu('courses')} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all ${activeMenu === 'courses' ? 'bg-farzin-accent text-white' : 'text-zinc-400 hover:bg-[#1a1916] hover:text-white'}`}><BookOpen size={18} /> {auth.role === 'admin' ? 'مدیریت کل دوره‌ها' : 'دوره‌های من'}</button>
             {auth.role === 'instructor' && <button onClick={() => setActiveMenu('profile')} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all ${activeMenu === 'profile' ? 'bg-farzin-accent text-white' : 'text-zinc-400 hover:bg-[#1a1916] hover:text-white'}`}><UserCircle size={18} /> تنظیمات پروفایل</button>}
             {auth.role === 'admin' && <>
               <button onClick={() => setActiveMenu('personal-puzzles')} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all ${activeMenu === 'personal-puzzles' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:bg-[#1a1916] hover:text-white'}`}><Brain size={18} /> درخواست‌های پازل شخصی</button>
               <button onClick={() => setActiveMenu('maia-bots')} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all ${activeMenu === 'maia-bots' ? 'bg-sky-600 text-white' : 'text-zinc-400 hover:bg-[#1a1916] hover:text-white'}`}><Bot size={18} /> ساخت ربات مایا</button>
             </>}
->>>>>>> claude/objective-bartik-d1c350
         </div>
         <div className="p-4 mt-auto border-t border-white/5">
             <button onClick={logout} className="flex items-center gap-2 text-xs font-bold text-rose-500 hover:text-rose-400 bg-rose-500/10 rounded-lg w-full justify-center py-2 transition-colors"><LogOut size={14}/> خروج از سیستم</button>
@@ -457,15 +453,10 @@ export default function AdminDashboard() {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="h-20 flex items-center justify-between px-6 md:px-8 border-b border-white/5 bg-[#0c0b0a]/80 backdrop-blur-md shrink-0">
             <h1 className="text-lg md:text-xl font-black text-white">
-<<<<<<< HEAD
-                {activeMenu === 'dashboard' ? 'نمای کلی سیستم' : activeMenu === 'bots' ? 'مدیریت ربات‌ها' : activeMenu === 'events' ? 'مدیریت رویدادها' : 'ارسال نوتیفیکیشن'}
-            </h1>
-=======
               {activeMenu === 'courses' ? (auth.role === 'admin' ? 'مدیریت کل دوره‌ها' : 'دوره‌های آموزشی من') : activeMenu === 'personal-puzzles' ? 'درخواست‌های پازل شخصی' : activeMenu === 'maia-bots' ? 'ساخت ربات مایا' : 'تنظیمات پروفایل استاد'}
             </h1>
             {activeMenu === 'courses' && <button onClick={openAddCourseModal} className="bg-gradient-to-r from-farzin-accent to-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 active:scale-95"><Plus size={18} /> <span className="hidden md:inline">دوره جدید</span></button>}
             {activeMenu === 'maia-bots' && <button onClick={fetchMaiaModels} className="bg-sky-600/20 border border-sky-500/30 text-sky-400 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 active:scale-95"><RefreshCw size={16} /> بروزرسانی</button>}
->>>>>>> claude/objective-bartik-d1c350
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
@@ -474,12 +465,6 @@ export default function AdminDashboard() {
                     به پنل مدیریت مرکزی خوش آمدید.<br/>از منوی سمت راست برای مدیریت بخش‌های مختلف استفاده کنید.
                 </div>
             )}
-<<<<<<< HEAD
-            
-            {activeMenu === 'bots' && (
-                <div className="text-center text-zinc-500 py-20 font-bold border border-dashed border-[#35332e] rounded-2xl">
-                    ماژول مدیریت ربات‌ها به زودی در اینجا توسعه داده می‌شود...
-=======
 
             {/* 🧩 درخواست‌های پازل شخصی */}
             {activeMenu === 'personal-puzzles' && auth.role === 'admin' && (
@@ -663,7 +648,6 @@ export default function AdminDashboard() {
                         <div className="flex flex-col gap-1.5"><label className="text-xs font-bold text-zinc-400">رزومه و معرفی کوتاه (Bio)</label><textarea value={profileData.bio} onChange={e=>setProfileData({...profileData, bio: e.target.value})} placeholder="درباره خودتان، دستاوردها و سبک تدریس‌تان بنویسید..." className="bg-[#1e1c19] border border-[#35332e] rounded-xl p-4 text-sm text-white outline-none min-h-[120px] resize-y focus:border-farzin-accent transition-colors leading-relaxed" /></div>
                         <button type="submit" disabled={isSubmitting} className="mt-4 w-full bg-amber-500 hover:bg-amber-400 text-[#161512] font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg">{isSubmitting ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={18} /> ذخیره تغییرات پروفایل</>}</button>
                     </form>
->>>>>>> claude/objective-bartik-d1c350
                 </div>
             )}
         </div>
